@@ -1,0 +1,15 @@
+import { AuthenticatedUser } from '../types/auth.types.js';
+
+export interface UserResponseDto {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  avatarUrl?: string | null;
+  createdAt: string;
+}
+
+export interface AuthResponseDto {
+  user: AuthenticatedUser;
+  token: string;
+}
