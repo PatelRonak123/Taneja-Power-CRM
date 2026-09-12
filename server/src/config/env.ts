@@ -10,8 +10,12 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(5000),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters long'),
-  JWT_EXPIRES_IN: z.string().default('7d'),
+  JWT_EXPIRES_IN: z.string().default('15m'),
+  ACCESS_TOKEN_EXPIRES_IN: z.string().default('15m'),
+  REFRESH_TOKEN_EXPIRES_IN: z.string().default('30d'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  COOKIE_SECURE: z.preprocess((v) => (v === 'true' || v === true ? true : v === 'false' || v === false ? false : undefined), z.boolean().optional()),
+  COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
 });
 
 const parseEnv = () => {

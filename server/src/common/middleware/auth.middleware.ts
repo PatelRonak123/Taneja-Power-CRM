@@ -12,13 +12,18 @@ declare global {
 }
 
 export const authenticate = (req: Request, _res: Response, next: NextFunction): void => {
-  const authHeader = req.headers.authorization;
+  let token: string | undefined = req.cookies?.access_token;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next(AppError.unauthorized('Authentication token missing or invalid'));
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
   }
 
-  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return next(AppError.unauthorized('Authentication token missing or invalid'));
+  }
 
   try {
     const decoded = verifyToken(token);

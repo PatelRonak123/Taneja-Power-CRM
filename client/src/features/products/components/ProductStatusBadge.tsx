@@ -1,5 +1,4 @@
 import React from 'react';
-import { Badge } from '../../../components/ui/Badge';
 
 interface ProductStatusBadgeProps {
   status: 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK';
@@ -8,12 +7,34 @@ interface ProductStatusBadgeProps {
 export const ProductStatusBadge: React.FC<ProductStatusBadgeProps> = ({ status }) => {
   switch (status) {
     case 'ACTIVE':
-      return <Badge variant="success">Operational / In Stock</Badge>;
+      return (
+        <span className="telemetry-badge telemetry-badge-active">
+          <span className="status-pulse-dot active" />
+          <span>Operational</span>
+        </span>
+      );
     case 'INACTIVE':
-      return <Badge variant="warning">Maintenance / Inactive</Badge>;
+      return (
+        <span className="telemetry-badge telemetry-badge-inactive">
+          <span className="status-pulse-dot inactive" />
+          <span>Maintenance</span>
+        </span>
+      );
     case 'OUT_OF_STOCK':
-      return <Badge variant="danger">Depleted / Out of Stock</Badge>;
+      return (
+        <span className="telemetry-badge telemetry-badge-out">
+          <span className="status-pulse-dot out" />
+          <span>Out of Stock</span>
+        </span>
+      );
     default:
-      return <Badge variant="neutral">{status}</Badge>;
+      return (
+        <span className="telemetry-badge telemetry-badge-neutral">
+          <span className="status-pulse-dot" />
+          <span>{status}</span>
+        </span>
+      );
   }
 };
+
+export default ProductStatusBadge;

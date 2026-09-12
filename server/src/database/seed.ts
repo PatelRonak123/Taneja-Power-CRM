@@ -4,17 +4,27 @@ import { products } from './schema/products.js';
 import { hashPassword } from '../common/auth/password.js';
 import { logger } from '../common/logger/logger.js';
 
+import { fileURLToPath } from 'url';
+
 export const seedDatabase = async (): Promise<void> => {
   logger.info('🌱 Starting database seed...');
 
   try {
-    // 1. Seed Admin User
+    // 1. Seed Admin & Employee Users
     const adminPasswordHash = await hashPassword('Admin@123456');
     await db.insert(users).values({
       email: 'admin@tanejapower.com',
       passwordHash: adminPasswordHash,
       fullName: 'System Administrator',
       role: 'ADMIN',
+    }).onConflictDoNothing();
+
+    const employeePasswordHash = await hashPassword('Employee@123456');
+    await db.insert(users).values({
+      email: 'employee@tanejapower.com',
+      passwordHash: employeePasswordHash,
+      fullName: 'John Employee',
+      role: 'USER',
     }).onConflictDoNothing();
 
     // 2. Seed Sample Products
@@ -77,7 +87,7 @@ export const seedDatabase = async (): Promise<void> => {
   }
 };
 
-if (process.argv[1] === import.meta.url) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   seedDatabase()
     .then(async () => {
       await pool.end();

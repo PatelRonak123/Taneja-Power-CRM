@@ -1,16 +1,48 @@
 import { AuthRepository } from '../repositories/auth.repository.js';
+import { RefreshTokenRepository } from '../repositories/refreshToken.repository.js';
 import { RegisterInput, LoginInput } from '../validators/auth.validator.js';
 import { hashPassword, comparePassword } from '../../../common/auth/password.js';
 import { signToken } from '../../../common/auth/jwt.js';
+import { generateRefreshToken, hashRefreshToken } from '../../../common/auth/crypto.js';
+import { REFRESH_TOKEN_MAX_AGE } from '../../../common/auth/cookie.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { AuthMapper } from '../mappers/auth.mapper.js';
-import { AuthResponseDto, UserResponseDto } from '../dto/auth.dto.js';
-import { UserRole } from '../../../config/constants.js';
+import { AuthResultDto, UserResponseDto } from '../dto/auth.dto.js';
 
 export class AuthService {
-  constructor(private readonly authRepo: AuthRepository = new AuthRepository()) {}
+  constructor(
+    private readonly authRepo: AuthRepository = new AuthRepository(),
+    private readonly refreshTokenRepo: RefreshTokenRepository = new RefreshTokenRepository()
+  ) {}
 
-  async register(input: RegisterInput): Promise<AuthResponseDto> {
+  private async generateTokensAndSaveSession(
+    userId: string,
+    email: string,
+    role: any
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    // Access JWT
+    const accessToken = signToken({
+      userId,
+      email,
+      role,
+    });
+
+    // Opaque Refresh Token
+    const refreshToken = generateRefreshToken();
+    const tokenHash = hashRefreshToken(refreshToken);
+    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_MAX_AGE);
+
+    // Save hashed refresh token record in DB
+    await this.refreshTokenRepo.create({
+      userId,
+      tokenHash,
+      expiresAt,
+    });
+
+    return { accessToken, refreshToken };
+  }
+
+  async register(input: RegisterInput): Promise<AuthResultDto> {
     const existing = await this.authRepo.findByEmail(input.email);
     if (existing) {
       throw AppError.conflict('An account with this email address already exists');
@@ -25,19 +57,20 @@ export class AuthService {
     });
 
     const authenticatedUser = AuthMapper.toAuthenticatedUser(newUser);
-    const token = signToken({
-      userId: authenticatedUser.id,
-      email: authenticatedUser.email,
-      role: authenticatedUser.role,
-    });
+    const { accessToken, refreshToken } = await this.generateTokensAndSaveSession(
+      authenticatedUser.id,
+      authenticatedUser.email,
+      authenticatedUser.role
+    );
 
     return {
       user: authenticatedUser,
-      token,
+      accessToken,
+      refreshToken,
     };
   }
 
-  async login(input: LoginInput): Promise<AuthResponseDto> {
+  async login(input: LoginInput): Promise<AuthResultDto> {
     const user = await this.authRepo.findByEmail(input.email);
     if (!user) {
       throw AppError.unauthorized('Invalid email or password');
@@ -49,16 +82,63 @@ export class AuthService {
     }
 
     const authenticatedUser = AuthMapper.toAuthenticatedUser(user);
-    const token = signToken({
-      userId: authenticatedUser.id,
-      email: authenticatedUser.email,
-      role: authenticatedUser.role,
-    });
+    const { accessToken, refreshToken } = await this.generateTokensAndSaveSession(
+      authenticatedUser.id,
+      authenticatedUser.email,
+      authenticatedUser.role
+    );
 
     return {
       user: authenticatedUser,
-      token,
+      accessToken,
+      refreshToken,
     };
+  }
+
+  async refresh(rawRefreshToken?: string): Promise<AuthResultDto> {
+    if (!rawRefreshToken) {
+      throw AppError.unauthorized('Refresh token missing');
+    }
+
+    const tokenHash = hashRefreshToken(rawRefreshToken);
+    const tokenRecord = await this.refreshTokenRepo.findByHash(tokenHash);
+
+    if (!tokenRecord || tokenRecord.revokedAt || new Date(tokenRecord.expiresAt) <= new Date()) {
+      throw AppError.unauthorized('Invalid or expired refresh token');
+    }
+
+    const user = await this.authRepo.findById(tokenRecord.userId);
+    if (!user) {
+      throw AppError.unauthorized('User associated with token no longer exists');
+    }
+
+    // Revoke old refresh token (Refresh Token Rotation)
+    await this.refreshTokenRepo.revoke(tokenRecord.id);
+
+    // Issue new access JWT and new refresh token session
+    const authenticatedUser = AuthMapper.toAuthenticatedUser(user);
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+      await this.generateTokensAndSaveSession(
+        authenticatedUser.id,
+        authenticatedUser.email,
+        authenticatedUser.role
+      );
+
+    return {
+      user: authenticatedUser,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
+  }
+
+  async logout(rawRefreshToken?: string): Promise<void> {
+    if (rawRefreshToken) {
+      const tokenHash = hashRefreshToken(rawRefreshToken);
+      const tokenRecord = await this.refreshTokenRepo.findByHash(tokenHash);
+      if (tokenRecord && !tokenRecord.revokedAt) {
+        await this.refreshTokenRepo.revoke(tokenRecord.id);
+      }
+    }
   }
 
   async getCurrentUser(userId: string): Promise<UserResponseDto> {

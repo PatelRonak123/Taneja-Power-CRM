@@ -1,11 +1,13 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
 import { APP_CONSTANTS } from './config/constants.js';
 import { notFoundMiddleware } from './common/middleware/notFound.middleware.js';
 import { errorMiddleware } from './common/middleware/error.middleware.js';
 import authRoutes from './modules/auth/routes/auth.routes.js';
 import productRoutes from './modules/products/routes/product.routes.js';
+import employeeRoutes from './modules/employees/routes/employee.routes.js';
 import { sendResponse } from './common/utils/responseEnvelope.js';
 
 export const createApp = (): Application => {
@@ -18,6 +20,7 @@ export const createApp = (): Application => {
       credentials: true,
     })
   );
+  app.use(cookieParser());
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
@@ -29,6 +32,7 @@ export const createApp = (): Application => {
   // API Routes
   app.use(`${APP_CONSTANTS.API_PREFIX}/auth`, authRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/products`, productRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/employees`, employeeRoutes);
 
   // 404 Handler
   app.use(notFoundMiddleware);

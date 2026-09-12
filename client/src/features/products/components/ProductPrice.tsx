@@ -7,5 +7,11 @@ interface ProductPriceProps {
 }
 
 export const ProductPrice: React.FC<ProductPriceProps> = ({ price, className = '' }) => {
-  return <span className={`font-semibold text-amber-400 ${className}`}>{formatCurrency(price)}</span>;
+  return (
+    <span className={`product-price-tag ${className}`}>
+      {formatCurrency(price)}
+    </span>
+  );
 };
+
+export default ProductPrice;

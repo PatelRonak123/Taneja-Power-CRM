@@ -29,47 +29,87 @@ export interface NormalizedError {
 export const apiClient: AxiosInstance = axios.create({
   baseURL: env.API_BASE_URL,
   timeout: 15000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request Interceptor: Attach Auth Token
-apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('auth_token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
 
-// Response Interceptor: Envelope Unwrapping & Normalized Error Handling
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
+
+const processQueue = (error: unknown | null = null) => {
+  failedQueue.forEach((promise) => {
+    if (error) {
+      promise.reject(error);
+    } else {
+      promise.resolve();
+    }
+  });
+  failedQueue = [];
+};
+
+// Response Interceptor: Envelope Unwrapping, 401 Refresh Queue & Normalized Error Handling
 apiClient.interceptors.response.use(
   (response) => {
-    // Return the standard envelope payload
     return response.data;
   },
-  (error: AxiosError<ApiEnvelope>) => {
+  async (error: AxiosError<ApiEnvelope>) => {
+    const originalRequest = error.config as CustomAxiosRequestConfig | undefined;
     const status = error.response?.status;
     const responseData = error.response?.data;
 
     const normalizedError: NormalizedError = {
-      message: responseData?.message || responseData?.error?.message || error.message || 'An unexpected error occurred',
+      message:
+        responseData?.message ||
+        responseData?.error?.message ||
+        error.message ||
+        'An unexpected error occurred',
       code: responseData?.error?.code || (status ? `HTTP_${status}` : 'NETWORK_ERROR'),
       statusCode: status,
       details: responseData?.error?.details,
     };
 
-    // Handle 401 Unauthorized globally
-    if (status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      if (!window.location.pathname.includes('/login')) {
-        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    const isAuthEndpoint =
+      originalRequest?.url?.includes('/auth/login') ||
+      originalRequest?.url?.includes('/auth/refresh') ||
+      originalRequest?.url?.includes('/auth/logout');
+
+    // Handle 401: attempt single refresh call and queue parallel requests
+    if (status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(() => apiClient(originalRequest))
+          .catch((err) => Promise.reject(err));
       }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        await apiClient.post('/auth/refresh');
+        processQueue(null);
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError);
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+        return Promise.reject(normalizedError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    if (status === 401 && isAuthEndpoint && !originalRequest?.url?.includes('/auth/login')) {
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
     }
 
     return Promise.reject(normalizedError);

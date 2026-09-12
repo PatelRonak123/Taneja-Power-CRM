@@ -4,6 +4,7 @@ import { useProductFilters } from '../hooks/useProductFilters';
 import { ProductHeader } from '../modules/ProductHeader/ProductHeader';
 import { ProductFilters } from '../modules/ProductFilters/ProductFilters';
 import { ProductTable } from '../modules/ProductTable/ProductTable';
+import { ProductGrid } from '../modules/ProductGrid/ProductGrid';
 import { ProductForm } from '../modules/ProductForm/ProductForm';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
@@ -25,8 +26,18 @@ export const ProductsPage: React.FC = () => {
   const { products, meta, isLoading, isError, error, refetch, deleteProduct } =
     useProducts(queryParams);
 
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Calculate live catalog metrics
+  const totalCount = meta?.total || products.length;
+  const totalUnits = products.reduce((sum, item) => sum + (Number(item.stockQuantity) || 0), 0);
+  const totalValuation = products.reduce(
+    (sum, item) => sum + (Number(item.price) || 0) * (Number(item.stockQuantity) || 0),
+    0
+  );
+  const activeCount = products.filter((p) => p.status === 'ACTIVE').length;
 
   const handleOpenAddModal = () => {
     setEditingProduct(null);
@@ -45,31 +56,46 @@ export const ProductsPage: React.FC = () => {
 
   return (
     <div className="products-page">
+      {/* Executive Hero & KPI Metrics */}
       <ProductHeader
-        totalCount={meta?.total || products.length}
+        totalCount={totalCount}
+        totalUnits={totalUnits}
+        totalValuation={totalValuation}
+        activeCount={activeCount}
         onAddProduct={handleOpenAddModal}
       />
 
+      {/* Advanced Filters & View Switcher */}
       <ProductFilters
         searchQuery={searchQuery}
         selectedCategory={selectedCategory}
         selectedStatus={selectedStatus}
+        viewMode={viewMode}
         onSearchChange={setSearchQuery}
         onCategoryChange={setSelectedCategory}
         onStatusChange={setSelectedStatus}
+        onViewModeChange={setViewMode}
         onReset={resetFilters}
       />
 
+      {/* Main Content Area: Loading / Error / Table or Grid */}
       {isLoading ? (
-        <LoadingSpinner message="Retrieving grid power equipment..." />
+        <LoadingSpinner message="Retrieving grid power equipment & telemetry..." />
       ) : isError ? (
         <ErrorAlert
           title="Telemetry Error"
           message={(error as any)?.message || 'Failed to fetch equipment data'}
           onRetry={() => refetch()}
         />
-      ) : (
+      ) : viewMode === 'table' ? (
         <ProductTable
+          products={products}
+          onEdit={handleOpenEditModal}
+          onDelete={deleteProduct}
+          onDeployFirst={handleOpenAddModal}
+        />
+      ) : (
+        <ProductGrid
           products={products}
           onEdit={handleOpenEditModal}
           onDelete={deleteProduct}
@@ -77,6 +103,7 @@ export const ProductsPage: React.FC = () => {
         />
       )}
 
+      {/* Deploy / Edit Asset Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
