@@ -9,6 +9,7 @@ import {
   BarChart3,
   Settings,
   User,
+  MessageSquare,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -70,11 +71,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
             </button>
             <button
               key="employee-management"
-              className={`nav-link ${currentPath === '/employees' ? 'active' : ''}`}
+              className={`nav-link ${currentPath === '/employees' || currentPath === '/admin/employees' ? 'active' : ''}`}
               onClick={() => handleNavClick('/employees')}
             >
               <Users size={18} className="nav-icon" />
               <span className="nav-label">Employee Management</span>
+            </button>
+            <button
+              key="whatsapp-integration"
+              className={`nav-link ${currentPath === '/admin/whatsapp' || currentPath === '/whatsapp' ? 'active' : ''}`}
+              onClick={() => handleNavClick('/admin/whatsapp')}
+            >
+              <MessageSquare size={18} className="nav-icon" />
+              <span className="nav-label">WhatsApp Integration</span>
             </button>
           </>
         )}

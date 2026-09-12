@@ -1,8 +1,23 @@
 import React from 'react';
 import { navigate } from '../../../app/router/navigation';
-import { ShieldCheck, Activity, Users, Lock } from 'lucide-react';
+import { ShieldCheck, Activity, Users, Lock, MessageSquare, Radio } from 'lucide-react';
+import { useWhatsApp } from '../../whatsapp/hooks/useWhatsApp';
 
 export const AdminDashboardPage: React.FC = () => {
+  const { status, phoneNumber } = useWhatsApp();
+
+  const getStatusBadge = () => {
+    switch (status) {
+      case 'connected':
+        return <span className="widget-tag active-tag"><Radio size={10} className="pulse-live" /> Connected</span>;
+      case 'connecting':
+        return <span className="widget-tag" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.3)' }}>Connecting...</span>;
+      case 'qr':
+        return <span className="widget-tag" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', borderColor: 'rgba(59, 130, 246, 0.3)' }}>Scan QR</span>;
+      default:
+        return <span className="widget-tag" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}>Disconnected</span>;
+    }
+  };
 
   return (
     <div className="admin-dashboard-page">
@@ -23,6 +38,31 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Dashboard Canvas Container */}
       <div className="admin-dashboard-canvas">
+        {/* WhatsApp Integration Widget */}
+        <div
+          className="admin-widget-card clickable-widget"
+          onClick={() => navigate('/admin/whatsapp')}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="widget-header">
+            <div className="widget-title-group">
+              <MessageSquare size={18} className="widget-icon" />
+              <h3>WhatsApp Integration</h3>
+            </div>
+            {getStatusBadge()}
+          </div>
+          <div className="widget-placeholder-body">
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+              {status === 'connected'
+                ? `Connected to admin number ${phoneNumber || 'Primary Account'}. Active session established.`
+                : 'Connect and manage the central business WhatsApp account for notifications and customer support.'}
+            </p>
+            <div style={{ marginTop: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--primary-color)', fontSize: '0.85rem', fontWeight: 600 }}>
+              {status === 'connected' ? 'View WhatsApp Status →' : 'Connect WhatsApp Now →'}
+            </div>
+          </div>
+        </div>
+
         <div
           className="admin-widget-card clickable-widget"
           onClick={() => navigate('/employees')}

@@ -6,6 +6,7 @@ import { useCurrentPath } from '../../app/router/navigation';
 import ProductsPage from '../../features/products/pages/ProductsPage';
 import { AdminDashboardPage } from '../../features/admin/pages/AdminDashboardPage';
 import { EmployeeManagementPage } from '../../features/admin/pages/EmployeeManagementPage';
+import { WhatsAppIntegrationPage } from '../../features/whatsapp/pages/WhatsAppIntegrationPage';
 import { EmployeeDashboardPage } from '../../features/employee/pages/EmployeeDashboardPage';
 import { ProfilePage } from '../../features/profile/pages/ProfilePage';
 
@@ -26,6 +27,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     if ((currentPath === '/employees' || currentPath === '/admin/employees') && isAdmin) {
       return <EmployeeManagementPage />;
+    }
+
+    if ((currentPath === '/admin/whatsapp' || currentPath === '/whatsapp') && isAdmin) {
+      return <WhatsAppIntegrationPage />;
     }
 
     if (currentPath === '/employee/dashboard' || currentPath === '/dashboard') {
