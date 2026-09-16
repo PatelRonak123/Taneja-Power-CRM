@@ -31,7 +31,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   if (!isInitialized) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white gap-4">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white gap-4">
         <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
         <p className="text-sm text-slate-400 font-medium">Connecting to Taneja Power System...</p>
       </div>
@@ -39,20 +39,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-slate-950 p-4 sm:p-6 lg:p-8">
-      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-800/40">
-        {/* Left Column: Taneja Power Brand Showcase */}
-        <div className="lg:col-span-6 bg-slate-900 text-white p-8 sm:p-12 flex flex-col justify-between relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-800">
-          <LoginBrandPanel />
-        </div>
+    <div className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-12 bg-slate-950">
+      {/* Left Column: Brand & Info Showcase Panel */}
+      <div className="lg:col-span-6 xl:col-span-7 bg-slate-950 text-white relative overflow-hidden flex flex-col justify-between p-8 sm:p-12 lg:p-16 border-b lg:border-b-0 lg:border-r border-slate-800/80">
+        <LoginBrandPanel />
+      </div>
 
-        {/* Right Column: Clean Corporate Form Panel */}
-        <div className="lg:col-span-6 p-8 sm:p-12 bg-white flex items-center justify-center">
-          <LoginForm onSubmit={handleLoginSubmit} isLoading={isLoading} />
-        </div>
+      {/* Right Column: Premium Dark Form Panel */}
+      <div className="lg:col-span-6 xl:col-span-5 bg-[#090d16] flex items-center justify-center p-6 sm:p-12 lg:p-14 min-h-screen">
+        <LoginForm onSubmit={handleLoginSubmit} isLoading={isLoading} />
       </div>
     </div>
   );
 };
 
 export default LoginPage;
+
+
+

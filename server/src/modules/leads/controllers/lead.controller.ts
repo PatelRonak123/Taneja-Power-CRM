@@ -1,0 +1,62 @@
+import { Request, Response, NextFunction } from 'express';
+import { LeadService } from '../services/lead.service.js';
+import { sendResponse } from '../../../common/utils/responseEnvelope.js';
+
+export class LeadController {
+  private service = new LeadService();
+
+  list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { search, status, priority, assignee } = req.query as {
+        search?: string;
+        status?: string;
+        priority?: string;
+        assignee?: string;
+      };
+
+      const leadsList = await this.service.listLeads({ search, status, priority, assignee });
+      sendResponse(res, 200, leadsList, 'Leads retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const lead = await this.service.getLeadById(id);
+      sendResponse(res, 200, lead, 'Lead details retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const newLead = await this.service.createLead(req.body);
+      sendResponse(res, 201, newLead, 'Lead created successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const updatedLead = await this.service.updateLead(id, req.body);
+      sendResponse(res, 200, updatedLead, 'Lead updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      await this.service.deleteLead(id);
+      sendResponse(res, 200, { success: true }, 'Lead deleted successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+}

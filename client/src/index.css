@@ -7,50 +7,17 @@
 :root {
   --font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
-  /* Brand Colors from Official Logo */
-  --brand-navy: #0a2540;
-  --brand-navy-dark: #001838;
-  --primary: #004fb6;
-  --primary-hover: #003e94;
-  --primary-dark: #002e70;
-  --primary-glow: rgba(0, 79, 182, 0.15);
-  --accent-orange: #ff6b00;
+  /* Dark Theme Palette */
+  --bg-app: #090d16;
+  --bg-surface: #0f172a;
+  --border-color: #1e293b;
 
-  /* Light Neutral Palette */
-  --bg-app: #f8fafc;
-  --bg-surface: #ffffff;
-  --bg-surface-elevated: #ffffff;
-  --bg-surface-subtle: #f1f5f9;
-  --border-color: #e2e8f0;
-  --border-subtle: #f1f5f9;
-
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
   --text-muted: #64748b;
 
-  --success: #10b981;
-  --success-bg: #ecfdf5;
-  --warning: #f59e0b;
-  --warning-bg: #fffbeb;
-  --danger: #ef4444;
-  --danger-bg: #fef2f2;
-  --info: #0284c7;
-  --info-bg: #f0f9ff;
-
-  --shadow-sm: 0 1px 3px 0 rgba(10, 37, 64, 0.05);
-  --shadow-md: 0 4px 14px 0 rgba(10, 37, 64, 0.08);
-  --shadow-lg: 0 12px 32px 0 rgba(10, 37, 64, 0.15);
-
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-full: 9999px;
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
 }
 
 body {
@@ -68,3 +35,20 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* Hide scrollbar for Chrome, Safari, Opera, Edge, and Firefox while retaining scroll function */
+.custom-scrollbar::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar,
+aside nav::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.custom-scrollbar,
+.no-scrollbar,
+aside nav {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+

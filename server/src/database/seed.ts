@@ -2,6 +2,7 @@ import { db, pool } from './db.js';
 import { users } from './schema/users.js';
 import { products } from './schema/products.js';
 import { customers, customerDestinations } from './schema/customers.js';
+import { leads, leadActivityLogs } from './schema/leads.js';
 import { hashPassword } from '../common/auth/password.js';
 import { logger } from '../common/logger/logger.js';
 

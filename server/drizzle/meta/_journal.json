@@ -43,6 +43,13 @@
       "when": 1789472475223,
       "tag": "0005_supreme_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789539857760,
+      "tag": "0006_productive_katie_power",
+      "breakpoints": true
     }
   ]
 }
