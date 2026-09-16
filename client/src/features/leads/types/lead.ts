@@ -5,7 +5,15 @@ export type LeadStatus =
   | 'Contacted'
   | 'Meeting Scheduled'
   | 'Proposal Sent'
+  | 'Quotation Sent'
+  | 'Negotiation'
+  | 'NEGOTIATION'
   | 'Approved'
+  | 'APPROVED/PO'
+  | 'Installation'
+  | 'AMC Support'
+  | 'Completed'
+  | 'COMPLETED'
   | 'Lost';
 
 export type LeadSource = 'Web' | 'Referral' | 'Field Call' | 'Exhibition' | 'Direct';

@@ -34,11 +34,11 @@ export const LeadManagementPage: React.FC = () => {
         priority: selectedPriority,
         assignee: selectedAssignee,
       });
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setLeads(data);
       }
     } catch (err) {
-      // Graceful fallback to initial mock data if server API is starting
+      console.warn('Fetch leads error:', err);
     }
   };
 
@@ -92,9 +92,10 @@ export const LeadManagementPage: React.FC = () => {
       try {
         await leadsApi.deleteLead(id);
       } catch (err) {
-        // Fallback for offline mode
+        console.warn('Delete lead error:', err);
       }
       setLeads((prev) => prev.filter((item) => item.id !== id));
+      fetchLeads();
     }
   };
 
@@ -103,19 +104,17 @@ export const LeadManagementPage: React.FC = () => {
       const exists = leads.some((item) => item.id === savedLead.id);
       if (exists) {
         const updated = await leadsApi.updateLead(savedLead.id, savedLead);
-        setLeads((prev) => prev.map((item) => (item.id === savedLead.id ? updated || savedLead : item)));
+        const finalLead = updated || savedLead;
+        setLeads((prev) => prev.map((item) => (item.id === savedLead.id ? finalLead : item)));
       } else {
         const created = await leadsApi.createLead(savedLead);
-        setLeads((prev) => [created || savedLead, ...prev]);
+        const finalLead = created || savedLead;
+        setLeads((prev) => [finalLead, ...prev.filter((l) => l.id !== finalLead.id)]);
       }
     } catch (err) {
-      setLeads((prev) => {
-        const exists = prev.some((item) => item.id === savedLead.id);
-        if (exists) {
-          return prev.map((item) => (item.id === savedLead.id ? savedLead : item));
-        }
-        return [savedLead, ...prev];
-      });
+      console.error('Save lead error:', err);
+    } finally {
+      fetchLeads();
     }
     setIsDrawerOpen(false);
   };
@@ -124,13 +123,23 @@ export const LeadManagementPage: React.FC = () => {
   const getStatusBadgeStyle = (status: string) => {
     switch (status.toUpperCase()) {
       case 'APPROVED':
+      case 'APPROVED/PO':
         return 'bg-emerald-50 text-emerald-700 border-emerald-200/80';
       case 'MEETING SCHEDULED':
         return 'bg-blue-50 text-blue-700 border-blue-200/80';
       case 'PROPOSAL SENT':
+      case 'QUOTATION SENT':
         return 'bg-purple-50 text-purple-700 border-purple-200/80';
       case 'CONTACTED':
         return 'bg-indigo-50 text-indigo-700 border-indigo-200/80';
+      case 'NEGOTIATION':
+        return 'bg-amber-50 text-amber-800 border-amber-300';
+      case 'INSTALLATION':
+        return 'bg-cyan-50 text-cyan-700 border-cyan-200';
+      case 'AMC SUPPORT':
+        return 'bg-teal-50 text-teal-700 border-teal-200';
+      case 'COMPLETED':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-300';
       case 'NEW':
         return 'bg-amber-50 text-amber-700 border-amber-200/80';
       case 'LOST':
@@ -203,7 +212,11 @@ export const LeadManagementPage: React.FC = () => {
           <option value="CONTACTED">Contacted</option>
           <option value="MEETING SCHEDULED">Meeting Scheduled</option>
           <option value="PROPOSAL SENT">Proposal Sent</option>
-          <option value="APPROVED">Approved</option>
+          <option value="NEGOTIATION">Negotiation</option>
+          <option value="APPROVED">Approved / PO</option>
+          <option value="INSTALLATION">Installation</option>
+          <option value="AMC SUPPORT">AMC Support</option>
+          <option value="COMPLETED">Completed</option>
           <option value="LOST">Lost</option>
         </select>
 

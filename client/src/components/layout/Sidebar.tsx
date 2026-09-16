@@ -6,6 +6,7 @@ import {
   Users,
   Building2,
   Target,
+  Layers,
   ClipboardList,
   Home,
   Zap,
@@ -16,6 +17,7 @@ import {
   CalendarCheck,
   LogOut,
   ChevronRight,
+  PieChart,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -69,6 +71,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       description: 'Leads pipeline & status tracking',
     },
     {
+      id: 'pipeline-management',
+      path: '/pipeline',
+      aliasPaths: ['/admin/pipeline'],
+      label: 'Deals Pipeline',
+      icon: Layers,
+      description: 'Kanban workflow & deals',
+    },
+    {
       id: 'task-management',
       path: '/tasks',
       aliasPaths: ['/admin/tasks'],
@@ -91,6 +101,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       label: 'WhatsApp Integration',
       icon: MessageSquare,
       description: 'Messaging & alerts',
+    },
+    {
+      id: 'reports',
+      path: '/admin/reports',
+      aliasPaths: ['/reports'],
+      label: 'Reports & Analytics',
+      icon: PieChart,
+      description: 'Charts & data insights',
     },
   ];
 

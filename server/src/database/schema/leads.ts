@@ -1,7 +1,7 @@
-import { pgTable, uuid, varchar, text, numeric, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, text, numeric, timestamp, index } from 'drizzle-orm/pg-core';
 
 export const leads = pgTable('leads', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: varchar('id', { length: 255 }).primaryKey(),
   leadCode: varchar('lead_code', { length: 50 }).notNull(),
   customerName: varchar('customer_name', { length: 255 }).notNull(),
   companyName: varchar('company_name', { length: 255 }).notNull(),
@@ -22,8 +22,8 @@ export const leads = pgTable('leads', {
 export const leadActivityLogs = pgTable(
   'lead_activity_logs',
   {
-    id: uuid('id').defaultRandom().primaryKey(),
-    leadId: uuid('lead_id')
+    id: varchar('id', { length: 255 }).primaryKey(),
+    leadId: varchar('lead_id', { length: 255 })
       .references(() => leads.id, { onDelete: 'cascade' })
       .notNull(),
     title: text('title').notNull(),

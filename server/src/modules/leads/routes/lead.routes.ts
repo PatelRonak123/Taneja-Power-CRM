@@ -17,6 +17,7 @@ const controller = new LeadController();
 router.use(authenticate);
 
 router.get('/', validateRequest(listLeadsSchema), controller.list);
+router.get('/pipeline', controller.getPipeline);
 router.post('/', validateRequest(createLeadSchema), controller.create);
 router.get('/:id', validateRequest(getLeadByIdSchema), controller.getById);
 router.put('/:id', validateRequest(updateLeadSchema), controller.update);

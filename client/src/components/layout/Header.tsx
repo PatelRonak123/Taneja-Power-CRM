@@ -25,16 +25,19 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
 
   const getPageTitle = (path: string): string => {
     if (path === '/admin/dashboard' || path === '/admin') return 'Admin Dashboard';
-    if (path === '/employees' || path === '/admin/employees') return 'Employee Management';
-    if (path === '/customers' || path === '/admin/customers') return 'Customer Management';
-    if (path === '/tasks' || path === '/admin/tasks') return 'Field Tasks';
-    if (path === '/attendance' || path === '/admin/attendance') return 'Employee Attendance';
-    if (path === '/admin/whatsapp' || path === '/whatsapp') return 'WhatsApp Integration';
+    if (path.startsWith('/employees') || path.startsWith('/admin/employees')) return 'Employee Management';
+    if (path.startsWith('/customers') || path.startsWith('/admin/customers')) return 'Customer Management';
+    if (path.startsWith('/leads') || path.startsWith('/admin/leads')) return 'Lead Management';
+    if (path.startsWith('/pipeline') || path.startsWith('/admin/pipeline')) return 'Deals Pipeline';
+    if (path.startsWith('/tasks') || path.startsWith('/admin/tasks')) return 'Field Tasks';
+    if (path.startsWith('/attendance') || path.startsWith('/admin/attendance')) return 'Employee Attendance';
+    if (path.startsWith('/admin/whatsapp') || path.startsWith('/whatsapp')) return 'WhatsApp Integration';
+    if (path.startsWith('/admin/reports') || path.startsWith('/reports')) return 'Reports & Analytics';
     if (path === '/employee/dashboard' || path === '/dashboard') return 'Employee Dashboard';
-    if (path === '/products') return 'Equipment & Inventory';
-    if (path === '/analytics') return 'Energy Telemetry';
-    if (path === '/settings') return 'System Configuration';
-    if (path === '/profile') return 'My Profile';
+    if (path.startsWith('/products')) return 'Equipment & Inventory';
+    if (path.startsWith('/analytics')) return 'Energy Telemetry';
+    if (path.startsWith('/settings')) return 'System Configuration';
+    if (path.startsWith('/profile')) return 'My Profile';
     return isAdmin ? 'Admin Dashboard' : 'Employee Dashboard';
   };
 
