@@ -28,10 +28,14 @@ export const AppRouter: React.FC = () => {
           currentPath === '/admin/customers' ||
           currentPath === '/leads' ||
           currentPath === '/admin/leads' ||
+          currentPath === '/pipeline' ||
+          currentPath === '/admin/pipeline' ||
           currentPath === '/tasks' ||
           currentPath === '/admin/tasks' ||
           currentPath === '/admin/whatsapp' ||
-          currentPath === '/whatsapp') &&
+          currentPath === '/whatsapp' ||
+          currentPath === '/reports' ||
+          currentPath === '/admin/reports') &&
         user?.role !== 'ADMIN'
       ) {
         navigate('/employee/dashboard');

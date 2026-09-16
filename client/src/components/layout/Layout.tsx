@@ -11,8 +11,10 @@ import { TaskManagementPage } from '../../features/tasks/pages/TaskManagementPag
 import { AttendanceManagementPage } from '../../features/attendance/pages/AttendanceManagementPage';
 import { WhatsAppIntegrationPage } from '../../features/whatsapp/pages/WhatsAppIntegrationPage';
 import { LeadManagementPage } from '../../features/leads/pages/LeadManagementPage';
+import { PipelinePage } from '../../features/leads/pages/PipelinePage';
 import { EmployeeDashboardPage } from '../../features/employee/pages/EmployeeDashboardPage';
 import { ProfilePage } from '../../features/profile/pages/ProfilePage';
+import { ReportsPage } from '../../features/admin/pages/ReportsPage';
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -41,6 +43,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return <LeadManagementPage />;
     }
 
+    if (currentPath === '/pipeline' || currentPath === '/admin/pipeline') {
+      return <PipelinePage />;
+    }
+
     if ((currentPath === '/tasks' || currentPath === '/admin/tasks') && isAdmin) {
       return <TaskManagementPage />;
     }
@@ -51,6 +57,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     if ((currentPath === '/admin/whatsapp' || currentPath === '/whatsapp') && isAdmin) {
       return <WhatsAppIntegrationPage />;
+    }
+
+    if ((currentPath === '/admin/reports' || currentPath === '/reports') && isAdmin) {
+      return <ReportsPage />;
     }
 
     if (currentPath === '/employee/dashboard' || currentPath === '/dashboard') {

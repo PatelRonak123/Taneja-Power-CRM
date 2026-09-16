@@ -9,30 +9,40 @@ export const leadsApi = {
     assignee?: string;
   }): Promise<Lead[]> => {
     try {
-      const data = await apiClient.get<unknown, Lead[]>('/leads', { params });
-      return data || [];
+      const response = await apiClient.get<any, any>('/leads', { params });
+      return Array.isArray(response) ? response : (response?.data || []);
     } catch (error) {
-      console.warn('Backend leads API unavailable, using local state fallback:', error);
+      console.warn('Backend leads API unavailable:', error);
       throw error;
     }
   },
 
   getLeadById: async (id: string): Promise<Lead> => {
-    const data = await apiClient.get<unknown, Lead>(`/leads/${id}`);
-    return data;
+    const response = await apiClient.get<any, any>(`/leads/${id}`);
+    return response?.data || response;
   },
 
   createLead: async (leadData: Partial<Lead>): Promise<Lead> => {
-    const data = await apiClient.post<unknown, Lead>('/leads', leadData);
-    return data;
+    const response = await apiClient.post<any, any>('/leads', leadData);
+    return response?.data || response;
   },
 
   updateLead: async (id: string, leadData: Partial<Lead>): Promise<Lead> => {
-    const data = await apiClient.put<unknown, Lead>(`/leads/${id}`, leadData);
-    return data;
+    const response = await apiClient.put<any, any>(`/leads/${id}`, leadData);
+    return response?.data || response;
   },
 
   deleteLead: async (id: string): Promise<void> => {
     await apiClient.delete(`/leads/${id}`);
+  },
+
+  getPipelineData: async (): Promise<any[]> => {
+    try {
+      const response = await apiClient.get<any, any>('/leads/pipeline');
+      return Array.isArray(response) ? response : (response?.data || []);
+    } catch (error) {
+      console.warn('Backend pipeline API unavailable:', error);
+      throw error;
+    }
   },
 };

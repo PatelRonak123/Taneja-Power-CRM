@@ -50,6 +50,15 @@ export class LeadController {
     }
   };
 
+  getPipeline = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const pipelineData = await this.service.getPipeline();
+      sendResponse(res, 200, pipelineData, 'Pipeline data retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
   delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;

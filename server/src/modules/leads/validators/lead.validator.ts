@@ -13,12 +13,13 @@ export const listLeadsSchema = z.object({
 
 export const getLeadByIdSchema = z.object({
   params: z.object({
-    id: z.string().uuid(),
+    id: z.string().min(1),
   }),
 });
 
 export const createLeadSchema = z.object({
   body: z.object({
+    id: z.string().optional(),
     customerName: z.string().min(1, 'Customer name is required'),
     companyName: z.string().min(1, 'Company name is required'),
     email: z.string().email().optional().or(z.literal('')),
@@ -28,20 +29,20 @@ export const createLeadSchema = z.object({
     expectedValue: z.number().optional().default(0),
     assignedExecutive: z.string().optional().default('Nilesh Mehta'),
     priority: z.enum(['Low', 'Medium', 'High', 'Urgent']).optional().default('Medium'),
-    status: z.enum(['New', 'Contacted', 'Meeting Scheduled', 'Proposal Sent', 'Approved', 'Lost']).optional().default('New'),
+    status: z.string().optional().default('New'),
     source: z.enum(['Web', 'Referral', 'Field Call', 'Exhibition', 'Direct']).optional().default('Web'),
   }),
 });
 
 export const updateLeadSchema = z.object({
   params: z.object({
-    id: z.string().uuid(),
+    id: z.string().min(1),
   }),
   body: createLeadSchema.shape.body.partial(),
 });
 
 export const deleteLeadSchema = z.object({
   params: z.object({
-    id: z.string().uuid(),
+    id: z.string().min(1),
   }),
 });

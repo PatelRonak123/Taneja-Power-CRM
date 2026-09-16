@@ -1,6 +1,6 @@
 CREATE TABLE "lead_activity_logs" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"lead_id" uuid NOT NULL,
+	"id" varchar(255) PRIMARY KEY NOT NULL,
+	"lead_id" varchar(255) NOT NULL,
 	"title" text NOT NULL,
 	"date" varchar(50),
 	"type" varchar(50) DEFAULT 'System',
@@ -8,7 +8,7 @@ CREATE TABLE "lead_activity_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "leads" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" varchar(255) PRIMARY KEY NOT NULL,
 	"lead_code" varchar(50) NOT NULL,
 	"customer_name" varchar(255) NOT NULL,
 	"company_name" varchar(255) NOT NULL,

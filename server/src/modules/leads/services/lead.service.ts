@@ -27,8 +27,11 @@ export class LeadService {
   }
 
   async updateLead(id: string, data: Partial<NewLeadEntity>) {
-    await this.getLeadById(id);
     return this.repository.update(id, data);
+  }
+
+  async getPipeline() {
+    return this.repository.getPipelineData();
   }
 
   async deleteLead(id: string) {

@@ -478,7 +478,11 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                       <option value="Contacted">Contacted</option>
                       <option value="Meeting Scheduled">Meeting Scheduled</option>
                       <option value="Proposal Sent">Proposal Sent</option>
+                      <option value="Negotiation">Negotiation</option>
                       <option value="Approved">Approved</option>
+                      <option value="Installation">Installation</option>
+                      <option value="AMC Support">AMC Support</option>
+                      <option value="Completed">Completed</option>
                       <option value="Lost">Lost</option>
                     </select>
                   </div>
