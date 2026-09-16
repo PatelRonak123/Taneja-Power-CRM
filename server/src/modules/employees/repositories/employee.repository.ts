@@ -5,8 +5,18 @@ import { users, UserEntity, NewUserEntity } from '../../../database/schema/users
 export interface EmployeeFilterOptions {
   search?: string;
   role?: string;
+  status?: string;
   page?: number;
   limit?: number;
+}
+
+export interface EmployeeMetricsDto {
+  total: number;
+  admins: number;
+  managers: number;
+  users: number;
+  active: number;
+  inactive: number;
 }
 
 export class EmployeeRepository {
@@ -17,8 +27,12 @@ export class EmployeeRepository {
 
     const conditions = [];
 
-    if (options.role && options.role.trim() !== '') {
+    if (options.role && options.role.trim() !== '' && options.role.trim() !== 'ALL') {
       conditions.push(eq(users.role, options.role.trim()));
+    }
+
+    if (options.status && options.status.trim() !== '' && options.status.trim() !== 'ALL') {
+      conditions.push(eq(users.status, options.status.trim()));
     }
 
     if (options.search && options.search.trim() !== '') {
@@ -26,7 +40,8 @@ export class EmployeeRepository {
       conditions.push(
         or(
           ilike(users.fullName, searchPattern),
-          ilike(users.email, searchPattern)
+          ilike(users.email, searchPattern),
+          ilike(users.phone, searchPattern)
         )
       );
     }
@@ -66,8 +81,35 @@ export class EmployeeRepository {
     return result[0];
   }
 
+  async update(id: string, data: Partial<NewUserEntity>): Promise<UserEntity | undefined> {
+    const result = await db
+      .update(users)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return result[0];
+  }
+
   async delete(id: string): Promise<boolean> {
     const result = await db.delete(users).where(eq(users.id, id)).returning();
     return result.length > 0;
+  }
+
+  async getMetrics(): Promise<EmployeeMetricsDto> {
+    const [totalRes] = await db.select({ value: count() }).from(users);
+    const [adminRes] = await db.select({ value: count() }).from(users).where(eq(users.role, 'ADMIN'));
+    const [managerRes] = await db.select({ value: count() }).from(users).where(eq(users.role, 'MANAGER'));
+    const [userRes] = await db.select({ value: count() }).from(users).where(eq(users.role, 'USER'));
+    const [activeRes] = await db.select({ value: count() }).from(users).where(eq(users.status, 'ACTIVE'));
+    const [inactiveRes] = await db.select({ value: count() }).from(users).where(eq(users.status, 'INACTIVE'));
+
+    return {
+      total: Number(totalRes?.value || 0),
+      admins: Number(adminRes?.value || 0),
+      managers: Number(managerRes?.value || 0),
+      users: Number(userRes?.value || 0),
+      active: Number(activeRes?.value || 0),
+      inactive: Number(inactiveRes?.value || 0),
+    };
   }
 }

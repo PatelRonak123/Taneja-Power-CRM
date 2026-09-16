@@ -19,22 +19,24 @@ export const Input: React.FC<InputProps> = ({
   const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
   return (
-    <div className="input-group">
+    <div className="space-y-1.5">
       {label && (
-        <label htmlFor={inputId} className="input-label">
+        <label htmlFor={inputId} className="text-xs font-semibold text-slate-700 block">
           {label}
         </label>
       )}
-      <div className="input-wrapper">
-        {leftIcon && <span className="input-left-icon">{leftIcon}</span>}
+      <div className="relative flex items-center">
+        {leftIcon && <span className="absolute left-3.5 text-slate-400 pointer-events-none">{leftIcon}</span>}
         <input
           id={inputId}
-          className={`input-control ${leftIcon ? 'has-left-icon' : ''} ${error ? 'is-error' : ''} ${className}`}
+          className={`w-full py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+            leftIcon ? 'pl-10 pr-3.5' : 'px-3.5'
+          } ${error ? 'border-rose-300' : 'border-slate-200'} ${className}`}
           {...props}
         />
       </div>
-      {error && <p className="input-error">{error}</p>}
-      {!error && helperText && <p className="input-helper">{helperText}</p>}
+      {error && <p className="text-xs text-rose-500">{error}</p>}
+      {!error && helperText && <p className="text-xs text-slate-400">{helperText}</p>}
     </div>
   );
 };

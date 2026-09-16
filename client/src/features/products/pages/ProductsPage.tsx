@@ -55,7 +55,7 @@ export const ProductsPage: React.FC = () => {
   };
 
   return (
-    <div className="products-page">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-12 animate-fade-in">
       {/* Executive Hero & KPI Metrics */}
       <ProductHeader
         totalCount={totalCount}

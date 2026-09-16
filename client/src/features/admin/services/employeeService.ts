@@ -1,5 +1,10 @@
 import { apiClient, ApiEnvelope } from '../../../app/api/apiClient';
-import { Employee, EmployeeQueryParams, CreateEmployeePayload } from '../types/employee.types';
+import {
+  Employee,
+  EmployeeQueryParams,
+  CreateEmployeePayload,
+  UpdateEmployeePayload,
+} from '../types/employee.types';
 
 export const employeeService = {
   getEmployees: async (params?: EmployeeQueryParams): Promise<ApiEnvelope<Employee[]>> => {
@@ -12,6 +17,10 @@ export const employeeService = {
 
   createEmployee: async (payload: CreateEmployeePayload): Promise<ApiEnvelope<Employee>> => {
     return apiClient.post('/employees', payload) as unknown as Promise<ApiEnvelope<Employee>>;
+  },
+
+  updateEmployee: async (id: string, payload: UpdateEmployeePayload): Promise<ApiEnvelope<Employee>> => {
+    return apiClient.put(`/employees/${id}`, payload) as unknown as Promise<ApiEnvelope<Employee>>;
   },
 
   deleteEmployee: async (id: string): Promise<ApiEnvelope<{ id: string }>> => {

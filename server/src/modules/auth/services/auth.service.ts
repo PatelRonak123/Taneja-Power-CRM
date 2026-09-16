@@ -81,6 +81,10 @@ export class AuthService {
       throw AppError.unauthorized('Invalid email or password');
     }
 
+    if (user.status === 'INACTIVE') {
+      throw AppError.forbidden('Your account has been deactivated. Please contact an administrator.');
+    }
+
     const authenticatedUser = AuthMapper.toAuthenticatedUser(user);
     const { accessToken, refreshToken } = await this.generateTokensAndSaveSession(
       authenticatedUser.id,
@@ -110,6 +114,10 @@ export class AuthService {
     const user = await this.authRepo.findById(tokenRecord.userId);
     if (!user) {
       throw AppError.unauthorized('User associated with token no longer exists');
+    }
+
+    if (user.status === 'INACTIVE') {
+      throw AppError.forbidden('Your account has been deactivated. Please contact an administrator.');
     }
 
     // Revoke old refresh token (Refresh Token Rotation)

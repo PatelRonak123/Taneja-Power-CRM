@@ -1,0 +1,97 @@
+import { Request, Response, NextFunction } from 'express';
+import { TaskService } from '../services/task.service.js';
+import { sendResponse } from '../../../common/utils/responseEnvelope.js';
+import { APP_CONSTANTS } from '../../../config/constants.js';
+
+export class TaskController {
+  constructor(private readonly taskService: TaskService = new TaskService()) {}
+
+  list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.taskService.listTasks(req.query as any);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result.tasks,
+        'Tasks retrieved successfully',
+        {
+          ...result.pagination,
+          metrics: result.metrics,
+        }
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.taskService.getTaskById(req.params.id);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        'Task details retrieved successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const createdById = (req as any).user?.id;
+      const result = await this.taskService.createTask(req.body, createdById);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.CREATED,
+        result,
+        'Task created successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.taskService.updateTask(req.params.id, req.body);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        'Task updated successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  cancel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.taskService.cancelTask(req.params.id, req.body);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        'Task cancelled successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await this.taskService.deleteTask(req.params.id);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        { id: req.params.id },
+        'Task removed successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+}

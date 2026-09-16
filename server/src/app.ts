@@ -8,7 +8,10 @@ import { errorMiddleware } from './common/middleware/error.middleware.js';
 import authRoutes from './modules/auth/routes/auth.routes.js';
 import productRoutes from './modules/products/routes/product.routes.js';
 import employeeRoutes from './modules/employees/routes/employee.routes.js';
+import customerRoutes from './modules/customers/routes/customer.routes.js';
 import whatsappRoutes from './modules/whatsapp/routes/whatsapp.routes.js';
+import taskRoutes from './modules/tasks/routes/task.routes.js';
+import attendanceRoutes from './modules/attendance/routes/attendance.routes.js';
 import { sendResponse } from './common/utils/responseEnvelope.js';
 
 export const createApp = (): Application => {
@@ -34,7 +37,10 @@ export const createApp = (): Application => {
   app.use(`${APP_CONSTANTS.API_PREFIX}/auth`, authRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/products`, productRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/employees`, employeeRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/customers`, customerRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/whatsapp`, whatsappRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/tasks`, taskRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/attendance`, attendanceRoutes);
 
   // 404 Handler
   app.use(notFoundMiddleware);

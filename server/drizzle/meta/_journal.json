@@ -15,6 +15,34 @@
       "when": 1789045000000,
       "tag": "0001_add_refresh_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789465431606,
+      "tag": "0002_large_silver_centurion",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789466004853,
+      "tag": "0003_majestic_human_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789468144848,
+      "tag": "0004_crazy_apocalypse",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789472475223,
+      "tag": "0005_supreme_rockslide",
+      "breakpoints": true
     }
   ]
 }

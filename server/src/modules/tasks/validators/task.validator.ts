@@ -1,0 +1,132 @@
+import { z } from 'zod';
+import { TASK_PRIORITY, TASK_STATUS } from '../constants/task.constants.js';
+
+const parseDateOrNull = (val: unknown): Date | null | undefined => {
+  if (val === undefined) return undefined;
+  if (val === null || val === '') return null;
+  const parsed = new Date(val as string);
+  if (isNaN(parsed.getTime())) return null;
+  return parsed;
+};
+
+export const createTaskSchema = z.object({
+  body: z.object({
+    title: z.string().min(2, 'Task title must be at least 2 characters long').max(255),
+    description: z.string().optional().nullable(),
+    customerId: z.string().uuid('Invalid customer ID format'),
+    destinationId: z.string().uuid('Invalid destination ID format'),
+    assignedTo: z.string().uuid('Invalid employee ID format').optional().nullable(),
+    priority: z
+      .enum([
+        TASK_PRIORITY.LOW,
+        TASK_PRIORITY.MEDIUM,
+        TASK_PRIORITY.HIGH,
+        TASK_PRIORITY.URGENT,
+      ], {
+        errorMap: () => ({ message: 'Priority must be LOW, MEDIUM, HIGH, or URGENT' }),
+      })
+      .default(TASK_PRIORITY.MEDIUM),
+    scheduledAt: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform(parseDateOrNull),
+    dueAt: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform(parseDateOrNull),
+  }),
+});
+
+export const updateTaskSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid task ID format'),
+  }),
+  body: z.object({
+    title: z.string().min(2, 'Task title must be at least 2 characters long').max(255).optional(),
+    description: z.string().optional().nullable(),
+    customerId: z.string().uuid('Invalid customer ID format').optional(),
+    destinationId: z.string().uuid('Invalid destination ID format').optional(),
+    assignedTo: z.string().uuid('Invalid employee ID format').optional().nullable(),
+    priority: z
+      .enum([
+        TASK_PRIORITY.LOW,
+        TASK_PRIORITY.MEDIUM,
+        TASK_PRIORITY.HIGH,
+        TASK_PRIORITY.URGENT,
+      ], {
+        errorMap: () => ({ message: 'Priority must be LOW, MEDIUM, HIGH, or URGENT' }),
+      })
+      .optional(),
+    status: z
+      .enum([
+        TASK_STATUS.CREATED,
+        TASK_STATUS.ASSIGNED,
+        TASK_STATUS.IN_PROGRESS,
+        TASK_STATUS.COMPLETED,
+        TASK_STATUS.CANCELLED,
+      ], {
+        errorMap: () => ({ message: 'Invalid task status' }),
+      })
+      .optional(),
+    scheduledAt: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform(parseDateOrNull),
+    dueAt: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform(parseDateOrNull),
+  }),
+});
+
+export const cancelTaskSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid task ID format'),
+  }),
+  body: z.object({
+    cancellationReason: z
+      .string()
+      .min(3, 'Cancellation reason must be at least 3 characters long')
+      .max(1000),
+  }),
+});
+
+export const getTaskByIdSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid task ID format'),
+  }),
+});
+
+export const deleteTaskSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid task ID format'),
+  }),
+});
+
+export const listTasksSchema = z.object({
+  query: z.object({
+    search: z.string().optional(),
+    status: z.string().optional(),
+    priority: z.string().optional(),
+    assignedTo: z.string().optional(),
+    customerId: z.string().optional(),
+    scheduledDate: z.string().optional(),
+    page: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : 1)),
+    limit: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : 10)),
+  }),
+});
+
+export type CreateTaskInput = z.infer<typeof createTaskSchema>['body'];
+export type UpdateTaskInput = z.infer<typeof updateTaskSchema>['body'];
+export type CancelTaskInput = z.infer<typeof cancelTaskSchema>['body'];
+export type ListTasksQuery = z.infer<typeof listTasksSchema>['query'];

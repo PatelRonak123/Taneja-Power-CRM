@@ -28,10 +28,14 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   });
 
   return (
-    <form onSubmit={handleSubmit} className="product-form">
-      {generalError && <div className="form-error-banner">{generalError}</div>}
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {generalError && (
+        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-medium">
+          {generalError}
+        </div>
+      )}
 
-      <div className="form-grid">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Equipment Name *"
           placeholder="e.g. Cummins Diesel Generator 500kVA"
@@ -49,11 +53,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         />
       </div>
 
-      <div className="form-grid">
-        <div className="input-group">
-          <label className="input-label">Category *</label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-slate-700">Category *</label>
           <select
-            className="select-control"
+            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
             value={formData.category}
             onChange={(e) => handleChange('category', e.target.value)}
           >
@@ -63,13 +67,13 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             <option value="Switchgear">Switchgear</option>
             <option value="Solar Panels">Solar Panels</option>
           </select>
-          {errors.category && <p className="input-error">{errors.category}</p>}
+          {errors.category && <p className="text-xs text-rose-500">{errors.category}</p>}
         </div>
 
-        <div className="input-group">
-          <label className="input-label">Operational Status *</label>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-slate-700">Operational Status *</label>
           <select
-            className="select-control"
+            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
             value={formData.status}
             onChange={(e) => handleChange('status', e.target.value as any)}
           >
@@ -77,11 +81,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             <option value="INACTIVE">Maintenance / Inactive</option>
             <option value="OUT_OF_STOCK">Depleted / Out of Stock</option>
           </select>
-          {errors.status && <p className="input-error">{errors.status}</p>}
+          {errors.status && <p className="text-xs text-rose-500">{errors.status}</p>}
         </div>
       </div>
 
-      <div className="form-grid">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Unit Price ($ USD) *"
           type="number"
@@ -102,10 +106,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         />
       </div>
 
-      <div className="input-group">
-        <label className="input-label">Technical Description</label>
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-slate-700">Technical Description</label>
         <textarea
-          className="textarea-control"
+          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
           rows={3}
           placeholder="Detailed engineering specifications, warranty, ratings..."
           value={formData.description || ''}
@@ -113,7 +117,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         />
       </div>
 
-      <div className="form-actions">
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>

@@ -5,7 +5,6 @@ import { ProductPrice } from '../../components/ProductPrice';
 import { formatDate } from '../../utils/productFormatters';
 import { getCategoryIcon } from '../../utils/categoryIcons';
 import { EmptyState } from '@/components/feedback/EmptyState';
-import { Button } from '@/components/ui/Button';
 import { Pencil, Trash2 } from 'lucide-react';
 
 interface ProductTableProps {
@@ -33,43 +32,41 @@ export const ProductTable: React.FC<ProductTableProps> = ({
   }
 
   return (
-    <div className="table-wrapper">
-      <div className="table-scroll-container">
-        <table className="enterprise-table">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
           <thead>
-            <tr>
-              <th style={{ minWidth: '280px' }}>EQUIPMENT & SPECIFICATIONS</th>
-              <th style={{ minWidth: '140px' }}>CATEGORY</th>
-              <th style={{ minWidth: '130px' }}>MODEL / SKU</th>
-              <th style={{ minWidth: '130px' }}>UNIT VALUE</th>
-              <th style={{ minWidth: '130px' }}>STOCK RESERVE</th>
-              <th style={{ minWidth: '140px' }}>TELEMETRY STATUS</th>
-              <th style={{ minWidth: '120px' }}>REGISTERED</th>
-              <th className="text-right" style={{ minWidth: '150px' }}>
-                ACTIONS
-              </th>
+            <tr className="bg-slate-50/75 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <th className="px-6 py-3.5 min-w-70">EQUIPMENT & SPECIFICATIONS</th>
+              <th className="px-4 py-3.5 min-w-35">CATEGORY</th>
+              <th className="px-4 py-3.5 min-w-32.5">MODEL / SKU</th>
+              <th className="px-4 py-3.5 min-w-32.5">UNIT VALUE</th>
+              <th className="px-4 py-3.5 min-w-32.5">STOCK RESERVE</th>
+              <th className="px-4 py-3.5 min-w-35">TELEMETRY STATUS</th>
+              <th className="px-4 py-3.5 min-w-30">REGISTERED</th>
+              <th className="px-6 py-3.5 min-w-37.5 text-right">ACTIONS</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100">
             {products.map((product) => {
               const stockStatus =
                 product.stockQuantity === 0
-                  ? 'out'
+                  ? 'bg-rose-500'
                   : product.stockQuantity < 15
-                  ? 'low'
-                  : 'good';
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-500';
 
               return (
-                <tr key={product.id} className="table-row-item">
-                  <td>
-                    <div className="table-product-cell">
-                      <div className="product-category-avatar">
+                <tr key={product.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
                         {getCategoryIcon(product.category, 18)}
                       </div>
-                      <div className="table-product-info">
-                        <span className="product-name">{product.name}</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-900">{product.name}</span>
                         {product.description && (
-                          <span className="product-desc" title={product.description}>
+                          <span className="text-xs text-slate-500 line-clamp-1 max-w-xs" title={product.description}>
                             {product.description}
                           </span>
                         )}
@@ -77,58 +74,58 @@ export const ProductTable: React.FC<ProductTableProps> = ({
                     </div>
                   </td>
 
-                  <td>
-                    <span className="category-tag">
-                      <span className="category-tag-icon">{getCategoryIcon(product.category, 13)}</span>
+                  <td className="px-4 py-4">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-700">
+                      <span>{getCategoryIcon(product.category, 13)}</span>
                       <span>{product.category}</span>
                     </span>
                   </td>
 
-                  <td>
-                    <code className="sku-code">{product.sku}</code>
+                  <td className="px-4 py-4">
+                    <code className="text-xs font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                      {product.sku}
+                    </code>
                   </td>
 
-                  <td>
+                  <td className="px-4 py-4">
                     <ProductPrice price={product.price} />
                   </td>
 
-                  <td>
-                    <div className="stock-cell">
-                      <span className="stock-count">{product.stockQuantity} units</span>
-                      <span className={`stock-indicator-dot ${stockStatus}`} />
+                  <td className="px-4 py-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-800">{product.stockQuantity} units</span>
+                      <span className={`w-2 h-2 rounded-full ${stockStatus}`} />
                     </div>
                   </td>
 
-                  <td>
+                  <td className="px-4 py-4">
                     <ProductStatusBadge status={product.status} />
                   </td>
 
-                  <td>
-                    <span className="date-tag">{formatDate(product.createdAt)}</span>
+                  <td className="px-4 py-4">
+                    <span className="text-xs text-slate-500 font-medium">{formatDate(product.createdAt)}</span>
                   </td>
 
-                  <td>
-                    <div className="table-actions">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        leftIcon={<Pencil size={13} />}
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"
                         onClick={() => onEdit(product)}
                       >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        leftIcon={<Trash2 size={13} />}
+                        <Pencil size={13} />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors cursor-pointer"
                         onClick={() => {
                           if (confirm(`Are you sure you want to delete ${product.name}?`)) {
                             onDelete(product.id);
                           }
                         }}
                       >
-                        Delete
-                      </Button>
+                        <Trash2 size={13} />
+                        <span>Delete</span>
+                      </button>
                     </div>
                   </td>
                 </tr>

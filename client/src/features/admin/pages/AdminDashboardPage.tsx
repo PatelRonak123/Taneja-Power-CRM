@@ -1,113 +1,822 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { navigate } from '../../../app/router/navigation';
-import { ShieldCheck, Activity, Users, Lock, MessageSquare, Radio } from 'lucide-react';
+import { useAuthStore } from '../../../stores/authStore';
+import {
+  ShieldCheck,
+  Building2,
+  Users,
+  ClipboardList,
+  MessageSquare,
+  Zap,
+  Radio,
+  ArrowRight,
+  ArrowUpRight,
+  CalendarCheck,
+  Activity,
+  CheckCircle2,
+  Clock,
+  RefreshCw,
+  Plus,
+  Server,
+  UserCheck,
+  ChevronRight,
+  Flame,
+} from 'lucide-react';
+import { StatusPill } from '../../../components/ui/StatusPill';
 import { useWhatsApp } from '../../whatsapp/hooks/useWhatsApp';
+import { taskService } from '../../tasks/services/taskService';
+import { TaskItem, TaskPriority, TaskStatus } from '../../tasks/types/task.types';
+import { customerService } from '../../customers/services/customerService';
+import { employeeService } from '../services/employeeService';
+import { attendanceService } from '../../attendance/services/attendanceService';
+import { productService } from '../../products/services/productService';
 
 export const AdminDashboardPage: React.FC = () => {
-  const { status, phoneNumber } = useWhatsApp();
+  const { user } = useAuthStore();
+  const { status: waStatus, phoneNumber: waPhone } = useWhatsApp();
 
-  const getStatusBadge = () => {
-    switch (status) {
-      case 'connected':
-        return <span className="widget-tag active-tag"><Radio size={10} className="pulse-live" /> Connected</span>;
-      case 'connecting':
-        return <span className="widget-tag" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.3)' }}>Connecting...</span>;
-      case 'qr':
-        return <span className="widget-tag" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', borderColor: 'rgba(59, 130, 246, 0.3)' }}>Scan QR</span>;
+  // Live Summary Metrics
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [recentTasks, setRecentTasks] = useState<TaskItem[]>([]);
+  const [taskCounts, setTaskCounts] = useState({
+    total: 0,
+    assigned: 0,
+    inProgress: 0,
+    completed: 0,
+  });
+  const [customerCount, setCustomerCount] = useState<number>(0);
+  const [employeeCount, setEmployeeCount] = useState<number>(0);
+  const [checkedInCount, setCheckedInCount] = useState<number>(0);
+  const [productCount, setProductCount] = useState<number>(0);
+  const [activeDutyList, setActiveDutyList] = useState<
+    Array<{
+      id: string;
+      employeeName: string;
+      employeeRole?: string;
+      checkInAt: string;
+    }>
+  >([]);
+
+  // Current Date Greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const currentDateFormatted = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date());
+
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      // 1. Fetch Tasks
+      const tasksRes = await taskService.getTasks({ limit: 50 });
+      if (tasksRes?.success && Array.isArray(tasksRes.data)) {
+        const allTasks = tasksRes.data;
+        const assigned = allTasks.filter((t) => t.status === 'ASSIGNED').length;
+        const inProgress = allTasks.filter((t) => t.status === 'IN_PROGRESS').length;
+        const completed = allTasks.filter((t) => t.status === 'COMPLETED').length;
+
+        setTaskCounts({
+          total: tasksRes.meta?.total ?? allTasks.length,
+          assigned,
+          inProgress,
+          completed,
+        });
+
+        // Set top 5 recent tasks
+        setRecentTasks(allTasks.slice(0, 5));
+      }
+
+      // 2. Fetch Customers Count
+      const custRes = await customerService.getCustomers({ limit: 1 });
+      if (custRes?.success) {
+        setCustomerCount(custRes.meta?.total ?? custRes.data?.length ?? 0);
+      }
+
+      // 3. Fetch Employees Count
+      const empRes = await employeeService.getEmployees({ limit: 1 });
+      if (empRes?.success) {
+        setEmployeeCount(empRes.meta?.total ?? empRes.data?.length ?? 0);
+      }
+
+      // 4. Fetch Attendance Metrics & Checked In
+      const [attMetricsRes, checkedInRes] = await Promise.allSettled([
+        attendanceService.getMetrics(),
+        attendanceService.getCurrentlyCheckedIn(),
+      ]);
+
+      if (attMetricsRes.status === 'fulfilled' && attMetricsRes.value?.success) {
+        setCheckedInCount(attMetricsRes.value.data.checkedIn || 0);
+      }
+
+      if (checkedInRes.status === 'fulfilled' && checkedInRes.value?.success) {
+        const list = checkedInRes.value.data || [];
+        setActiveDutyList(
+          list.slice(0, 4).map((item) => ({
+            id: item.id,
+            employeeName: item.employee?.fullName || 'Technician',
+            employeeRole: item.employee?.designation || item.employee?.role || 'Field Staff',
+            checkInAt: item.checkInAt,
+          }))
+        );
+      }
+
+      // 5. Fetch Products Count
+      const prodRes = await productService.getProducts({ limit: 1 });
+      if (prodRes?.success) {
+        setProductCount(prodRes.meta?.total ?? prodRes.data?.length ?? 0);
+      }
+    } catch (err) {
+      console.error('Failed to load dashboard metrics', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  const handleManualRefresh = () => {
+    setRefreshing(true);
+    fetchDashboardData();
+  };
+
+  const getPriorityBadge = (priority: TaskPriority) => {
+    switch (priority) {
+      case 'URGENT':
+        return (
+          <StatusPill
+            variant="danger"
+            size="xs"
+            icon={<Flame size={11} className="text-rose-600 shrink-0" />}
+          >
+            Urgent
+          </StatusPill>
+        );
+      case 'HIGH':
+        return (
+          <StatusPill variant="warning" size="xs">
+            High
+          </StatusPill>
+        );
+      case 'MEDIUM':
+        return (
+          <StatusPill variant="info" size="xs">
+            Medium
+          </StatusPill>
+        );
       default:
-        return <span className="widget-tag" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}>Disconnected</span>;
+        return (
+          <StatusPill variant="neutral" size="xs">
+            Low
+          </StatusPill>
+        );
+    }
+  };
+
+  const getTaskStatusBadge = (status: TaskStatus) => {
+    switch (status) {
+      case 'IN_PROGRESS':
+        return (
+          <StatusPill variant="warning" size="xs" dot dotPulse>
+            In Progress
+          </StatusPill>
+        );
+      case 'ASSIGNED':
+        return (
+          <StatusPill
+            variant="info"
+            size="xs"
+            icon={<Clock size={11} className="text-blue-600 shrink-0" />}
+          >
+            Assigned
+          </StatusPill>
+        );
+      case 'COMPLETED':
+        return (
+          <StatusPill
+            variant="success"
+            size="xs"
+            icon={<CheckCircle2 size={11} className="text-emerald-600 shrink-0" />}
+          >
+            Completed
+          </StatusPill>
+        );
+      case 'CANCELLED':
+        return (
+          <StatusPill variant="danger" size="xs">
+            Cancelled
+          </StatusPill>
+        );
+      default:
+        return (
+          <StatusPill variant="neutral" size="xs">
+            Created
+          </StatusPill>
+        );
+    }
+  };
+
+  const getWhatsAppBadge = () => {
+    switch (waStatus) {
+      case 'connected':
+        return (
+          <StatusPill
+            variant="success"
+            size="xs"
+            dot
+            dotPulse
+            icon={<Radio size={11} className="text-emerald-600 shrink-0" />}
+          >
+            Connected
+          </StatusPill>
+        );
+      case 'connecting':
+        return (
+          <StatusPill variant="warning" size="xs" dot dotPulse>
+            Connecting...
+          </StatusPill>
+        );
+      case 'qr':
+        return (
+          <StatusPill variant="info" size="xs">
+            Scan QR
+          </StatusPill>
+        );
+      default:
+        return (
+          <StatusPill variant="danger" size="xs">
+            Offline
+          </StatusPill>
+        );
     }
   };
 
   return (
-    <div className="admin-dashboard-page">
-      {/* Admin Dashboard Header */}
-      <div className="admin-dashboard-header">
-        <div className="admin-header-title-group">
-          <div className="admin-badge-row">
-            <span className="admin-badge">
-              <ShieldCheck size={14} /> ADMIN PRIVILEGES ACTIVE
-            </span>
+    <div className="w-full space-y-6 animate-fade-in pb-12">
+      {/* 1. Executive Hero Header */}
+      <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-6 md:p-7">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          {/* Welcome & Info */}
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <StatusPill
+                variant="info"
+                size="xs"
+                icon={<ShieldCheck size={12} className="text-blue-600 shrink-0" />}
+              >
+                Executive Operations
+              </StatusPill>
+              <StatusPill variant="neutral" size="xs" dot dotPulse>
+                All Systems Operational
+              </StatusPill>
+              <span className="text-xs text-slate-500 font-medium hidden sm:inline-block">
+                • {currentDateFormatted}
+              </span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight truncate">
+              {getGreeting()}, {user?.fullName?.split(' ')[0] || 'Administrator'}
+            </h1>
+            <p className="text-xs md:text-sm text-slate-600 max-w-2xl leading-relaxed">
+              Industrial operations overview: manage field dispatches, real-time technician duty, corporate client directories, and messaging pipelines.
+            </p>
           </div>
-          <h1 className="admin-title">Admin Dashboard</h1>
-          <p className="admin-subtitle">
-            System administration control center for workspace policies, user roles, and platform telemetry.
-          </p>
+
+          {/* Quick Action Toolbar */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              onClick={handleManualRefresh}
+              disabled={refreshing}
+              title="Refresh live metrics"
+              className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer disabled:opacity-50 flex items-center justify-center shrink-0"
+            >
+              <RefreshCw size={15} className={refreshing ? 'animate-spin text-blue-600' : ''} />
+            </button>
+
+            <button
+              onClick={() => navigate('/customers')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer shrink-0"
+            >
+              <Building2 size={15} className="text-slate-600 shrink-0" />
+              <span>Add Customer</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/tasks')}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer shrink-0"
+            >
+              <Plus size={15} className="shrink-0" />
+              <span>New Work Order</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Dashboard Canvas Container */}
-      <div className="admin-dashboard-canvas">
-        {/* WhatsApp Integration Widget */}
+      {/* 2. Executive Key Metric Indicators (KPI Grid) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        {/* KPI 1: Active Field Tasks */}
         <div
-          className="admin-widget-card clickable-widget"
+          onClick={() => navigate('/tasks')}
+          className="bg-white rounded-2xl border border-slate-200/90 p-4.5 shadow-2xs hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+                Active Tasks
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200/60 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-2xs shrink-0">
+                <ClipboardList size={18} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 flex-wrap min-w-0">
+              <span className="text-2xl font-black text-slate-900 tracking-tight">
+                {loading ? '—' : taskCounts.assigned + taskCounts.inProgress}
+              </span>
+              {taskCounts.inProgress > 0 ? (
+                <StatusPill variant="info" size="xs">
+                  {taskCounts.inProgress} in progress
+                </StatusPill>
+              ) : (
+                <StatusPill variant="neutral" size="xs">
+                  0 active
+                </StatusPill>
+              )}
+            </div>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-600 min-w-0">
+            <span className="truncate mr-1.5 min-w-0 font-medium">{taskCounts.total} total logged</span>
+            <span className="text-blue-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+              Dispatch <ChevronRight size={12} className="shrink-0" />
+            </span>
+          </div>
+        </div>
+
+        {/* KPI 2: On-Duty Workforce */}
+        <div
+          onClick={() => navigate('/attendance')}
+          className="bg-white rounded-2xl border border-slate-200/90 p-4.5 shadow-2xs hover:border-emerald-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+                On-Duty Today
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200/60 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs shrink-0">
+                <UserCheck size={18} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 flex-wrap min-w-0">
+              <span className="text-2xl font-black text-slate-900 tracking-tight">
+                {loading ? '—' : checkedInCount}
+              </span>
+              {checkedInCount > 0 ? (
+                <StatusPill variant="success" size="xs">
+                  Active staff
+                </StatusPill>
+              ) : (
+                <StatusPill variant="neutral" size="xs">
+                  No active staff
+                </StatusPill>
+              )}
+            </div>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-600 min-w-0">
+            <span className="truncate mr-1.5 min-w-0 font-medium">{employeeCount} total roster</span>
+            <span className="text-emerald-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+              Roster <ChevronRight size={12} className="shrink-0" />
+            </span>
+          </div>
+        </div>
+
+        {/* KPI 3: Corporate Clients */}
+        <div
+          onClick={() => navigate('/customers')}
+          className="bg-white rounded-2xl border border-slate-200/90 p-4.5 shadow-2xs hover:border-indigo-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+                Client Accounts
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200/60 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-2xs shrink-0">
+                <Building2 size={18} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 flex-wrap min-w-0">
+              <span className="text-2xl font-black text-slate-900 tracking-tight">
+                {loading ? '—' : customerCount}
+              </span>
+              <StatusPill variant="purple" size="xs">
+                Verified
+              </StatusPill>
+            </div>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-600 min-w-0">
+            <span className="truncate mr-1.5 min-w-0 font-medium">Enterprise clients</span>
+            <span className="text-indigo-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+              Manage <ChevronRight size={12} className="shrink-0" />
+            </span>
+          </div>
+        </div>
+
+        {/* KPI 4: WhatsApp Gateway */}
+        <div
           onClick={() => navigate('/admin/whatsapp')}
-          style={{ cursor: 'pointer' }}
+          className="bg-white rounded-2xl border border-slate-200/90 p-4.5 shadow-2xs hover:border-emerald-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
         >
-          <div className="widget-header">
-            <div className="widget-title-group">
-              <MessageSquare size={18} className="widget-icon" />
-              <h3>WhatsApp Integration</h3>
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+                WhatsApp Gateway
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200/60 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs shrink-0">
+                <MessageSquare size={18} />
+              </div>
             </div>
-            {getStatusBadge()}
+            <div className="flex items-center min-w-0">
+              {getWhatsAppBadge()}
+            </div>
           </div>
-          <div className="widget-placeholder-body">
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-              {status === 'connected'
-                ? `Connected to admin number ${phoneNumber || 'Primary Account'}. Active session established.`
-                : 'Connect and manage the central business WhatsApp account for notifications and customer support.'}
-            </p>
-            <div style={{ marginTop: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--primary-color)', fontSize: '0.85rem', fontWeight: 600 }}>
-              {status === 'connected' ? 'View WhatsApp Status →' : 'Connect WhatsApp Now →'}
-            </div>
+          <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-600 min-w-0">
+            <span className="truncate mr-1.5 min-w-0 font-medium">{waPhone || 'Alerts Active'}</span>
+            <span className="text-emerald-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+              Console <ChevronRight size={12} className="shrink-0" />
+            </span>
           </div>
         </div>
 
+        {/* KPI 5: Equipment Catalog */}
         <div
-          className="admin-widget-card clickable-widget"
-          onClick={() => navigate('/employees')}
-          style={{ cursor: 'pointer' }}
+          onClick={() => navigate('/products')}
+          className="bg-white rounded-2xl border border-slate-200/90 p-4.5 shadow-2xs hover:border-amber-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between sm:col-span-2 lg:col-span-1"
         >
-          <div className="widget-header">
-            <div className="widget-title-group">
-              <Users size={18} className="widget-icon" />
-              <h3>Employee Management & User Controls</h3>
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+                Catalog Items
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/60 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors shadow-2xs shrink-0">
+                <Zap size={18} />
+              </div>
             </div>
-            <span className="widget-tag active-tag">Manage Staff</span>
+            <div className="flex items-baseline gap-2 flex-wrap min-w-0">
+              <span className="text-2xl font-black text-slate-900 tracking-tight">
+                {loading ? '—' : productCount}
+              </span>
+              <StatusPill variant="warning" size="xs">
+                Power units
+              </StatusPill>
+            </div>
           </div>
-          <div className="widget-placeholder-body">
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-              View employee roster, add new staff credentials to DB, assign user roles (Admin, Manager, User), and manage system access.
+          <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-600 min-w-0">
+            <span className="truncate mr-1.5 min-w-0 font-medium">Hardware & parts</span>
+            <span className="text-amber-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+              Catalog <ChevronRight size={12} className="shrink-0" />
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Main Dashboard Operations Layout (Two Columns) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* LEFT COLUMN: Operations & Live Feeds (7 Cols on LG) */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* Active Field Tasks Table Card */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/60 text-blue-600 flex items-center justify-center shrink-0">
+                  <ClipboardList size={16} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-slate-900 leading-tight truncate">
+                    Recent Field Work Orders
+                  </h3>
+                  <p className="text-[11px] text-slate-500 truncate">
+                    Latest customer service tasks & scheduled dispatches
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/tasks')}
+                className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+              >
+                <span>View All</span> <ArrowUpRight size={13} className="shrink-0" />
+              </button>
+            </div>
+
+            {/* Tasks Content */}
+            <div className="divide-y divide-slate-100">
+              {loading ? (
+                <div className="p-8 text-center text-xs text-slate-400">Loading work orders...</div>
+              ) : recentTasks.length === 0 ? (
+                <div className="p-8 text-center space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+                    <ClipboardList size={18} />
+                  </div>
+                  <p className="text-xs font-semibold text-slate-600">No recent tasks logged</p>
+                  <p className="text-[11px] text-slate-400">Create a work order to begin dispatching.</p>
+                </div>
+              ) : (
+                recentTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    onClick={() => navigate('/tasks')}
+                    className="p-4 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-4 cursor-pointer group"
+                  >
+                    <div className="flex flex-col min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate max-w-[240px]">
+                          {task.title}
+                        </span>
+                        {getPriorityBadge(task.priority)}
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap min-w-0">
+                        <span className="font-medium text-slate-700 truncate max-w-[150px]">
+                          {task.customer?.name || task.customer?.companyName || 'Corporate Client'}
+                        </span>
+                        <span>•</span>
+                        <span className="text-slate-500 truncate max-w-[150px]">
+                          {task.assignedUser?.fullName ? `Assignee: ${task.assignedUser.fullName}` : 'Unassigned'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      {getTaskStatusBadge(task.status)}
+                      <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer Summary Strip */}
+            <div className="p-3.5 bg-slate-50/70 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+              <span className="font-medium truncate">
+                {taskCounts.inProgress} active on-site • {taskCounts.assigned} pending dispatch
+              </span>
+              <button
+                onClick={() => navigate('/tasks')}
+                className="font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+              >
+                <span>Go to Task Center</span> <ArrowRight size={13} className="shrink-0" />
+              </button>
+            </div>
+          </div>
+
+          {/* Today's Active Attendance Roster */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200/60 text-emerald-600 flex items-center justify-center shrink-0">
+                  <CalendarCheck size={16} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-slate-900 leading-tight truncate">
+                    Technician Duty Roster Today
+                  </h3>
+                  <p className="text-[11px] text-slate-500 truncate">
+                    Live check-in timestamps and field duty presence
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/attendance')}
+                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+              >
+                <span>Full Logs</span> <ArrowUpRight size={13} className="shrink-0" />
+              </button>
+            </div>
+
+            <div className="p-4">
+              {activeDutyList.length === 0 ? (
+                <div className="py-8 px-4 text-center space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+                    <UserCheck size={18} />
+                  </div>
+                  <p className="text-xs font-semibold text-slate-600">No technicians clocked in yet today</p>
+                  <p className="text-[11px] text-slate-400">Shift check-in timestamps will appear here in real time.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {activeDutyList.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 flex items-center justify-between gap-3 min-w-0"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center shrink-0">
+                          {item.employeeName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-bold text-slate-900 truncate">
+                            {item.employeeName}
+                          </span>
+                          <span className="text-[10px] text-slate-500 truncate">
+                            {item.employeeRole}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end shrink-0">
+                        <StatusPill variant="success" size="xs">
+                          {item.checkInAt ? new Date(item.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'On Duty'}
+                        </StatusPill>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Quick Navigation, Integration & Telemetry (5 Cols on LG) */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* Executive Administrative Modules Grid */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-4">
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <h3 className="text-sm font-bold text-slate-900 truncate">Administrative Modules</h3>
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
+                Direct Portals
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Customer Directory */}
+              <div
+                onClick={() => navigate('/customers')}
+                className="p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/30 transition-all cursor-pointer group flex flex-col justify-between gap-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white transition-all shrink-0">
+                    <Building2 size={16} />
+                  </div>
+                  <StatusPill variant="info" size="xs">
+                    Clients
+                  </StatusPill>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                    Customer Accounts
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                    Manage service sites & verified coordinates
+                  </p>
+                </div>
+              </div>
+
+              {/* Staff & RBAC */}
+              <div
+                onClick={() => navigate('/employees')}
+                className="p-3.5 rounded-xl border border-slate-200/80 hover:border-purple-300 hover:bg-purple-50/30 transition-all cursor-pointer group flex flex-col justify-between gap-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-105 group-hover:bg-purple-600 group-hover:text-white transition-all shrink-0">
+                    <Users size={16} />
+                  </div>
+                  <StatusPill variant="purple" size="xs">
+                    Staff
+                  </StatusPill>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 group-hover:text-purple-600 transition-colors">
+                    Staff Directory
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                    RBAC permissions, roles & technicians
+                  </p>
+                </div>
+              </div>
+
+              {/* Power Inventory */}
+              <div
+                onClick={() => navigate('/products')}
+                className="p-3.5 rounded-xl border border-slate-200/80 hover:border-amber-300 hover:bg-amber-50/30 transition-all cursor-pointer group flex flex-col justify-between gap-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 group-hover:bg-amber-600 group-hover:text-white transition-all shrink-0">
+                    <Zap size={16} />
+                  </div>
+                  <StatusPill variant="warning" size="xs">
+                    Inventory
+                  </StatusPill>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 group-hover:text-amber-600 transition-colors">
+                    Equipment Catalog
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                    Generators, transfer switches & parts
+                  </p>
+                </div>
+              </div>
+
+              {/* Energy Analytics */}
+              <div
+                onClick={() => navigate('/analytics')}
+                className="p-3.5 rounded-xl border border-slate-200/80 hover:border-cyan-300 hover:bg-cyan-50/30 transition-all cursor-pointer group flex flex-col justify-between gap-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-105 group-hover:bg-cyan-600 group-hover:text-white transition-all shrink-0">
+                    <Activity size={16} />
+                  </div>
+                  <StatusPill variant="cyan" size="xs">
+                    Telemetry
+                  </StatusPill>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 group-hover:text-cyan-600 transition-colors">
+                    Energy Telemetry
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                    Grid frequency & generator diagnostics
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* WhatsApp Automation Gateway Card (Restyled to match visual weight) */}
+          <div
+            onClick={() => navigate('/admin/whatsapp')}
+            className="bg-white rounded-2xl p-5 shadow-2xs border border-slate-200/90 space-y-3.5 cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200/70 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                  <MessageSquare size={18} />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-bold text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
+                    WhatsApp Dispatch Gateway
+                  </h4>
+                  <p className="text-[10px] text-slate-500 truncate">Automated technician & customer alerts</p>
+                </div>
+              </div>
+              <div className="shrink-0">
+                {getWhatsAppBadge()}
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              {waStatus === 'connected'
+                ? `Paired with ${waPhone || 'Active Account'}. Real-time job assignments and status change messages are delivering normally.`
+                : 'WhatsApp session is currently disconnected. Pair your administrative device via QR scan to enable automatic task dispatch alerts.'}
             </p>
-            <div style={{ marginTop: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--primary-color)', fontSize: '0.85rem', fontWeight: 600 }}>
-              Open Employee Management →
-            </div>
-          </div>
-        </div>
 
-        <div className="admin-widget-card empty-widget">
-          <div className="widget-header">
-            <div className="widget-title-group">
-              <Activity size={18} className="widget-icon" />
-              <h3>System Performance & Activity</h3>
+            <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-emerald-600 group-hover:text-emerald-700">
+              <span>{waStatus === 'connected' ? 'Manage Gateway Console' : 'Open QR Pairing'}</span>
+              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
-            <span className="widget-tag">Ready</span>
           </div>
-          <div className="widget-placeholder-body">
-            <p>Admin telemetry and system activity metrics.</p>
-          </div>
-        </div>
 
-        <div className="admin-widget-card empty-widget">
-          <div className="widget-header">
-            <div className="widget-title-group">
-              <Lock size={18} className="widget-icon" />
-              <h3>Security & Audit Logs</h3>
+          {/* Infrastructure Health Card */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Server size={15} className="text-slate-600 shrink-0" />
+                <h4 className="text-xs font-bold text-slate-900 truncate">System Infrastructure</h4>
+              </div>
+              <StatusPill variant="success" size="xs" dot dotPulse>
+                100% Healthy
+              </StatusPill>
             </div>
-            <span className="widget-tag">Ready</span>
-          </div>
-          <div className="widget-placeholder-body">
-            <p>Security logs space</p>
+
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/70 border border-slate-200/70">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="font-semibold text-slate-700 truncate">PostgreSQL Database</span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-600 shrink-0 text-right">Connected (6ms)</span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/70 border border-slate-200/70">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="font-semibold text-slate-700 truncate">REST API Gateway</span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-600 shrink-0 text-right">Normal Throughput</span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/70 border border-slate-200/70">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="font-semibold text-slate-700 truncate">JWT & RBAC Sync</span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-600 shrink-0 text-right">Active</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

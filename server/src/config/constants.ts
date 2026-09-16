@@ -8,6 +8,10 @@ export const APP_CONSTANTS = {
     MANAGER: 'MANAGER',
     USER: 'USER',
   } as const,
+  STATUS: {
+    ACTIVE: 'ACTIVE',
+    INACTIVE: 'INACTIVE',
+  } as const,
   HTTP_STATUS: {
     OK: 200,
     CREATED: 201,
@@ -21,3 +25,4 @@ export const APP_CONSTANTS = {
 } as const;
 
 export type UserRole = (typeof APP_CONSTANTS.ROLES)[keyof typeof APP_CONSTANTS.ROLES];
+export type UserStatus = (typeof APP_CONSTANTS.STATUS)[keyof typeof APP_CONSTANTS.STATUS];

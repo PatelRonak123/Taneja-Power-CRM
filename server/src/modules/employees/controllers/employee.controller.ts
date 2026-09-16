@@ -14,7 +14,10 @@ export class EmployeeController {
         APP_CONSTANTS.HTTP_STATUS.OK,
         result.employees,
         'Employees retrieved successfully',
-        result.pagination
+        {
+          ...result.pagination,
+          metrics: result.metrics,
+        }
       );
     } catch (error) {
       next(error);
@@ -39,9 +42,19 @@ export class EmployeeController {
     }
   };
 
+  update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.employeeService.updateEmployee(req.params.id, req.body);
+      sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, result, 'Employee updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
   delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      await this.employeeService.deleteEmployee(req.params.id);
+      const currentAdminId = req.user?.userId;
+      await this.employeeService.deleteEmployee(req.params.id, currentAdminId);
       sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, { id: req.params.id }, 'Employee removed successfully');
     } catch (error) {
       next(error);

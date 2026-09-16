@@ -1,14 +1,17 @@
-import { EmployeeRepository, EmployeeFilterOptions } from '../repositories/employee.repository.js';
-import { CreateEmployeeInput } from '../validators/employee.validator.js';
+import { EmployeeRepository, EmployeeFilterOptions, EmployeeMetricsDto } from '../repositories/employee.repository.js';
+import { CreateEmployeeInput, UpdateEmployeeInput } from '../validators/employee.validator.js';
 import { hashPassword } from '../../../common/auth/password.js';
 import { AppError } from '../../../common/errors/AppError.js';
-import { UserEntity } from '../../../database/schema/users.js';
+import { UserEntity, NewUserEntity } from '../../../database/schema/users.js';
 
 export interface EmployeeResponseDto {
   id: string;
   email: string;
   fullName: string;
   role: string;
+  phone?: string | null;
+  designation?: string | null;
+  status: string;
   avatarUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -23,6 +26,9 @@ export class EmployeeService {
       email: user.email,
       fullName: user.fullName,
       role: user.role,
+      phone: user.phone,
+      designation: user.designation,
+      status: user.status || 'ACTIVE',
       avatarUrl: user.avatarUrl,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -30,10 +36,14 @@ export class EmployeeService {
   }
 
   async listEmployees(options: EmployeeFilterOptions) {
-    const { data, total } = await this.employeeRepo.findAll(options);
-    const employees = data.map((user) => this.mapToDto(user));
     const page = options.page || 1;
     const limit = options.limit || 10;
+    const [{ data, total }, metrics] = await Promise.all([
+      this.employeeRepo.findAll(options),
+      this.employeeRepo.getMetrics(),
+    ]);
+
+    const employees = data.map((user) => this.mapToDto(user));
     const totalPages = Math.ceil(total / limit) || 1;
 
     return {
@@ -44,6 +54,7 @@ export class EmployeeService {
         limit,
         totalPages,
       },
+      metrics,
     };
   }
 
@@ -67,13 +78,42 @@ export class EmployeeService {
       passwordHash,
       fullName: input.fullName,
       role: input.role,
+      phone: input.phone || null,
+      designation: input.designation || null,
+      status: input.status || 'ACTIVE',
       avatarUrl: input.avatarUrl || null,
     });
 
     return this.mapToDto(newUser);
   }
 
-  async deleteEmployee(id: string): Promise<void> {
+  async updateEmployee(id: string, input: UpdateEmployeeInput): Promise<EmployeeResponseDto> {
+    const existing = await this.employeeRepo.findById(id);
+    if (!existing) {
+      throw AppError.notFound('Employee not found');
+    }
+
+    const updateData: Partial<NewUserEntity> = {};
+    if (input.fullName !== undefined) updateData.fullName = input.fullName;
+    if (input.phone !== undefined) updateData.phone = input.phone || null;
+    if (input.designation !== undefined) updateData.designation = input.designation || null;
+    if (input.role !== undefined) updateData.role = input.role;
+    if (input.status !== undefined) updateData.status = input.status;
+    if (input.avatarUrl !== undefined) updateData.avatarUrl = input.avatarUrl || null;
+
+    const updated = await this.employeeRepo.update(id, updateData);
+    if (!updated) {
+      throw AppError.internal('Failed to update employee details');
+    }
+
+    return this.mapToDto(updated);
+  }
+
+  async deleteEmployee(id: string, currentAdminId?: string): Promise<void> {
+    if (currentAdminId && id === currentAdminId) {
+      throw AppError.badRequest('Administrators cannot delete their own account.');
+    }
+
     const existing = await this.employeeRepo.findById(id);
     if (!existing) {
       throw AppError.notFound('Employee not found');

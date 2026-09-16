@@ -5,7 +5,6 @@ import { ProductPrice } from '../../components/ProductPrice';
 import { formatDate } from '../../utils/productFormatters';
 import { getCategoryIcon } from '../../utils/categoryIcons';
 import { EmptyState } from '@/components/feedback/EmptyState';
-import { Button } from '@/components/ui/Button';
 import { Pencil, Trash2, Calendar, Package } from 'lucide-react';
 
 interface ProductGridProps {
@@ -33,61 +32,63 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   }
 
   return (
-    <div className="asset-grid-container">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {products.map((product) => {
         const stockPct = Math.min(100, Math.max(8, (product.stockQuantity / 100) * 100));
         const stockStatusClass =
           product.stockQuantity === 0
-            ? 'stock-out'
+            ? 'bg-rose-500'
             : product.stockQuantity < 15
-            ? 'stock-low'
-            : 'stock-good';
+            ? 'bg-amber-500'
+            : 'bg-emerald-500';
 
         return (
-          <div key={product.id} className="asset-card">
+          <div key={product.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-6 flex flex-col justify-between">
             {/* Card Top Header */}
-            <div className="asset-card-header">
-              <div className="asset-cat-badge">
-                <span className="asset-cat-icon">{getCategoryIcon(product.category, 16)}</span>
-                <span className="asset-cat-name">{product.category}</span>
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700">
+                  <span>{getCategoryIcon(product.category, 14)}</span>
+                  <span>{product.category}</span>
+                </div>
+                <ProductStatusBadge status={product.status} />
               </div>
-              <ProductStatusBadge status={product.status} />
-            </div>
 
-            {/* Asset Title & SKU */}
-            <div className="asset-card-body">
-              <h3 className="asset-card-title">{product.name}</h3>
-              <div className="asset-sku-wrapper">
-                <span className="asset-sku-label">SKU:</span>
-                <code className="asset-sku-chip">{product.sku}</code>
+              {/* Asset Title & SKU */}
+              <h3 className="text-base font-bold text-slate-900 tracking-tight">{product.name}</h3>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-xs text-slate-400">SKU:</span>
+                <code className="text-xs font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{product.sku}</code>
               </div>
 
               {product.description && (
-                <p className="asset-card-desc" title={product.description}>
+                <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed" title={product.description}>
                   {product.description}
                 </p>
               )}
 
               {/* Specs Grid */}
-              <div className="asset-specs-card">
-                <div className="asset-spec-item">
-                  <span className="asset-spec-label">Unit Value</span>
-                  <ProductPrice price={product.price} />
+              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl my-4 border border-slate-100">
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Unit Value</span>
+                  <div className="mt-0.5">
+                    <ProductPrice price={product.price} />
+                  </div>
                 </div>
-                <div className="asset-spec-item">
-                  <span className="asset-spec-label">Inventory</span>
-                  <div className="asset-stock-value">
-                    <Package size={14} className="asset-stock-icon" />
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Inventory</span>
+                  <div className="flex items-center gap-1.5 mt-0.5 text-xs font-bold text-slate-800">
+                    <Package size={14} className="text-slate-400" />
                     <span>{product.stockQuantity} units</span>
                   </div>
                 </div>
               </div>
 
               {/* Stock Health Bar */}
-              <div className="asset-stock-bar-wrapper">
-                <div className="asset-stock-bar-header">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>Stock Reserve</span>
-                  <span className={`asset-stock-tag ${stockStatusClass}`}>
+                  <span className="font-semibold text-slate-700">
                     {product.stockQuantity === 0
                       ? 'Out of Stock'
                       : product.stockQuantity < 15
@@ -95,9 +96,9 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                       : 'Nominal'}
                   </span>
                 </div>
-                <div className="asset-stock-track">
+                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                   <div
-                    className={`asset-stock-fill ${stockStatusClass}`}
+                    className={`h-full rounded-full ${stockStatusClass}`}
                     style={{ width: `${stockPct}%` }}
                   />
                 </div>
@@ -105,33 +106,31 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
             </div>
 
             {/* Card Footer with Metadata & Actions */}
-            <div className="asset-card-footer">
-              <div className="asset-meta-date">
+            <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-100">
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
                 <Calendar size={13} />
                 <span>{formatDate(product.createdAt)}</span>
               </div>
 
-              <div className="asset-card-actions">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  leftIcon={<Pencil size={13} />}
+              <div className="flex items-center gap-2">
+                <button
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"
                   onClick={() => onEdit(product)}
                 >
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  leftIcon={<Trash2 size={13} />}
+                  <Pencil size={12} />
+                  <span>Edit</span>
+                </button>
+                <button
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors cursor-pointer"
                   onClick={() => {
                     if (confirm(`Are you sure you want to delete ${product.name}?`)) {
                       onDelete(product.id);
                     }
                   }}
                 >
-                  Delete
-                </Button>
+                  <Trash2 size={12} />
+                  <span>Delete</span>
+                </button>
               </div>
             </div>
           </div>
