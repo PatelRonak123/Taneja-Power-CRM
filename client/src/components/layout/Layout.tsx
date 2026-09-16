@@ -10,6 +10,7 @@ import { CustomerManagementPage } from '../../features/customers/pages/CustomerM
 import { TaskManagementPage } from '../../features/tasks/pages/TaskManagementPage';
 import { AttendanceManagementPage } from '../../features/attendance/pages/AttendanceManagementPage';
 import { WhatsAppIntegrationPage } from '../../features/whatsapp/pages/WhatsAppIntegrationPage';
+import { LeadManagementPage } from '../../features/leads/pages/LeadManagementPage';
 import { EmployeeDashboardPage } from '../../features/employee/pages/EmployeeDashboardPage';
 import { ProfilePage } from '../../features/profile/pages/ProfilePage';
 
@@ -34,6 +35,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     if ((currentPath === '/customers' || currentPath === '/admin/customers') && isAdmin) {
       return <CustomerManagementPage />;
+    }
+
+    if (currentPath === '/leads' || currentPath === '/admin/leads') {
+      return <LeadManagementPage />;
     }
 
     if ((currentPath === '/tasks' || currentPath === '/admin/tasks') && isAdmin) {

@@ -26,6 +26,8 @@ export const AppRouter: React.FC = () => {
           currentPath === '/admin/employees' ||
           currentPath === '/customers' ||
           currentPath === '/admin/customers' ||
+          currentPath === '/leads' ||
+          currentPath === '/admin/leads' ||
           currentPath === '/tasks' ||
           currentPath === '/admin/tasks' ||
           currentPath === '/admin/whatsapp' ||

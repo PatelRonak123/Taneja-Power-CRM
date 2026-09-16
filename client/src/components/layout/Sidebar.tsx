@@ -5,6 +5,7 @@ import {
   ShieldCheck,
   Users,
   Building2,
+  Target,
   ClipboardList,
   Home,
   Zap,
@@ -60,6 +61,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       description: 'Clients & service sites',
     },
     {
+      id: 'lead-management',
+      path: '/leads',
+      aliasPaths: ['/admin/leads'],
+      label: 'Lead Management',
+      icon: Target,
+      description: 'Leads pipeline & status tracking',
+    },
+    {
       id: 'task-management',
       path: '/tasks',
       aliasPaths: ['/admin/tasks'],
@@ -88,14 +97,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
   const coreNavItems = [
     ...(!isAdmin
       ? [
-          {
-            id: 'employee-dashboard',
-            path: '/employee/dashboard',
-            aliasPaths: ['/dashboard'],
-            label: 'Employee Dashboard',
-            icon: Home,
-          },
-        ]
+        {
+          id: 'employee-dashboard',
+          path: '/employee/dashboard',
+          aliasPaths: ['/dashboard'],
+          label: 'Employee Dashboard',
+          icon: Home,
+        },
+      ]
       : []),
     { id: 'products', path: '/products', aliasPaths: [], label: 'Equipment & Inventory', icon: Zap },
     { id: 'analytics', path: '/analytics', aliasPaths: [], label: 'Energy Telemetry', icon: BarChart3 },
@@ -109,18 +118,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
 
   return (
     <aside
-      className={`fixed lg:sticky top-0 left-0 z-50 lg:z-auto h-screen w-64 bg-slate-950 border-r border-slate-800/90 text-slate-300 flex flex-col shrink-0 transition-transform duration-200 ease-in-out select-none shadow-2xl lg:shadow-none ${
-        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-      }`}
+      className={`fixed lg:sticky top-0 left-0 z-50 lg:z-auto h-screen w-64 bg-slate-950 border-r border-slate-800/90 text-slate-300 flex flex-col shrink-0 transition-transform duration-200 ease-in-out select-none shadow-2xl lg:shadow-none ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
     >
       {/* Brand Header */}
       <div className="px-4 py-4 border-b border-slate-800/80 bg-slate-900/40 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-linear-to-br from-blue-600/30 to-blue-900/50 border border-blue-500/30 flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+          <div className="h-9 px-1.5 bg-white rounded-xl flex items-center justify-center shrink-0 shadow-md overflow-hidden">
             <img
               src="/logo.png"
               alt="Taneja Power Logo"
-              className="w-6.5 h-6.5 object-contain"
+              className="h-7 w-auto object-contain"
               onError={(e) => {
                 (e.currentTarget as HTMLElement).style.display = 'none';
               }}
@@ -141,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       </div>
 
       {/* Scrollable Navigation Groups */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden flex flex-col gap-5 custom-scrollbar">
+      <nav className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden flex flex-col gap-5 custom-scrollbar no-scrollbar">
         {/* ADMINISTRATION GROUP */}
         {isAdmin && (
           <div className="flex flex-col">
@@ -162,18 +170,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
                     key={item.id}
                     type="button"
                     onClick={() => handleNavClick(item.path)}
-                    className={`group relative w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold transition-all duration-150 text-left cursor-pointer border ${
-                      active
-                        ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-900/40 border-blue-500/50'
-                        : 'border-transparent text-slate-400 hover:bg-slate-900/90 hover:text-slate-100 hover:border-slate-800/50'
-                    }`}
+                    className={`group relative w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold transition-all duration-150 text-left cursor-pointer border ${active
+                      ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-900/40 border-blue-500/50'
+                      : 'border-transparent text-slate-400 hover:bg-slate-900/90 hover:text-slate-100 hover:border-slate-800/50'
+                      }`}
                   >
                     <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-150 ${
-                        active
-                          ? 'bg-white/20 text-white shadow-xs'
-                          : 'bg-slate-900/60 border border-slate-800/80 text-slate-400 group-hover:text-blue-400 group-hover:border-slate-700'
-                      }`}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-150 ${active
+                        ? 'bg-white/20 text-white shadow-xs'
+                        : 'bg-slate-900/60 border border-slate-800/80 text-slate-400 group-hover:text-blue-400 group-hover:border-slate-700'
+                        }`}
                     >
                       <Icon size={16} />
                     </div>
@@ -204,18 +210,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
                   key={item.id}
                   type="button"
                   onClick={() => handleNavClick(item.path)}
-                  className={`group relative w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold transition-all duration-150 text-left cursor-pointer border ${
-                    active
-                      ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-900/40 border-blue-500/50'
-                      : 'border-transparent text-slate-400 hover:bg-slate-900/90 hover:text-slate-100 hover:border-slate-800/50'
-                  }`}
+                  className={`group relative w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold transition-all duration-150 text-left cursor-pointer border ${active
+                    ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-900/40 border-blue-500/50'
+                    : 'border-transparent text-slate-400 hover:bg-slate-900/90 hover:text-slate-100 hover:border-slate-800/50'
+                    }`}
                 >
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-150 ${
-                      active
-                        ? 'bg-white/20 text-white shadow-xs'
-                        : 'bg-slate-900/60 border border-slate-800/80 text-slate-400 group-hover:text-blue-400 group-hover:border-slate-700'
-                    }`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-150 ${active
+                      ? 'bg-white/20 text-white shadow-xs'
+                      : 'bg-slate-900/60 border border-slate-800/80 text-slate-400 group-hover:text-blue-400 group-hover:border-slate-700'
+                      }`}
                   >
                     <Icon size={16} />
                   </div>
@@ -255,13 +259,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
             <LogOut size={15} />
           </button>
         </div>
-        <div className="flex items-center justify-between px-2 text-[10px] text-slate-400">
+        {/* <div className="flex items-center justify-between px-2 text-[10px] text-slate-400">
           <span className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             Grid Telemetry Active
           </span>
           <span className="font-mono text-[9px] text-slate-400">v2.4.0</span>
-        </div>
+        </div> */}
       </div>
     </aside>
   );
