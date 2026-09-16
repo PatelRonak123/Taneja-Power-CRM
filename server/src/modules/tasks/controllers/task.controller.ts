@@ -2,9 +2,38 @@ import { Request, Response, NextFunction } from 'express';
 import { TaskService } from '../services/task.service.js';
 import { sendResponse } from '../../../common/utils/responseEnvelope.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
+import { AppError } from '../../../common/errors/AppError.js';
 
 export class TaskController {
   constructor(private readonly taskService: TaskService = new TaskService()) {}
+
+  getMyTasks = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const employeeId = req.user?.userId;
+      if (!employeeId) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+
+      const options = {
+        ...req.query,
+        assignedTo: employeeId,
+      };
+
+      const result = await this.taskService.listTasks(options as any);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result.tasks,
+        'My tasks retrieved successfully',
+        {
+          ...result.pagination,
+          metrics: result.metrics,
+        }
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
 
   list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -27,6 +56,16 @@ export class TaskController {
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const result = await this.taskService.getTaskById(req.params.id);
+
+      // If user is a field employee (USER role), verify they are assigned to this task
+      if (
+        req.user &&
+        req.user.role === APP_CONSTANTS.ROLES.USER &&
+        result.assignedTo !== req.user.userId
+      ) {
+        throw AppError.forbidden('You do not have permission to access this task');
+      }
+
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,

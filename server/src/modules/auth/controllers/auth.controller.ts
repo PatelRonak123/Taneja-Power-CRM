@@ -14,7 +14,11 @@ export class AuthController {
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.CREATED,
-        { user: result.user },
+        {
+          user: result.user,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+        },
         'Registration successful'
       );
     } catch (error) {
@@ -29,7 +33,11 @@ export class AuthController {
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
-        { user: result.user },
+        {
+          user: result.user,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+        },
         'Login successful'
       );
     } catch (error) {
@@ -39,13 +47,17 @@ export class AuthController {
 
   refresh = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
+      const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE] || req.body?.refreshToken;
       const result = await this.authService.refresh(refreshToken);
       setAuthCookies(res, result.accessToken, result.refreshToken);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
-        { user: result.user },
+        {
+          user: result.user,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+        },
         'Token refreshed successfully'
       );
     } catch (error) {
@@ -56,7 +68,7 @@ export class AuthController {
 
   logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
+      const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE] || req.body?.refreshToken;
       await this.authService.logout(refreshToken);
       clearAuthCookies(res);
       sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, null, 'Logged out successfully');

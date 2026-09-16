@@ -17,10 +17,11 @@ const attendanceController = new AttendanceController();
 // All attendance routes require authentication
 router.use(authenticate);
 
-// 1. Employee Endpoints (for future Sales Person app & general check-in)
+// 1. Employee Endpoints (for Mobile Sales Person app & field staff)
 router.post('/check-in', validateRequest(checkInSchema), attendanceController.checkIn);
 router.post('/check-out', validateRequest(checkOutSchema), attendanceController.checkOut);
 router.get('/me', attendanceController.getMyAttendance);
+router.get('/my-history', attendanceController.getMyHistory);
 
 // 2. Admin & Manager Analytics / Monitoring Endpoints
 router.get(
