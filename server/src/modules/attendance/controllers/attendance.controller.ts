@@ -65,6 +65,37 @@ export class AttendanceController {
     }
   };
 
+  getMyHistory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const employeeId = req.user?.userId;
+      if (!employeeId) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+
+      const { startDate, endDate, page, limit } = req.query as any;
+      const result = await this.attendanceService.listAttendance({
+        employeeId,
+        startDate,
+        endDate,
+        page,
+        limit,
+      });
+
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result.attendance,
+        'My attendance history retrieved successfully',
+        {
+          ...result.pagination,
+          metrics: result.metrics,
+        }
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
   list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const result = await this.attendanceService.listAttendance(req.query as any);

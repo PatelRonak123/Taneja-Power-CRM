@@ -20,39 +20,59 @@ const router = Router();
 const customerController = new CustomerController();
 const destinationController = new DestinationController();
 
-// All customer & destination routes require authentication and ADMIN role
-router.use(authenticate, requireRoles(APP_CONSTANTS.ROLES.ADMIN));
+// All customer & destination routes require authentication
+router.use(authenticate);
 
-// Customer Endpoints
+// 1. Read Endpoints (Accessible to all authenticated roles including field staff/sales)
 router.get('/', validateRequest(listCustomersSchema), customerController.list);
-router.post('/', validateRequest(createCustomerSchema), customerController.create);
 router.get('/:id', validateRequest(getCustomerByIdSchema), customerController.getById);
-router.put('/:id', validateRequest(updateCustomerSchema), customerController.update);
-router.delete('/:id', validateRequest(deleteCustomerSchema), customerController.delete);
 
-// Customer Destination Endpoints
 router.get(
   '/:customerId/destinations',
   validateRequest(destinationListSchema),
   destinationController.list
-);
-router.post(
-  '/:customerId/destinations',
-  validateRequest(createDestinationSchema),
-  destinationController.create
 );
 router.get(
   '/:customerId/destinations/:destinationId',
   validateRequest(destinationParamSchema),
   destinationController.getById
 );
+
+// 2. Admin-Only Mutation Endpoints
+router.post(
+  '/',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  validateRequest(createCustomerSchema),
+  customerController.create
+);
+router.put(
+  '/:id',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  validateRequest(updateCustomerSchema),
+  customerController.update
+);
+router.delete(
+  '/:id',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  validateRequest(deleteCustomerSchema),
+  customerController.delete
+);
+
+router.post(
+  '/:customerId/destinations',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  validateRequest(createDestinationSchema),
+  destinationController.create
+);
 router.put(
   '/:customerId/destinations/:destinationId',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
   validateRequest(updateDestinationSchema),
   destinationController.update
 );
 router.delete(
   '/:customerId/destinations/:destinationId',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
   validateRequest(destinationParamSchema),
   destinationController.delete
 );

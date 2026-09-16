@@ -15,18 +15,45 @@ import { APP_CONSTANTS } from '../../../config/constants.js';
 const router = Router();
 const taskController = new TaskController();
 
-// All task routes require authentication and ADMIN or MANAGER role
-router.use(
-  authenticate,
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER)
-);
+// All task routes require authentication
+router.use(authenticate);
 
-// Task Endpoints
-router.get('/', validateRequest(listTasksSchema), taskController.list);
-router.post('/', validateRequest(createTaskSchema), taskController.create);
+// 1. Employee-scoped endpoint for mobile Sales Person
+router.get('/my-tasks', taskController.getMyTasks);
+
+// 2. Read single task (auth check enforced in controller for assigned employee or ADMIN/MANAGER)
 router.get('/:id', validateRequest(getTaskByIdSchema), taskController.getById);
-router.put('/:id', validateRequest(updateTaskSchema), taskController.update);
-router.post('/:id/cancel', validateRequest(cancelTaskSchema), taskController.cancel);
-router.delete('/:id', validateRequest(deleteTaskSchema), taskController.delete);
+
+// 3. Admin & Manager Only Endpoints
+router.get(
+  '/',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  validateRequest(listTasksSchema),
+  taskController.list
+);
+router.post(
+  '/',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  validateRequest(createTaskSchema),
+  taskController.create
+);
+router.put(
+  '/:id',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  validateRequest(updateTaskSchema),
+  taskController.update
+);
+router.post(
+  '/:id/cancel',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  validateRequest(cancelTaskSchema),
+  taskController.cancel
+);
+router.delete(
+  '/:id',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  validateRequest(deleteTaskSchema),
+  taskController.delete
+);
 
 export default router;
