@@ -58,6 +58,44 @@ export class LocationService {
   }
 
   /**
+   * Check the current background location permission status.
+   */
+  static async checkBackgroundPermission(): Promise<Location.LocationPermissionResponse> {
+    try {
+      return await Location.getBackgroundPermissionsAsync();
+    } catch (error) {
+      console.warn('Failed to check background location permission:', error);
+      throw new LocationServiceError(
+        'UNKNOWN',
+        'Could not check background location permissions. Please try again.'
+      );
+    }
+  }
+
+  /**
+   * Request background location permission.
+   * Note: Android requires foreground location to be granted before requesting background location.
+   */
+  static async requestBackgroundPermission(): Promise<Location.LocationPermissionResponse> {
+    try {
+      const foregroundStatus = await this.checkPermission();
+      if (foregroundStatus.status !== Location.PermissionStatus.GRANTED) {
+        const reqFg = await this.requestPermission();
+        if (reqFg.status !== Location.PermissionStatus.GRANTED) {
+          return reqFg;
+        }
+      }
+      return await Location.requestBackgroundPermissionsAsync();
+    } catch (error) {
+      console.warn('Failed to request background location permission:', error);
+      throw new LocationServiceError(
+        'UNKNOWN',
+        'Could not request background location permissions. Please try again.'
+      );
+    }
+  }
+
+  /**
    * Check if device location services (GPS toggle) are active.
    */
   static async isLocationServicesEnabled(): Promise<boolean> {
