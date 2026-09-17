@@ -93,24 +93,26 @@ interface StatCardProps {
   colorClass: string;
 }
 const StatCard: React.FC<StatCardProps> = ({ label, value, sub, icon: Icon, trend, colorClass }) => (
-  <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm p-5 flex items-start gap-4">
-    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${colorClass}`}>
-      <Icon size={20} className="text-white" />
+  <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm p-4 flex items-start gap-3">
+    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${colorClass}`}>
+      <Icon size={18} className="text-white" />
     </div>
-    <div className="flex-1 min-w-0">
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
-      <p className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">{value}</p>
+    <div className="flex-1 min-w-0 overflow-hidden">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 leading-tight truncate">{label}</p>
+      <p className="text-xl font-black text-slate-900 tracking-tight mt-0.5 truncate">{value}</p>
       {sub && (
-        <p className={`text-xs font-semibold mt-1 flex items-center gap-1 ${
+        <p className={`text-[11px] font-semibold mt-1 flex items-start gap-1 leading-snug ${
           trend === 'up' ? 'text-emerald-600' : trend === 'down' ? 'text-rose-500' : 'text-slate-500'
         }`}>
-          {trend === 'up' && <TrendingUp size={12} />}
-          {trend === 'down' && <TrendingDown size={12} />}
-          {sub}
+          <span className="shrink-0 mt-0.5">
+            {trend === 'up' && <TrendingUp size={11} />}
+            {trend === 'down' && <TrendingDown size={11} />}
+          </span>
+          <span className="break-words min-w-0">{sub}</span>
         </p>
       )}
     </div>
-    <div className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-10 ${colorClass}`} />
+    <div className={`absolute -right-4 -top-4 w-16 h-16 rounded-full opacity-10 ${colorClass}`} />
   </div>
 );
 
@@ -301,7 +303,7 @@ export const ReportsPage: React.FC = () => {
       {!loading && (
         <>
           {/* KPI Stat Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               label="Total Leads"
               value={stats.total}
