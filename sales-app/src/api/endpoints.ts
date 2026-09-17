@@ -13,6 +13,8 @@ export const API_ENDPOINTS = {
   ATTENDANCE: {
     ME: '/attendance/me',
     MY_HISTORY: '/attendance/my-history',
+    CHECK_IN: '/attendance/check-in',
+    CHECK_OUT: '/attendance/check-out',
     GET_BY_ID: (id: string) => `/attendance/${id}`,
   },
   CUSTOMERS: {

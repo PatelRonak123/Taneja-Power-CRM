@@ -15,14 +15,21 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tanejapower.salesapp"
+      "bundleIdentifier": "com.tanejapower.salesapp",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Taneja Power requires location access to record employee check-in and check-out coordinates for daily attendance verification."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B0F19"
       },
-      "package": "com.tanejapower.salesapp"
+      "package": "com.tanejapower.salesapp",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro"
@@ -30,7 +37,13 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Taneja Power requires location access to record employee check-in and check-out coordinates for daily attendance verification."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

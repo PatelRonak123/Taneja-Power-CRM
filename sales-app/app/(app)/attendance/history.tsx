@@ -15,6 +15,7 @@ import {
   Clock,
   CheckCircle2,
   Calendar,
+  MapPin,
 } from 'lucide-react-native';
 import { ScreenContainer } from '../../../src/components/ui/ScreenContainer';
 import { Card } from '../../../src/components/ui/Card';
@@ -27,6 +28,16 @@ import { AttendanceRecord } from '../../../src/types/attendance.types';
 export default function AttendanceHistoryScreen() {
   const router = useRouter();
   const { data: records, isLoading, isRefetching, refetch, error } = useAttendanceHistory();
+
+  const formatCoords = (lat?: string | null, lng?: string | null) => {
+    if (!lat || !lng) return null;
+    const nLat = parseFloat(lat);
+    const nLng = parseFloat(lng);
+    if (isNaN(nLat) || isNaN(nLng)) return `${lat}, ${lng}`;
+    const latDir = nLat >= 0 ? 'N' : 'S';
+    const lngDir = nLng >= 0 ? 'E' : 'W';
+    return `${Math.abs(nLat).toFixed(4)}° ${latDir}, ${Math.abs(nLng).toFixed(4)}° ${lngDir}`;
+  };
 
   const renderAttendanceCard = ({ item }: { item: AttendanceRecord }) => (
     <Card style={styles.recordCard}>
@@ -46,6 +57,14 @@ export default function AttendanceHistoryScreen() {
         <View style={styles.timeBox}>
           <Text style={styles.timeLabel}>Check-In</Text>
           <Text style={styles.timeValue}>{formatTime(item.checkInAt)}</Text>
+          {item.checkInLatitude && item.checkInLongitude ? (
+            <View style={styles.gpsRow}>
+              <MapPin size={10} color={theme.colors.primaryLight} />
+              <Text style={styles.gpsText} numberOfLines={1}>
+                {formatCoords(item.checkInLatitude, item.checkInLongitude)}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.timeBox}>
@@ -53,6 +72,14 @@ export default function AttendanceHistoryScreen() {
           <Text style={styles.timeValue}>
             {item.checkOutAt ? formatTime(item.checkOutAt) : '—'}
           </Text>
+          {item.checkOutLatitude && item.checkOutLongitude ? (
+            <View style={styles.gpsRow}>
+              <MapPin size={10} color={theme.colors.accentAmber} />
+              <Text style={styles.gpsText} numberOfLines={1}>
+                {formatCoords(item.checkOutLatitude, item.checkOutLongitude)}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.timeBox}>
@@ -202,6 +229,17 @@ const styles = StyleSheet.create({
     fontWeight: theme.fontWeight.semibold,
     color: theme.colors.textPrimary,
     marginTop: 2,
+  },
+  gpsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 4,
+  },
+  gpsText: {
+    fontSize: 9,
+    fontFamily: 'monospace',
+    color: theme.colors.textMuted,
   },
   notesBox: {
     marginTop: theme.spacing.sm,

@@ -1,7 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, ApiEnvelope } from '../api/client';
 import { API_ENDPOINTS } from '../api/endpoints';
-import { TodayAttendanceResponse, AttendanceRecord } from '../types/attendance.types';
+import {
+  TodayAttendanceResponse,
+  AttendanceRecord,
+  CheckInPayload,
+  CheckOutPayload,
+} from '../types/attendance.types';
 
 export const useTodayAttendance = () => {
   return useQuery({
@@ -26,3 +31,40 @@ export const useAttendanceHistory = () => {
     },
   });
 };
+
+export const useCheckIn = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CheckInPayload): Promise<AttendanceRecord> => {
+      const response = (await apiClient.post(
+        API_ENDPOINTS.ATTENDANCE.CHECK_IN,
+        payload
+      )) as unknown as ApiEnvelope<AttendanceRecord>;
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['today-attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['my-attendance-history'] });
+    },
+  });
+};
+
+export const useCheckOut = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CheckOutPayload): Promise<AttendanceRecord> => {
+      const response = (await apiClient.post(
+        API_ENDPOINTS.ATTENDANCE.CHECK_OUT,
+        payload
+      )) as unknown as ApiEnvelope<AttendanceRecord>;
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['today-attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['my-attendance-history'] });
+    },
+  });
+};
+

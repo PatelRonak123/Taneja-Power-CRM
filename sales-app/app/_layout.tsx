@@ -26,7 +26,7 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
       router.replace('/(auth)/login');
     } else if (isAuthenticated && inAuthGroup) {
       // Redirect authenticated users into protected app
-      router.replace('/(app)');
+      router.replace('/(app)/(tabs)');
     }
   }, [isAuthenticated, isInitialized, segments, router]);
 

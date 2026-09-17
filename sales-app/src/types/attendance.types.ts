@@ -25,3 +25,16 @@ export interface TodayAttendanceResponse {
   status: TodayAttendanceStatus;
   date: string;
 }
+
+export interface CheckInPayload {
+  latitude?: number | null;
+  longitude?: number | null;
+  notes?: string | null;
+}
+
+export interface CheckOutPayload {
+  latitude?: number | null;
+  longitude?: number | null;
+  notes?: string | null;
+}
+
