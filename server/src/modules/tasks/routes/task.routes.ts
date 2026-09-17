@@ -9,6 +9,9 @@ import {
   listTasksSchema,
   getTaskByIdSchema,
   deleteTaskSchema,
+  startTaskSchema,
+  updateTaskLocationSchema,
+  completeTaskSchema,
 } from '../validators/task.validator.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
 
@@ -21,10 +24,23 @@ router.use(authenticate);
 // 1. Employee-scoped endpoint for mobile Sales Person
 router.get('/my-tasks', taskController.getMyTasks);
 
-// 2. Read single task (auth check enforced in controller for assigned employee or ADMIN/MANAGER)
+// 2. Admin & Manager Live Route Tracking Overview (must be defined before /:id)
+router.get(
+  '/active-tracking',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  taskController.getActiveTracking
+);
+
+// 3. Task Execution Lifecycle & Live Location Telemetry (Field Employee & Admin)
+router.post('/:id/start', validateRequest(startTaskSchema), taskController.startTask);
+router.post('/:id/location', validateRequest(updateTaskLocationSchema), taskController.updateLocation);
+router.post('/:id/complete', validateRequest(completeTaskSchema), taskController.completeTask);
+router.get('/:id/tracking', validateRequest(getTaskByIdSchema), taskController.getTaskTracking);
+
+// 4. Read single task (auth check enforced in controller for assigned employee or ADMIN/MANAGER)
 router.get('/:id', validateRequest(getTaskByIdSchema), taskController.getById);
 
-// 3. Admin & Manager Only Endpoints
+// 5. Admin & Manager Management Endpoints
 router.get(
   '/',
   requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),

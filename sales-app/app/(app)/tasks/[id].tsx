@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -20,20 +23,234 @@ import {
   Info,
   ExternalLink,
   AlertCircle,
+  Play,
+  CheckCircle2,
+  Navigation,
+  Radio,
+  RefreshCw,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { ScreenContainer } from '../../../src/components/ui/ScreenContainer';
 import { Card } from '../../../src/components/ui/Card';
 import { Badge } from '../../../src/components/ui/Badge';
 import { Button } from '../../../src/components/ui/Button';
-import { useTaskDetails } from '../../../src/hooks/useTasks';
+import {
+  useTaskDetails,
+  useStartTask,
+  useCompleteTask,
+} from '../../../src/hooks/useTasks';
+import {
+  LocationService,
+  LocationServiceError,
+  CapturedLocation,
+} from '../../../src/services/location.service';
+import { taskTrackingService } from '../../../src/services/taskTracking.service';
 import { theme } from '../../../src/theme/theme';
-import { formatDateTime } from '../../../src/utils/date';
+import { formatDateTime, formatTime } from '../../../src/utils/date';
+
+/**
+ * Calculate straight-line distance in kilometers between two GPS coordinates using the Haversine formula
+ */
+function calculateDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 export default function TaskDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
-  const { data: task, isLoading, error } = useTaskDetails(id);
+  const { data: task, isLoading, error, refetch } = useTaskDetails(id);
+  const startTaskMutation = useStartTask();
+  const completeTaskMutation = useCompleteTask();
+
+  const [actionLoadingState, setActionLoadingState] = useState<
+    'IDLE' | 'ACQUIRING_GPS' | 'SUBMITTING'
+  >('IDLE');
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [liveLocation, setLiveLocation] = useState<CapturedLocation | null>(null);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
+
+  // Subscribe to live tracking updates when task is in progress
+  useEffect(() => {
+    if (task && task.status === 'IN_PROGRESS') {
+      taskTrackingService.startTracking(task.id);
+      const unsubscribe = taskTrackingService.subscribe((loc, err) => {
+        setLiveLocation(loc);
+        setTrackingError(err || null);
+      });
+
+      return () => {
+        unsubscribe();
+      };
+    } else {
+      taskTrackingService.stopTracking(id);
+    }
+  }, [task?.status, task?.id]);
+
+  const isActionBusy =
+    actionLoadingState !== 'IDLE' ||
+    startTaskMutation.isPending ||
+    completeTaskMutation.isPending;
+
+  const handleStartTask = async () => {
+    if (!task || isActionBusy) return;
+    setActionError(null);
+    setActionLoadingState('ACQUIRING_GPS');
+
+    let capturedLoc: CapturedLocation | null = null;
+    try {
+      capturedLoc = await LocationService.getCurrentPosition();
+      setLiveLocation(capturedLoc);
+    } catch (err: any) {
+      setActionLoadingState('IDLE');
+      if (err instanceof LocationServiceError) {
+        setActionError(err.message);
+        if (err.code === 'PERMISSION_PERMANENTLY_DENIED') {
+          Alert.alert(
+            'Location Permission Required',
+            'Location access is permanently disabled for this app. Please open device settings and grant location access to start the task and enable route navigation.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => LocationService.openAppSettings() },
+            ]
+          );
+        }
+      } else {
+        setActionError('Failed to obtain GPS coordinates to start task.');
+      }
+      return;
+    }
+
+    setActionLoadingState('SUBMITTING');
+    try {
+      await startTaskMutation.mutateAsync({
+        taskId: task.id,
+        payload: {
+          latitude: capturedLoc.latitude,
+          longitude: capturedLoc.longitude,
+        },
+      });
+
+      taskTrackingService.startTracking(task.id);
+      setActionLoadingState('IDLE');
+      Alert.alert(
+        'Task Started',
+        'Work order is now in progress. Live route tracking has been activated for dispatch monitoring.'
+      );
+    } catch (apiErr: any) {
+      setActionLoadingState('IDLE');
+      const msg =
+        apiErr?.response?.data?.message ||
+        apiErr?.message ||
+        'Failed to start task. Please try again.';
+      setActionError(msg);
+    }
+  };
+
+  const handleCompleteTask = () => {
+    if (!task || isActionBusy) return;
+
+    Alert.alert(
+      'Complete Work Order',
+      'Are you sure you want to mark this task as completed? This will terminate active location tracking.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm & Complete',
+          style: 'default',
+          onPress: async () => {
+            setActionError(null);
+            setActionLoadingState('ACQUIRING_GPS');
+
+            let finalLoc: CapturedLocation | null = null;
+            try {
+              finalLoc = await LocationService.getCurrentPosition();
+            } catch {
+              // Non-blocking fallback for completion GPS
+            }
+
+            setActionLoadingState('SUBMITTING');
+            try {
+              await completeTaskMutation.mutateAsync({
+                taskId: task.id,
+                payload: {
+                  latitude: finalLoc?.latitude || null,
+                  longitude: finalLoc?.longitude || null,
+                  notes: 'Task marked completed from mobile sales app.',
+                },
+              });
+
+              taskTrackingService.stopTracking(task.id);
+              setActionLoadingState('IDLE');
+              Alert.alert(
+                'Task Completed',
+                'Work order has been successfully recorded as completed.'
+              );
+            } catch (apiErr: any) {
+              setActionLoadingState('IDLE');
+              const msg =
+                apiErr?.response?.data?.message ||
+                apiErr?.message ||
+                'Failed to complete task. Please try again.';
+              setActionError(msg);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleOpenExternalNavigation = () => {
+    if (!task?.destination?.latitude || !task?.destination?.longitude) {
+      Alert.alert(
+        'No GPS Coordinates',
+        'This destination site does not have registered GPS latitude/longitude coordinates.'
+      );
+      return;
+    }
+
+    const lat = task.destination.latitude;
+    const lng = task.destination.longitude;
+    const label = encodeURIComponent(task.destination.name || 'Task Destination');
+
+    const url = Platform.select({
+      ios: `maps:0,0?q=${label}@${lat},${lng}`,
+      android: `geo:0,0?q=${lat},${lng}(${label})`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`,
+    });
+
+    Linking.canOpenURL(url).then((supported) => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`);
+      }
+    });
+  };
+
+  const handleCallSiteContact = () => {
+    const phone = task?.destination?.contactPhone || task?.customer?.phone;
+    if (!phone) {
+      Alert.alert('No Phone Number', 'No contact phone number is available for this site.');
+      return;
+    }
+    Linking.openURL(`tel:${phone.replace(/\s+/g, '')}`);
+  };
 
   const getPriorityVariant = (priority?: string) => {
     switch (priority) {
@@ -62,6 +279,25 @@ export default function TaskDetailsScreen() {
         return 'neutral';
     }
   };
+
+  // Calculate distance if both current location and destination coordinates are available
+  let distanceKm: number | null = null;
+  if (
+    liveLocation &&
+    task?.destination?.latitude &&
+    task?.destination?.longitude
+  ) {
+    const destLat = parseFloat(task.destination.latitude);
+    const destLng = parseFloat(task.destination.longitude);
+    if (!isNaN(destLat) && !isNaN(destLng)) {
+      distanceKm = calculateDistanceKm(
+        liveLocation.latitude,
+        liveLocation.longitude,
+        destLat,
+        destLng
+      );
+    }
+  }
 
   if (isLoading) {
     return (
@@ -120,6 +356,17 @@ export default function TaskDetailsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Error Alert */}
+        {actionError && (
+          <Card style={styles.errorCard}>
+            <View style={styles.errorHeader}>
+              <AlertCircle size={18} color={theme.colors.accentRose} />
+              <Text style={styles.errorCardTitle}>Action Failed</Text>
+            </View>
+            <Text style={styles.errorCardBody}>{actionError}</Text>
+          </Card>
+        )}
+
         {/* Task Title & Priority Banner */}
         <Card elevated style={styles.mainCard}>
           <View style={styles.priorityRow}>
@@ -138,6 +385,174 @@ export default function TaskDetailsScreen() {
           ) : null}
         </Card>
 
+        {/* Live Tracking Telemetry Card (Active when IN_PROGRESS) */}
+        {task.status === 'IN_PROGRESS' && (
+          <Card elevated style={styles.trackingCard}>
+            <View style={styles.trackingHeaderRow}>
+              <View style={styles.livePulseBox}>
+                <Radio size={18} color={theme.colors.accentAmber} />
+                <Text style={styles.livePulseText}>LIVE GPS TRACKING ACTIVE</Text>
+              </View>
+              <Badge label="IN PROGRESS" variant="warning" size="sm" />
+            </View>
+
+            <Text style={styles.trackingSubtitle}>
+              Foreground coordinates are transmitting to Admin Dispatch for live route monitoring.
+            </Text>
+
+            {liveLocation ? (
+              <View style={styles.telemetryBox}>
+                <View style={styles.telemetryRow}>
+                  <Text style={styles.telemetryLabel}>Current Coordinates:</Text>
+                  <Text style={styles.telemetryValue}>
+                    {liveLocation.latitude.toFixed(5)}°, {liveLocation.longitude.toFixed(5)}°
+                  </Text>
+                </View>
+                {liveLocation.accuracy !== null && (
+                  <View style={styles.telemetryRow}>
+                    <Text style={styles.telemetryLabel}>GPS Accuracy:</Text>
+                    <Text style={styles.telemetryValue}>±{Math.round(liveLocation.accuracy)}m</Text>
+                  </View>
+                )}
+                {distanceKm !== null && (
+                  <View style={styles.telemetryRow}>
+                    <Text style={styles.telemetryLabel}>Est. Distance to Site:</Text>
+                    <Text style={[styles.telemetryValue, { color: theme.colors.primaryLight, fontWeight: 'bold' }]}>
+                      {distanceKm < 1 ? `${Math.round(distanceKm * 1000)} meters` : `${distanceKm.toFixed(1)} km`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View style={styles.telemetryPendingBox}>
+                <ActivityIndicator size="small" color={theme.colors.accentAmber} />
+                <Text style={styles.telemetryPendingText}>Acquiring high-accuracy GPS fix...</Text>
+              </View>
+            )}
+
+            {trackingError && (
+              <Text style={styles.trackingErrorText}>⚠️ {trackingError}</Text>
+            )}
+          </Card>
+        )}
+
+        {/* Action Controls Card */}
+        <Card style={styles.actionsCard}>
+          <Text style={styles.actionsCardTitle}>Work Order Execution</Text>
+
+          {/* Progress Indicator */}
+          {actionLoadingState !== 'IDLE' && (
+            <View style={styles.progressBox}>
+              <ActivityIndicator size="small" color={theme.colors.primaryLight} />
+              <Text style={styles.progressText}>
+                {actionLoadingState === 'ACQUIRING_GPS'
+                  ? 'Acquiring high-accuracy GPS coordinates...'
+                  : 'Updating task state with backend...'}
+              </Text>
+            </View>
+          )}
+
+          {/* Start Task Button */}
+          {(task.status === 'CREATED' || task.status === 'ASSIGNED') && (
+            <Button
+              title={isActionBusy ? 'Starting Task...' : 'Start Task & Enable GPS Route'}
+              variant="primary"
+              size="lg"
+              icon={<Play size={18} color="#FFFFFF" />}
+              onPress={handleStartTask}
+              loading={isActionBusy}
+              disabled={isActionBusy}
+              style={styles.actionBtn}
+            />
+          )}
+
+          {/* In Progress Action Buttons */}
+          {task.status === 'IN_PROGRESS' && (
+            <View style={styles.inProgressActions}>
+              <Button
+                title="Launch Maps Navigation"
+                variant="primary"
+                size="md"
+                icon={<Navigation size={18} color="#FFFFFF" />}
+                onPress={handleOpenExternalNavigation}
+                style={styles.actionBtn}
+              />
+              <Button
+                title={isActionBusy ? 'Completing...' : 'Mark Task Completed'}
+                variant="secondary"
+                size="md"
+                icon={<CheckCircle2 size={18} color={theme.colors.accentEmerald} />}
+                onPress={handleCompleteTask}
+                loading={isActionBusy}
+                disabled={isActionBusy}
+                style={styles.actionBtn}
+              />
+            </View>
+          )}
+
+          {/* Completed State Notice */}
+          {task.status === 'COMPLETED' && (
+            <View style={styles.completedBox}>
+              <ShieldCheck size={20} color={theme.colors.accentEmerald} />
+              <Text style={styles.completedText}>
+                Work order successfully completed at {formatDateTime(task.completedAt)}.
+              </Text>
+            </View>
+          )}
+        </Card>
+
+        {/* Destination Location Card */}
+        {task.destination ? (
+          <Card style={styles.sectionCard}>
+            <View style={styles.destHeaderRow}>
+              <Text style={styles.cardSectionTitle}>Service Location Site</Text>
+              {task.destination.latitude && task.destination.longitude ? (
+                <TouchableOpacity onPress={handleOpenExternalNavigation} style={styles.mapsLink}>
+                  <Navigation size={14} color={theme.colors.primaryLight} />
+                  <Text style={styles.mapsLinkText}>Open Maps</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            <View style={styles.infoList}>
+              <View style={styles.infoRow}>
+                <MapPin size={18} color={theme.colors.primaryLight} />
+                <View style={styles.infoTextBox}>
+                  <Text style={styles.destinationName}>{task.destination.name}</Text>
+                  <Text style={styles.destinationAddress}>
+                    {task.destination.address ? `${task.destination.address}, ` : ''}
+                    {task.destination.city || ''} {task.destination.state || ''} {task.destination.pincode || ''}
+                  </Text>
+                </View>
+              </View>
+
+              {task.destination.contactPerson ? (
+                <View style={styles.infoRow}>
+                  <User size={18} color={theme.colors.textMuted} />
+                  <View style={styles.infoTextBox}>
+                    <Text style={styles.infoLabel}>Site Contact Person</Text>
+                    <Text style={styles.infoValue}>{task.destination.contactPerson}</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {task.destination.contactPhone ? (
+                <View style={styles.infoRow}>
+                  <Phone size={18} color={theme.colors.textMuted} />
+                  <View style={styles.infoTextBox}>
+                    <Text style={styles.infoLabel}>Site Contact Phone</Text>
+                    <TouchableOpacity onPress={handleCallSiteContact}>
+                      <Text style={[styles.infoValue, { color: theme.colors.primaryLight }]}>
+                        {task.destination.contactPhone} (Tap to call)
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          </Card>
+        ) : null}
+
         {/* Schedule & Timing Info */}
         <Card style={styles.sectionCard}>
           <Text style={styles.cardSectionTitle}>Schedule & Timeline</Text>
@@ -146,9 +561,7 @@ export default function TaskDetailsScreen() {
               <Calendar size={18} color={theme.colors.primaryLight} />
               <View style={styles.infoTextBox}>
                 <Text style={styles.infoLabel}>Scheduled Date & Time</Text>
-                <Text style={styles.infoValue}>
-                  {formatDateTime(task.scheduledAt)}
-                </Text>
+                <Text style={styles.infoValue}>{formatDateTime(task.scheduledAt)}</Text>
               </View>
             </View>
 
@@ -183,45 +596,6 @@ export default function TaskDetailsScreen() {
             ) : null}
           </View>
         </Card>
-
-        {/* Destination Location Card */}
-        {task.destination ? (
-          <Card style={styles.sectionCard}>
-            <Text style={styles.cardSectionTitle}>Service Location Site</Text>
-            <View style={styles.infoList}>
-              <View style={styles.infoRow}>
-                <MapPin size={18} color={theme.colors.primaryLight} />
-                <View style={styles.infoTextBox}>
-                  <Text style={styles.destinationName}>{task.destination.name}</Text>
-                  <Text style={styles.destinationAddress}>
-                    {task.destination.address ? `${task.destination.address}, ` : ''}
-                    {task.destination.city || ''} {task.destination.state || ''} {task.destination.pincode || ''}
-                  </Text>
-                </View>
-              </View>
-
-              {task.destination.contactPerson ? (
-                <View style={styles.infoRow}>
-                  <User size={18} color={theme.colors.textMuted} />
-                  <View style={styles.infoTextBox}>
-                    <Text style={styles.infoLabel}>Site Contact Person</Text>
-                    <Text style={styles.infoValue}>{task.destination.contactPerson}</Text>
-                  </View>
-                </View>
-              ) : null}
-
-              {task.destination.contactPhone ? (
-                <View style={styles.infoRow}>
-                  <Phone size={18} color={theme.colors.textMuted} />
-                  <View style={styles.infoTextBox}>
-                    <Text style={styles.infoLabel}>Site Contact Phone</Text>
-                    <Text style={styles.infoValue}>{task.destination.contactPhone}</Text>
-                  </View>
-                </View>
-              ) : null}
-            </View>
-          </Card>
-        ) : null}
 
         {/* Customer Overview Card with Navigation */}
         {task.customer ? (
@@ -280,11 +654,11 @@ export default function TaskDetailsScreen() {
           </Card>
         ) : null}
 
-        {/* Phase 5B Read-Only Info Notice */}
+        {/* Operational Guidelines Notice */}
         <View style={styles.noticeBox}>
           <Info size={16} color={theme.colors.textMuted} />
           <Text style={styles.noticeText}>
-            Work order execution actions (start/complete) are part of field operations workflows.
+            • Live GPS tracking operates in the foreground only while the active task session is underway.
           </Text>
         </View>
       </ScrollView>
@@ -346,8 +720,144 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.colors.surfaceElevated,
   },
+  trackingCard: {
+    backgroundColor: '#111827',
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+    padding: theme.spacing.md,
+  },
+  trackingHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  livePulseBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  livePulseText: {
+    fontSize: 11,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.accentAmber,
+    letterSpacing: 0.5,
+  },
+  trackingSubtitle: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: theme.spacing.sm,
+  },
+  telemetryBox: {
+    backgroundColor: '#1F2937',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    gap: 4,
+  },
+  telemetryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  telemetryLabel: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+  },
+  telemetryValue: {
+    fontSize: 11,
+    fontFamily: 'monospace',
+    color: theme.colors.textPrimary,
+  },
+  telemetryPendingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: theme.spacing.sm,
+    backgroundColor: '#1F2937',
+    borderRadius: theme.borderRadius.sm,
+  },
+  telemetryPendingText: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+  },
+  trackingErrorText: {
+    fontSize: 10,
+    color: theme.colors.accentRose,
+    marginTop: 6,
+  },
+  actionsCard: {
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+  },
+  actionsCardTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textPrimary,
+    marginBottom: theme.spacing.sm,
+  },
+  progressBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.primarySoft,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.sm,
+  },
+  progressText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.primaryLight,
+  },
+  actionBtn: {
+    width: '100%',
+  },
+  inProgressActions: {
+    gap: theme.spacing.sm,
+  },
+  completedBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.accentEmeraldSoft,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  completedText: {
+    fontSize: theme.fontSize.xs,
+    color: '#A7F3D0',
+    fontWeight: theme.fontWeight.medium,
+    flex: 1,
+  },
+  errorCard: {
+    backgroundColor: theme.colors.accentRoseSoft,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    padding: theme.spacing.md,
+  },
+  errorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  errorCardTitle: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.bold,
+    color: '#FECDD3',
+  },
+  errorCardBody: {
+    fontSize: theme.fontSize.xs,
+    color: '#FDA4AF',
+  },
   sectionCard: {
     borderColor: theme.colors.border,
+  },
+  destHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.sm,
   },
   cardSectionTitle: {
     fontSize: theme.fontSize.xs,
@@ -355,7 +865,16 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: theme.spacing.sm,
+  },
+  mapsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  mapsLinkText: {
+    fontSize: 11,
+    color: theme.colors.primaryLight,
+    fontWeight: theme.fontWeight.bold,
   },
   infoList: {
     gap: theme.spacing.md,

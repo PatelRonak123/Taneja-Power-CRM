@@ -49,6 +49,10 @@ export interface TaskItem {
   completedAt?: string | null;
   cancelledAt?: string | null;
   cancellationReason?: string | null;
+  currentLatitude?: string | null;
+  currentLongitude?: string | null;
+  locationAccuracy?: string | null;
+  lastLocationUpdatedAt?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

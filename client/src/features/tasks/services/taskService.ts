@@ -31,4 +31,12 @@ export const taskService = {
   deleteTask: async (id: string): Promise<ApiEnvelope<{ id: string }>> => {
     return apiClient.delete(`/tasks/${id}`) as unknown as Promise<ApiEnvelope<{ id: string }>>;
   },
+
+  getActiveTracking: async (): Promise<ApiEnvelope<TaskItem[]>> => {
+    return apiClient.get('/tasks/active-tracking') as unknown as Promise<ApiEnvelope<TaskItem[]>>;
+  },
+
+  getTaskTracking: async (id: string): Promise<ApiEnvelope<TaskItem>> => {
+    return apiClient.get(`/tasks/${id}/tracking`) as unknown as Promise<ApiEnvelope<TaskItem>>;
+  },
 };

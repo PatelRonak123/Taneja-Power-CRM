@@ -4,6 +4,7 @@ import {
   Plus,
   CheckCircle2,
   AlertCircle,
+  Radio,
 } from 'lucide-react';
 import { taskService } from '../services/taskService';
 import { customerService } from '../../customers/services/customerService';
@@ -22,12 +23,17 @@ import { TaskTable } from '../components/TaskTable';
 import { TaskModal } from '../components/TaskModal';
 import { TaskDetailModal } from '../components/TaskDetailModal';
 import { TaskCancelModal } from '../components/TaskCancelModal';
+import { LiveRouteTrackingDrawer } from '../components/LiveRouteTrackingDrawer';
 
 export const TaskManagementPage: React.FC = () => {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Live Route Tracking Drawer State
+  const [isTrackingDrawerOpen, setIsTrackingDrawerOpen] = useState<boolean>(false);
+  const [selectedTaskIdForTracking, setSelectedTaskIdForTracking] = useState<string | null>(null);
 
   // Filter & Pagination State
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -330,14 +336,28 @@ export const TaskManagementPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenCreateTask}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-900/20 hover:shadow-lg transition-all active:scale-[0.98] shrink-0 cursor-pointer"
-        >
-          <Plus size={16} />
-          <span>Create Field Task</span>
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedTaskIdForTracking(null);
+              setIsTrackingDrawerOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded-xl font-bold text-xs transition-all active:scale-[0.98] cursor-pointer shadow-2xs"
+          >
+            <Radio size={15} className="animate-pulse text-orange-600" />
+            <span>Live Route Dispatch ({metrics.inProgress} Active)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenCreateTask}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-900/20 hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer"
+          >
+            <Plus size={16} />
+            <span>Create Field Task</span>
+          </button>
+        </div>
       </div>
 
       {/* Alert Notifications */}
@@ -399,6 +419,10 @@ export const TaskManagementPage: React.FC = () => {
         onViewDetails={(task) => setSelectedTaskForDetail(task)}
         onEditTask={handleOpenEditTask}
         onCancelTask={(task) => setSelectedTaskForCancel(task)}
+        onTrackTask={(task) => {
+          setSelectedTaskIdForTracking(task.id);
+          setIsTrackingDrawerOpen(true);
+        }}
       />
 
       {/* Task Create / Edit Modal */}
@@ -435,6 +459,16 @@ export const TaskManagementPage: React.FC = () => {
         isOpen={selectedTaskForCancel !== null}
         onClose={() => setSelectedTaskForCancel(null)}
         onConfirmCancel={handleConfirmCancelTask}
+      />
+
+      {/* Live Route Tracking Drawer */}
+      <LiveRouteTrackingDrawer
+        isOpen={isTrackingDrawerOpen}
+        onClose={() => {
+          setIsTrackingDrawerOpen(false);
+          setSelectedTaskIdForTracking(null);
+        }}
+        initialSelectedTaskId={selectedTaskIdForTracking}
       />
     </div>
   );

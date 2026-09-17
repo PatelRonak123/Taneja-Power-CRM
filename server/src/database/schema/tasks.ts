@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, index, numeric } from 'drizzle-orm/pg-core';
 import { customers, customerDestinations } from './customers.js';
 import { users } from './users.js';
 
@@ -23,6 +23,10 @@ export const tasks = pgTable(
     completedAt: timestamp('completed_at', { withTimezone: true }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     cancellationReason: text('cancellation_reason'),
+    currentLatitude: numeric('current_latitude', { precision: 10, scale: 7 }),
+    currentLongitude: numeric('current_longitude', { precision: 10, scale: 7 }),
+    locationAccuracy: numeric('location_accuracy', { precision: 8, scale: 2 }),
+    lastLocationUpdatedAt: timestamp('last_location_updated_at', { withTimezone: true }),
     createdBy: uuid('created_by')
       .references(() => users.id, { onDelete: 'restrict' })
       .notNull(),

@@ -50,6 +50,13 @@
       "when": 1789539857760,
       "tag": "0006_productive_katie_power",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789627513956,
+      "tag": "0007_fluffy_bloodaxe",
+      "breakpoints": true
     }
   ]
 }

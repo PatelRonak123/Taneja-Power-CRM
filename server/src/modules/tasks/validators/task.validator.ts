@@ -126,7 +126,69 @@ export const listTasksSchema = z.object({
   }),
 });
 
+export const startTaskSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid task ID format'),
+  }),
+  body: z.object({
+    latitude: z
+      .number()
+      .min(-90, 'Latitude must be between -90 and 90')
+      .max(90, 'Latitude must be between -90 and 90')
+      .optional()
+      .nullable(),
+    longitude: z
+      .number()
+      .min(-180, 'Longitude must be between -180 and 180')
+      .max(180, 'Longitude must be between -180 and 180')
+      .optional()
+      .nullable(),
+  }).optional(),
+});
+
+export const updateTaskLocationSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid task ID format'),
+  }),
+  body: z.object({
+    latitude: z
+      .number({ required_error: 'Latitude is required' })
+      .min(-90, 'Latitude must be between -90 and 90')
+      .max(90, 'Latitude must be between -90 and 90'),
+    longitude: z
+      .number({ required_error: 'Longitude is required' })
+      .min(-180, 'Longitude must be between -180 and 180')
+      .max(180, 'Longitude must be between -180 and 180'),
+    accuracy: z.number().min(0).optional().nullable(),
+    timestamp: z.number().optional().nullable(),
+  }),
+});
+
+export const completeTaskSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid task ID format'),
+  }),
+  body: z.object({
+    notes: z.string().max(2000, 'Notes cannot exceed 2000 characters').optional().nullable(),
+    latitude: z
+      .number()
+      .min(-90, 'Latitude must be between -90 and 90')
+      .max(90, 'Latitude must be between -90 and 90')
+      .optional()
+      .nullable(),
+    longitude: z
+      .number()
+      .min(-180, 'Longitude must be between -180 and 180')
+      .max(180, 'Longitude must be between -180 and 180')
+      .optional()
+      .nullable(),
+  }).optional(),
+});
+
 export type CreateTaskInput = z.infer<typeof createTaskSchema>['body'];
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>['body'];
 export type CancelTaskInput = z.infer<typeof cancelTaskSchema>['body'];
+export type StartTaskInput = z.infer<typeof startTaskSchema>['body'];
+export type UpdateTaskLocationInput = z.infer<typeof updateTaskLocationSchema>['body'];
+export type CompleteTaskInput = z.infer<typeof completeTaskSchema>['body'];
 export type ListTasksQuery = z.infer<typeof listTasksSchema>['query'];
