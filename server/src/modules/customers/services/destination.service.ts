@@ -56,6 +56,7 @@ export class DestinationService {
       pincode: input.pincode || null,
       latitude: input.latitude || null,
       longitude: input.longitude || null,
+      placeId: input.placeId || null,
       contactPerson: input.contactPerson || null,
       contactPhone: input.contactPhone || null,
       notes: input.notes || null,
@@ -86,6 +87,7 @@ export class DestinationService {
     if (input.pincode !== undefined) updateData.pincode = input.pincode || null;
     if (input.latitude !== undefined) updateData.latitude = input.latitude || null;
     if (input.longitude !== undefined) updateData.longitude = input.longitude || null;
+    if (input.placeId !== undefined) updateData.placeId = input.placeId || null;
     if (input.contactPerson !== undefined)
       updateData.contactPerson = input.contactPerson || null;
     if (input.contactPhone !== undefined)

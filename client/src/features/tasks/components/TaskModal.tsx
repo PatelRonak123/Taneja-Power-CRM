@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Building2,
@@ -85,40 +86,42 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     onCustomerChange(customerId);
   };
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150"
-      onClick={onClose}
-    >
+  return createPortal(
+    <div className="fixed inset-0 z-[100] overflow-hidden select-none">
       <div
-        className="bg-white border border-slate-200 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200/60 flex items-center justify-center">
-              <CheckSquare size={20} />
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-300 animate-fade-in"
+        onClick={onClose}
+      />
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-[100]">
+        <div
+          className="w-screen max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 animate-slide-in-right overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white/95 backdrop-blur-md sticky top-0 z-10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200/60 flex items-center justify-center">
+                <CheckSquare size={20} />
+              </div>
+              <div>
+                <h2 className="text-base font-black text-slate-900">
+                  {modalMode === 'create' ? 'Create Field Task / Work Order' : 'Edit Field Task Details'}
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {modalMode === 'create'
+                    ? 'Dispatch customer destination work orders to field engineers'
+                    : 'Update instructions, schedules, or employee assignments'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-base font-black text-slate-900">
-                {modalMode === 'create' ? 'Create Field Task / Work Order' : 'Edit Field Task Details'}
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {modalMode === 'create'
-                  ? 'Dispatch customer destination work orders to field engineers'
-                  : 'Update instructions, schedules, or employee assignments'}
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer border border-slate-200/80"
+            >
+              <X size={18} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <X size={18} />
-          </button>
-        </div>
 
         {/* Form Body */}
         <form onSubmit={onSubmit} className="p-6 overflow-y-auto space-y-4">
@@ -350,5 +353,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         </form>
       </div>
     </div>
-  );
+  </div>,
+  document.body
+);
 };

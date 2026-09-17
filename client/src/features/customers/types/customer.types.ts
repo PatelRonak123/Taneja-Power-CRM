@@ -11,6 +11,7 @@ export interface CustomerDestination {
   pincode?: string | null;
   latitude?: string | null;
   longitude?: string | null;
+  placeId?: string | null;
   contactPerson?: string | null;
   contactPhone?: string | null;
   notes?: string | null;
@@ -78,6 +79,7 @@ export interface CreateDestinationPayload {
   pincode?: string;
   latitude?: string | number | null;
   longitude?: string | number | null;
+  placeId?: string | null;
   contactPerson?: string;
   contactPhone?: string;
   notes?: string;
@@ -92,6 +94,7 @@ export interface UpdateDestinationPayload {
   pincode?: string;
   latitude?: string | number | null;
   longitude?: string | number | null;
+  placeId?: string | null;
   contactPerson?: string;
   contactPhone?: string;
   notes?: string;

@@ -30,6 +30,7 @@ export const customerDestinations = pgTable(
     pincode: varchar('pincode', { length: 20 }),
     latitude: numeric('latitude', { precision: 10, scale: 7 }),
     longitude: numeric('longitude', { precision: 10, scale: 7 }),
+    placeId: varchar('place_id', { length: 255 }),
     contactPerson: varchar('contact_person', { length: 255 }),
     contactPhone: varchar('contact_phone', { length: 50 }),
     notes: text('notes'),

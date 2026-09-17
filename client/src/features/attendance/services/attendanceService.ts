@@ -35,6 +35,10 @@ export const attendanceService = {
     }) as unknown as Promise<ApiEnvelope<MyAttendanceResponse>>;
   },
 
+  getMyHistory: async (params?: AttendanceQueryParams): Promise<ApiEnvelope<AttendanceItem[]>> => {
+    return apiClient.get('/attendance/my-history', { params }) as unknown as Promise<ApiEnvelope<AttendanceItem[]>>;
+  },
+
   checkIn: async (payload: CheckInPayload): Promise<ApiEnvelope<AttendanceItem>> => {
     return apiClient.post('/attendance/check-in', payload) as unknown as Promise<ApiEnvelope<AttendanceItem>>;
   },

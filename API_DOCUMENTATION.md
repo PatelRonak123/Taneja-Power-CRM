@@ -1,6 +1,6 @@
 # API Documentation & Contract Specification
 
-This document details the REST API specifications, envelope formats, authentication standards, and error schemas.
+This document details the REST API specifications, envelope formats, authentication standards, error schemas, and endpoint contracts for the Taneja Power CRM & Field Workforce Management System.
 
 ---
 
@@ -8,13 +8,15 @@ This document details the REST API specifications, envelope formats, authenticat
 
 - **Base URL**: `http://localhost:5000/api/v1`
 - **Content-Type**: `application/json`
-- **Authentication Header**: `Authorization: Bearer <JWT_TOKEN>`
+- **Authentication**: JWT Bearer Token passed via HTTP header:
+  `Authorization: Bearer <JWT_ACCESS_TOKEN>`
+  or via HTTP-only session cookies.
 
 ---
 
 ## 2. Standard API Response Envelope
 
-Every endpoint in the system returns a predictable, standardized envelope.
+Every endpoint in the system returns a predictable, standardized envelope for consistent client-side parsing.
 
 ### Success Response Envelope
 
@@ -26,7 +28,8 @@ Every endpoint in the system returns a predictable, standardized envelope.
   "meta": {
     "page": 1,
     "limit": 10,
-    "total": 100
+    "total": 100,
+    "totalPages": 10
   }
 }
 ```
@@ -41,8 +44,8 @@ Every endpoint in the system returns a predictable, standardized envelope.
     "message": "Invalid input parameters",
     "details": [
       {
-        "field": "price",
-        "message": "Price must be greater than 0"
+        "field": "latitude",
+        "message": "Latitude must be a number between -90 and 90"
       }
     ]
   },
@@ -67,25 +70,136 @@ Every endpoint in the system returns a predictable, standardized envelope.
 
 ---
 
-## 4. Endpoints Overview
+## 4. Complete Endpoints Reference
 
-### Health & System
+### 4.1 Health & System Check
 | Method | Path | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/health` | Server health check | No |
+| `GET` | `/health` | Server health check & timestamp | No |
 
-### Authentication (`/api/v1/auth`)
-| Method | Path | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/auth/register` | Register a new user | No |
-| `POST` | `/api/v1/auth/login` | Log in and receive JWT | No |
-| `GET` | `/api/v1/auth/me` | Fetch authenticated user profile | Yes |
+---
 
-### Products Feature (`/api/v1/products`)
+### 4.2 Authentication (`/api/v1/auth`)
 | Method | Path | Description | Auth Required | Roles |
 | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/products` | List products with filtering & pagination | No | Public |
-| `GET` | `/api/v1/products/:id`| Get product details by ID | No | Public |
-| `POST` | `/api/v1/products` | Create a new product | Yes | Admin, Manager |
-| `PUT` | `/api/v1/products/:id`| Update an existing product | Yes | Admin, Manager |
-| `DELETE` | `/api/v1/products/:id`| Delete product | Yes | Admin |
+| `POST` | `/api/v1/auth/register` | Register a new user account | No | Public |
+| `POST` | `/api/v1/auth/login` | Authenticate credentials & receive JWT token | No | Public |
+| `GET` | `/api/v1/auth/me` | Fetch authenticated user profile & permissions | Yes | All Roles |
+| `POST` | `/api/v1/auth/refresh` | Refresh access token using refresh token | Yes | All Roles |
+| `POST` | `/api/v1/auth/logout` | Invalidate session cookies / clear auth state | Yes | All Roles |
+
+---
+
+### 4.3 Geocoding & Address Autocomplete (`/api/v1/geocoding`)
+
+Multi-provider backend pipeline combining Google Places / Maps API (Primary) with Nominatim and Photon (Fallbacks), restricted to India (`IN`) with Vadodara search biasing.
+
+| Method | Path | Description | Auth Required | Roles |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/geocoding/search` | Autocomplete address search & geocode coordinates | Yes | All Roles |
+
+#### Request Query Parameters:
+- `q` (string, required, min length 3): Address search string (e.g. `"Dhyan Residency near Harni Water Tank"`, `"Vadsar Vadodara"`, `"Nilamber Triumph"`).
+
+#### Success Response Example (`GET /api/v1/geocoding/search?q=Dhyan%20Residency%20Harni`):
+```json
+{
+  "success": true,
+  "data": {
+    "provider": "google",
+    "results": [
+      {
+        "id": "ChIJ...",
+        "provider": "google",
+        "placeId": "ChIJ...",
+        "displayName": "Dhyan Residency, Harni, Vadodara, Gujarat, India",
+        "name": "Dhyan Residency",
+        "formattedAddress": "Harni, Vadodara, Gujarat, India",
+        "city": "Vadodara",
+        "state": "Gujarat",
+        "pincode": "390022",
+        "country": "India",
+        "latitude": 22.3312,
+        "longitude": 73.2089
+      }
+    ]
+  },
+  "message": "Locations fetched successfully"
+}
+```
+
+---
+
+### 4.4 Customers & Destination Sites (`/api/v1/customers`)
+
+Manages client accounts and facility/destination sites used for field task dispatches and GPS navigation.
+
+| Method | Path | Description | Auth Required | Roles |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/customers` | List customer accounts (supports search, pagination) | Yes | All Roles |
+| `POST` | `/api/v1/customers` | Create a new customer profile | Yes | Admin, Manager |
+| `GET` | `/api/v1/customers/:id` | Get customer details by ID | Yes | All Roles |
+| `PUT` | `/api/v1/customers/:id` | Update customer profile | Yes | Admin, Manager |
+| `DELETE` | `/api/v1/customers/:id` | Delete customer profile | Yes | Admin |
+| `GET` | `/api/v1/customers/:customerId/destinations` | List destination sites for a customer | Yes | All Roles |
+| `POST` | `/api/v1/customers/:customerId/destinations` | Register new destination site with GPS & Place ID | Yes | Admin, Manager |
+| `GET` | `/api/v1/customers/:customerId/destinations/:destinationId` | Get destination site details | Yes | All Roles |
+| `PUT` | `/api/v1/customers/:customerId/destinations/:destinationId` | Update destination site details & coordinates | Yes | Admin, Manager |
+| `DELETE` | `/api/v1/customers/:customerId/destinations/:destinationId` | Delete destination site | Yes | Admin |
+
+#### Destination Creation Payload (`POST /api/v1/customers/:customerId/destinations`):
+```json
+{
+  "name": "Dhyan Residency Site",
+  "address": "Harni Road, Vadodara, Gujarat",
+  "city": "Vadodara",
+  "state": "Gujarat",
+  "pincode": "390022",
+  "latitude": 22.3312,
+  "longitude": 73.2089,
+  "placeId": "ChIJ...",
+  "contactPerson": "Chintan Shah",
+  "contactPhone": "+91 98980 12345",
+  "notes": "Gate 2 entry requires safety pass",
+  "status": "ACTIVE"
+}
+```
+
+---
+
+### 4.5 Field Workforce Tasks (`/api/v1/tasks`)
+| Method | Path | Description | Auth Required | Roles |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/tasks` | List field tasks with status/engineer filters | Yes | All Roles |
+| `POST` | `/api/v1/tasks` | Dispatch new field task assigned to engineer & site | Yes | Admin, Manager |
+| `GET` | `/api/v1/tasks/:id` | Fetch task details & assigned GPS destination site | Yes | All Roles |
+| `PUT` | `/api/v1/tasks/:id` | Update task details or reassignment | Yes | Admin, Manager |
+| `PATCH` | `/api/v1/tasks/:id/status` | Engineer updates task status (In-Transit, Completed) | Yes | Field Engineers |
+
+---
+
+### 4.6 Employee Management (`/api/v1/employees`)
+| Method | Path | Description | Auth Required | Roles |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/employees` | List field staff & employees | Yes | Admin, Manager |
+| `POST` | `/api/v1/employees` | Register new employee profile | Yes | Admin |
+| `GET` | `/api/v1/employees/:id` | Get employee profile & task metrics | Yes | All Roles |
+| `PUT` | `/api/v1/employees/:id` | Update employee record | Yes | Admin |
+
+---
+
+### 4.7 Attendance & GPS Tracking (`/api/v1/attendance`)
+| Method | Path | Description | Auth Required | Roles |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/attendance` | List attendance logs & GPS punch records | Yes | Admin, Manager |
+| `POST` | `/api/v1/attendance/check-in` | Engineer check-in with live GPS lat/lng | Yes | Field Staff |
+| `POST` | `/api/v1/attendance/check-out` | Engineer check-out with total shift distance | Yes | Field Staff |
+
+---
+
+### 4.8 Leads & WhatsApp Integration (`/api/v1/leads`, `/api/v1/whatsapp`)
+| Method | Path | Description | Auth Required | Roles |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/leads` | List sales leads & CRM pipeline | Yes | Admin, Manager |
+| `POST` | `/api/v1/leads` | Create a new lead | Yes | Admin, Manager |
+| `POST` | `/api/v1/whatsapp/send-notification` | Trigger automated WhatsApp dispatch notice | Yes | Admin |

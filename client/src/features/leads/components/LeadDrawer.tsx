@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Pencil,
@@ -112,8 +113,8 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
     onSave(savedRecord);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-hidden select-none">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] overflow-hidden select-none">
       {/* Dark Overlay Backdrop */}
       <div
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-300 animate-fade-in"
@@ -121,7 +122,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
       />
 
       {/* Slide-Over Right Panel */}
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-50">
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-[100]">
         <div className="w-screen max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 animate-slide-in-right overflow-y-auto">
           
           {/* Drawer Top Navigation Header */}
@@ -502,6 +503,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

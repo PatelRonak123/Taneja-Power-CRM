@@ -13,6 +13,7 @@ import { WhatsAppIntegrationPage } from '../../features/whatsapp/pages/WhatsAppI
 import { LeadManagementPage } from '../../features/leads/pages/LeadManagementPage';
 import { PipelinePage } from '../../features/leads/pages/PipelinePage';
 import { EmployeeDashboardPage } from '../../features/employee/pages/EmployeeDashboardPage';
+import { EmployeeAttendancePage } from '../../features/employee/pages/EmployeeAttendancePage';
 import { ProfilePage } from '../../features/profile/pages/ProfilePage';
 import { ReportsPage } from '../../features/admin/pages/ReportsPage';
 
@@ -53,6 +54,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     if ((currentPath === '/attendance' || currentPath === '/admin/attendance') && isAdmin) {
       return <AttendanceManagementPage />;
+    }
+
+    if (currentPath === '/employee/attendance' || (currentPath === '/attendance' && !isAdmin)) {
+      return <EmployeeAttendancePage />;
     }
 
     if ((currentPath === '/admin/whatsapp' || currentPath === '/whatsapp') && isAdmin) {
