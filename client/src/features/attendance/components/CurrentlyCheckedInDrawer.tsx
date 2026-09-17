@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, Clock, Radio, MapPin, User } from 'lucide-react';
 import { AttendanceItem } from '../types/attendance.types';
 
@@ -40,36 +41,44 @@ export const CurrentlyCheckedInDrawer: React.FC<CurrentlyCheckedInDrawerProps> =
     return `${hours}h ${String(mins).padStart(2, '0')}m on duty`;
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-900/50 backdrop-blur-xs animate-fade-in">
-      <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-slide-left">
-        {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center">
-              <Clock size={20} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-extrabold text-slate-900">Currently On Duty</h2>
-                <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
+  return createPortal(
+    <div className="fixed inset-0 z-[100] overflow-hidden select-none">
+      <div
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-300 animate-fade-in"
+        onClick={onClose}
+      />
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-[100]">
+        <div
+          className="w-screen max-w-md bg-white shadow-2xl flex flex-col border-l border-slate-200 animate-slide-in-right overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white/95 backdrop-blur-md sticky top-0 z-10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center">
+                <Clock size={20} />
               </div>
-              <p className="text-xs text-slate-500">
-                {items.length} personnel checked in today
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-extrabold text-slate-900">Currently On Duty</h2>
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  {items.length} personnel checked in today
+                </p>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer border border-slate-200/80"
+            >
+              <X size={18} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <X size={18} />
-          </button>
-        </div>
 
         {/* List of checked in employees */}
         <div className="flex-1 p-5 overflow-y-auto space-y-3">
@@ -152,7 +161,7 @@ export const CurrentlyCheckedInDrawer: React.FC<CurrentlyCheckedInDrawerProps> =
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-end">
+        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-end sticky bottom-0">
           <button
             type="button"
             onClick={onClose}
@@ -163,5 +172,7 @@ export const CurrentlyCheckedInDrawer: React.FC<CurrentlyCheckedInDrawerProps> =
         </div>
       </div>
     </div>
-  );
+  </div>,
+  document.body
+);
 };

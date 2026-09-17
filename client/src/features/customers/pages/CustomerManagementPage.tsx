@@ -94,6 +94,7 @@ export const CustomerManagementPage: React.FC = () => {
     pincode: string;
     latitude: string;
     longitude: string;
+    placeId: string;
     contactPerson: string;
     contactPhone: string;
     notes: string;
@@ -106,6 +107,7 @@ export const CustomerManagementPage: React.FC = () => {
     pincode: '',
     latitude: '',
     longitude: '',
+    placeId: '',
     contactPerson: '',
     contactPhone: '',
     notes: '',
@@ -334,6 +336,7 @@ export const CustomerManagementPage: React.FC = () => {
       pincode: selectedCustomerForDestinations?.pincode || '',
       latitude: '',
       longitude: '',
+      placeId: '',
       contactPerson: selectedCustomerForDestinations?.name || '',
       contactPhone: selectedCustomerForDestinations?.phone || '',
       notes: '',
@@ -354,6 +357,7 @@ export const CustomerManagementPage: React.FC = () => {
       pincode: destination.pincode || '',
       latitude: destination.latitude ? destination.latitude.toString() : '',
       longitude: destination.longitude ? destination.longitude.toString() : '',
+      placeId: destination.placeId || '',
       contactPerson: destination.contactPerson || '',
       contactPhone: destination.contactPhone || '',
       notes: destination.notes || '',
@@ -366,6 +370,30 @@ export const CustomerManagementPage: React.FC = () => {
   ) => {
     const { name, value } = e.target;
     setDestinationFormData((prev) => ({ ...prev, [name]: value }));
+    if (destinationFormError) setDestinationFormError(null);
+  };
+
+  const handleSelectAddressSuggestion = (suggestion: {
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+    latitude: string;
+    longitude: string;
+    placeId?: string;
+    name?: string;
+  }) => {
+    setDestinationFormData((prev) => ({
+      ...prev,
+      name: prev.name.trim() === '' && suggestion.name ? suggestion.name : prev.name,
+      address: suggestion.address || prev.address,
+      city: suggestion.city || prev.city,
+      state: suggestion.state || prev.state,
+      pincode: suggestion.pincode || prev.pincode,
+      latitude: suggestion.latitude || prev.latitude,
+      longitude: suggestion.longitude || prev.longitude,
+      placeId: suggestion.placeId || prev.placeId,
+    }));
     if (destinationFormError) setDestinationFormError(null);
   };
 
@@ -393,6 +421,7 @@ export const CustomerManagementPage: React.FC = () => {
             pincode: destinationFormData.pincode.trim() || undefined,
             latitude: destinationFormData.latitude.trim() || null,
             longitude: destinationFormData.longitude.trim() || null,
+            placeId: destinationFormData.placeId.trim() || undefined,
             contactPerson: destinationFormData.contactPerson.trim() || undefined,
             contactPhone: destinationFormData.contactPhone.trim() || undefined,
             notes: destinationFormData.notes.trim() || undefined,
@@ -419,6 +448,7 @@ export const CustomerManagementPage: React.FC = () => {
             pincode: destinationFormData.pincode.trim() || undefined,
             latitude: destinationFormData.latitude.trim() || null,
             longitude: destinationFormData.longitude.trim() || null,
+            placeId: destinationFormData.placeId.trim() || undefined,
             contactPerson: destinationFormData.contactPerson.trim() || undefined,
             contactPhone: destinationFormData.contactPhone.trim() || undefined,
             notes: destinationFormData.notes.trim() || undefined,
@@ -591,6 +621,7 @@ export const CustomerManagementPage: React.FC = () => {
         onSubmit={handleDestinationSubmit}
         formData={destinationFormData}
         onInputChange={handleDestinationInputChange}
+        onSelectAddressSuggestion={handleSelectAddressSuggestion}
         formSubmitting={destinationFormSubmitting}
         formError={destinationFormError}
       />

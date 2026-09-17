@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, PackageCheck, TrendingUp, User, ArrowRight } from 'lucide-react';
+import { Zap, PackageCheck, TrendingUp, User, ArrowRight, CalendarCheck } from 'lucide-react';
 import { navigate } from '../../../app/router/navigation';
 
 export const EmployeeQuickActions: React.FC = () => {
@@ -18,6 +18,23 @@ export const EmployeeQuickActions: React.FC = () => {
       </div>
 
       <div className="flex flex-col gap-3">
+        <button
+          className="flex items-center justify-between p-4 bg-emerald-50/70 hover:bg-emerald-100/60 border border-emerald-200/80 rounded-xl transition-all cursor-pointer group text-left shadow-2xs"
+          onClick={() => navigate('/employee/attendance')}
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 bg-emerald-600 text-white rounded-xl group-hover:scale-105 transition-transform shadow-xs">
+              <CalendarCheck size={20} />
+            </div>
+            <div>
+              <span className="text-sm font-bold text-slate-900 block group-hover:text-emerald-800">
+                Daily Attendance & Check-In
+              </span>
+              <span className="text-xs text-slate-500">Record check-in / check-out timestamps & GPS</span>
+            </div>
+          </div>
+          <ArrowRight size={16} className="text-slate-400 group-hover:text-emerald-700 group-hover:translate-x-1 transition-all shrink-0" />
+        </button>
         <button
           className="flex items-center justify-between p-4 bg-slate-50 hover:bg-blue-50/60 border border-slate-200/80 hover:border-blue-200 rounded-xl transition-all cursor-pointer group text-left"
           onClick={() => navigate('/products')}

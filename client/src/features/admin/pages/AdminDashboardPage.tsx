@@ -781,7 +781,7 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
 
           {/* Infrastructure Health Card */}
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-3.5">
+          {/* <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-3.5">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <Server size={15} className="text-slate-600 shrink-0" />
@@ -817,11 +817,12 @@ export const AdminDashboardPage: React.FC = () => {
                 <span className="text-[11px] font-mono text-slate-600 shrink-0 text-right">Active</span>
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>
   );
 };
+
 
 export default AdminDashboardPage;

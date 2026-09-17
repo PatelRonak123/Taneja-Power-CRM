@@ -1,0 +1,1 @@
+ALTER TABLE "customer_destinations" ADD COLUMN "place_id" varchar(255);

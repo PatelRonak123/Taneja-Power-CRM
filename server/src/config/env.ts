@@ -16,6 +16,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   COOKIE_SECURE: z.preprocess((v) => (v === 'true' || v === true ? true : v === 'false' || v === false ? false : undefined), z.boolean().optional()),
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  GOOGLE_MAPS_API_KEY: z.string().optional(),
 });
 
 const parseEnv = () => {

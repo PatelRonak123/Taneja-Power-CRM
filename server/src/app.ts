@@ -13,6 +13,7 @@ import whatsappRoutes from './modules/whatsapp/routes/whatsapp.routes.js';
 import taskRoutes from './modules/tasks/routes/task.routes.js';
 import attendanceRoutes from './modules/attendance/routes/attendance.routes.js';
 import leadRoutes from './modules/leads/routes/lead.routes.js';
+import geocodingRoutes from './modules/geocoding/geocoding.routes.js';
 import { sendResponse } from './common/utils/responseEnvelope.js';
 
 export const createApp = (): Application => {
@@ -43,6 +44,7 @@ export const createApp = (): Application => {
   app.use(`${APP_CONSTANTS.API_PREFIX}/tasks`, taskRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/attendance`, attendanceRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/leads`, leadRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/geocoding`, geocodingRoutes);
 
   // 404 Handler
   app.use(notFoundMiddleware);

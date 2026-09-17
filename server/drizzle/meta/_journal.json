@@ -57,6 +57,13 @@
       "when": 1789627513956,
       "tag": "0007_fluffy_bloodaxe",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789641707352,
+      "tag": "0008_foamy_sunspot",
+      "breakpoints": true
     }
   ]
 }
