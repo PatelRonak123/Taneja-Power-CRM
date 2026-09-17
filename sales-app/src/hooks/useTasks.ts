@@ -1,7 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, ApiEnvelope } from '../api/client';
 import { API_ENDPOINTS } from '../api/endpoints';
-import { TaskItem, TaskMetrics, TaskStatus } from '../types/task.types';
+import {
+  TaskItem,
+  TaskMetrics,
+  StartTaskPayload,
+  UpdateTaskLocationPayload,
+  CompleteTaskPayload,
+} from '../types/task.types';
 
 interface MyTasksParams {
   status?: string;
@@ -59,5 +65,59 @@ export const useTaskDetails = (taskId: string) => {
       return response.data;
     },
     enabled: Boolean(taskId),
+  });
+};
+
+export const useStartTask = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ taskId, payload }: { taskId: string; payload?: StartTaskPayload }): Promise<TaskItem> => {
+      const response = (await apiClient.post(
+        API_ENDPOINTS.TASKS.START(taskId),
+        payload || {}
+      )) as unknown as ApiEnvelope<TaskItem>;
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task-details', variables.taskId] });
+    },
+  });
+};
+
+export const useUpdateTaskLocation = () => {
+  return useMutation({
+    mutationFn: async ({
+      taskId,
+      payload,
+    }: {
+      taskId: string;
+      payload: UpdateTaskLocationPayload;
+    }): Promise<{ id: string; currentLatitude: string; currentLongitude: string; lastLocationUpdatedAt: string }> => {
+      const response = (await apiClient.post(
+        API_ENDPOINTS.TASKS.LOCATION(taskId),
+        payload
+      )) as unknown as ApiEnvelope<{ id: string; currentLatitude: string; currentLongitude: string; lastLocationUpdatedAt: string }>;
+      return response.data;
+    },
+  });
+};
+
+export const useCompleteTask = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ taskId, payload }: { taskId: string; payload?: CompleteTaskPayload }): Promise<TaskItem> => {
+      const response = (await apiClient.post(
+        API_ENDPOINTS.TASKS.COMPLETE(taskId),
+        payload || {}
+      )) as unknown as ApiEnvelope<TaskItem>;
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task-details', variables.taskId] });
+    },
   });
 };

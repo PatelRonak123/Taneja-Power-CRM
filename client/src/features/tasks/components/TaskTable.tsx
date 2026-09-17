@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Plus,
   RefreshCw,
+  Radio,
 } from 'lucide-react';
 import { TaskItem, TaskPriority, TaskStatus } from '../types/task.types';
 
@@ -29,6 +30,7 @@ interface TaskTableProps {
   onViewDetails: (task: TaskItem) => void;
   onEditTask: (task: TaskItem) => void;
   onCancelTask: (task: TaskItem) => void;
+  onTrackTask?: (task: TaskItem) => void;
 }
 
 export const TaskTable: React.FC<TaskTableProps> = ({
@@ -46,6 +48,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
   onViewDetails,
   onEditTask,
   onCancelTask,
+  onTrackTask,
 }) => {
   const getPriorityBadge = (priority: TaskPriority) => {
     switch (priority) {
@@ -256,6 +259,18 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                       {/* Actions */}
                       <td className="py-3.5 px-6 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {task.status === 'IN_PROGRESS' && onTrackTask && (
+                            <button
+                              type="button"
+                              onClick={() => onTrackTask(task)}
+                              className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                              title="Live Route Tracking"
+                            >
+                              <Radio size={12} className="animate-pulse" />
+                              <span>Track</span>
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => onViewDetails(task)}

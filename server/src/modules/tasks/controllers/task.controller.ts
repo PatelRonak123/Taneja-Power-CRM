@@ -79,7 +79,10 @@ export class TaskController {
 
   create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const createdById = (req as any).user?.id;
+      const createdById = req.user?.userId;
+      if (!createdById) {
+        throw AppError.unauthorized('User not authenticated');
+      }
       const result = await this.taskService.createTask(req.body, createdById);
       sendResponse(
         res,
@@ -128,6 +131,101 @@ export class TaskController {
         APP_CONSTANTS.HTTP_STATUS.OK,
         { id: req.params.id },
         'Task removed successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  startTask = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      const userRole = req.user?.role;
+      if (!userId || !userRole) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+
+      const result = await this.taskService.startTask(req.params.id, userId, userRole, req.body);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        'Task started successfully. Live tracking enabled.'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateLocation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      const userRole = req.user?.role;
+      if (!userId || !userRole) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+
+      const result = await this.taskService.updateTaskLocation(req.params.id, userId, userRole, req.body);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        'Task location updated successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  completeTask = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      const userRole = req.user?.role;
+      if (!userId || !userRole) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+
+      const notes = req.body?.notes;
+      const result = await this.taskService.completeTask(req.params.id, userId, userRole, notes, req.body);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        'Task completed successfully. Live tracking terminated.'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getActiveTracking = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.taskService.getActiveTrackingTasks();
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        'Active tracking tasks retrieved successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getTaskTracking = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      const userRole = req.user?.role;
+      if (!userId || !userRole) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+
+      const result = await this.taskService.getTaskTracking(req.params.id, userId, userRole);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        'Task live tracking data retrieved successfully'
       );
     } catch (error) {
       next(error);

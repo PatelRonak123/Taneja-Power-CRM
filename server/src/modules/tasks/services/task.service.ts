@@ -243,6 +243,157 @@ export class TaskService {
     await this.taskRepo.delete(id);
   }
 
+  async startTask(
+    id: string,
+    userId: string,
+    userRole: string,
+    coords?: { latitude?: number | null; longitude?: number | null }
+  ): Promise<TaskWithDetails> {
+    const task = await this.taskRepo.findById(id);
+    if (!task) {
+      throw AppError.notFound('Task not found');
+    }
+
+    // Role check: field employees can only start tasks assigned to them
+    if (userRole === 'USER' && task.assignedTo !== userId) {
+      throw AppError.forbidden('You are not authorized to start this task');
+    }
+
+    if (task.status === TASK_STATUS.IN_PROGRESS) {
+      throw AppError.badRequest('Task is already in progress');
+    }
+    if (task.status === TASK_STATUS.COMPLETED) {
+      throw AppError.badRequest('Task has already been completed');
+    }
+    if (task.status === TASK_STATUS.CANCELLED) {
+      throw AppError.badRequest('Cancelled tasks cannot be started');
+    }
+
+    const now = new Date();
+    const updateData: any = {
+      status: TASK_STATUS.IN_PROGRESS,
+      startedAt: task.startedAt || now,
+    };
+
+    if (coords?.latitude !== undefined && coords?.latitude !== null && coords?.longitude !== undefined && coords?.longitude !== null) {
+      updateData.currentLatitude = String(coords.latitude);
+      updateData.currentLongitude = String(coords.longitude);
+      updateData.lastLocationUpdatedAt = now;
+    }
+
+    const updated = await this.taskRepo.update(id, updateData);
+    if (!updated) {
+      throw AppError.internal('Failed to start task');
+    }
+
+    return (await this.taskRepo.findById(id))!;
+  }
+
+  async updateTaskLocation(
+    id: string,
+    userId: string,
+    userRole: string,
+    input: { latitude: number; longitude: number; accuracy?: number | null; timestamp?: number | null }
+  ): Promise<{ id: string; currentLatitude: string; currentLongitude: string; lastLocationUpdatedAt: Date }> {
+    const task = await this.taskRepo.findById(id);
+    if (!task) {
+      throw AppError.notFound('Task not found');
+    }
+
+    if (userRole === 'USER' && task.assignedTo !== userId) {
+      throw AppError.forbidden('You are not authorized to update location for this task');
+    }
+
+    if (task.status !== TASK_STATUS.IN_PROGRESS) {
+      throw AppError.badRequest('Live location tracking is only active for in-progress tasks');
+    }
+
+    const now = new Date();
+    const updated = await this.taskRepo.update(id, {
+      currentLatitude: String(input.latitude),
+      currentLongitude: String(input.longitude),
+      locationAccuracy: input.accuracy ? String(input.accuracy) : null,
+      lastLocationUpdatedAt: now,
+    });
+
+    if (!updated) {
+      throw AppError.internal('Failed to update task location');
+    }
+
+    return {
+      id: updated.id,
+      currentLatitude: String(updated.currentLatitude),
+      currentLongitude: String(updated.currentLongitude),
+      lastLocationUpdatedAt: updated.lastLocationUpdatedAt || now,
+    };
+  }
+
+  async completeTask(
+    id: string,
+    userId: string,
+    userRole: string,
+    notes?: string | null,
+    coords?: { latitude?: number | null; longitude?: number | null }
+  ): Promise<TaskWithDetails> {
+    const task = await this.taskRepo.findById(id);
+    if (!task) {
+      throw AppError.notFound('Task not found');
+    }
+
+    if (userRole === 'USER' && task.assignedTo !== userId) {
+      throw AppError.forbidden('You are not authorized to complete this task');
+    }
+
+    if (task.status === TASK_STATUS.COMPLETED) {
+      throw AppError.badRequest('Task has already been completed');
+    }
+    if (task.status === TASK_STATUS.CANCELLED) {
+      throw AppError.badRequest('Cancelled tasks cannot be completed');
+    }
+
+    const now = new Date();
+    const updateData: any = {
+      status: TASK_STATUS.COMPLETED,
+      completedAt: now,
+    };
+
+    if (notes) {
+      updateData.description = task.description
+        ? `${task.description}\n\n[Completion Notes]: ${notes}`
+        : `[Completion Notes]: ${notes}`;
+    }
+
+    if (coords?.latitude !== undefined && coords?.latitude !== null && coords?.longitude !== undefined && coords?.longitude !== null) {
+      updateData.currentLatitude = String(coords.latitude);
+      updateData.currentLongitude = String(coords.longitude);
+      updateData.lastLocationUpdatedAt = now;
+    }
+
+    const updated = await this.taskRepo.update(id, updateData);
+    if (!updated) {
+      throw AppError.internal('Failed to complete task');
+    }
+
+    return (await this.taskRepo.findById(id))!;
+  }
+
+  async getActiveTrackingTasks(): Promise<TaskWithDetails[]> {
+    return this.taskRepo.findActiveTrackingTasks();
+  }
+
+  async getTaskTracking(id: string, userId: string, userRole: string): Promise<TaskWithDetails> {
+    const task = await this.taskRepo.findById(id);
+    if (!task) {
+      throw AppError.notFound('Task not found');
+    }
+
+    if (userRole === 'USER' && task.assignedTo !== userId) {
+      throw AppError.forbidden('You are not authorized to view tracking data for this task');
+    }
+
+    return task;
+  }
+
   private validateStatusTransition(currentStatus: string, newStatus: string): void {
     if (currentStatus === newStatus) return;
 

@@ -307,4 +307,61 @@ export class TaskRepository {
       cancelled: Number(cancelledRes?.value || 0),
     };
   }
+
+  async findActiveTrackingTasks(): Promise<TaskWithDetails[]> {
+    const rows = await db
+      .select({
+        task: tasks,
+        customer: {
+          id: customers.id,
+          name: customers.name,
+          companyName: customers.companyName,
+          phone: customers.phone,
+          email: customers.email,
+          status: customers.status,
+        },
+        destination: {
+          id: customerDestinations.id,
+          name: customerDestinations.name,
+          address: customerDestinations.address,
+          city: customerDestinations.city,
+          state: customerDestinations.state,
+          pincode: customerDestinations.pincode,
+          latitude: customerDestinations.latitude,
+          longitude: customerDestinations.longitude,
+          contactPerson: customerDestinations.contactPerson,
+          contactPhone: customerDestinations.contactPhone,
+          status: customerDestinations.status,
+        },
+        assignedUser: {
+          id: assignedUsers.id,
+          fullName: assignedUsers.fullName,
+          email: assignedUsers.email,
+          phone: assignedUsers.phone,
+          designation: assignedUsers.designation,
+          avatarUrl: assignedUsers.avatarUrl,
+          status: assignedUsers.status,
+        },
+        createdByUser: {
+          id: createdByUsers.id,
+          fullName: createdByUsers.fullName,
+          email: createdByUsers.email,
+        },
+      })
+      .from(tasks)
+      .leftJoin(customers, eq(tasks.customerId, customers.id))
+      .leftJoin(customerDestinations, eq(tasks.destinationId, customerDestinations.id))
+      .leftJoin(assignedUsers, eq(tasks.assignedTo, assignedUsers.id))
+      .leftJoin(createdByUsers, eq(tasks.createdBy, createdByUsers.id))
+      .where(eq(tasks.status, 'IN_PROGRESS'))
+      .orderBy(desc(tasks.lastLocationUpdatedAt), desc(tasks.startedAt));
+
+    return rows.map((r) => ({
+      ...r.task,
+      customer: r.customer?.id ? r.customer : null,
+      destination: r.destination?.id ? r.destination : null,
+      assignedUser: r.assignedUser?.id ? r.assignedUser : null,
+      createdByUser: r.createdByUser?.id ? r.createdByUser : null,
+    }));
+  }
 }

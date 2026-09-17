@@ -55,12 +55,34 @@ export interface TaskItem {
   completedAt: string | null;
   cancelledAt: string | null;
   cancellationReason: string | null;
+  currentLatitude?: string | null;
+  currentLongitude?: string | null;
+  locationAccuracy?: string | null;
+  lastLocationUpdatedAt?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
   customer: TaskCustomer | null;
   destination: TaskDestination | null;
   assignedUser: TaskUserSummary | null;
+}
+
+export interface StartTaskPayload {
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+export interface UpdateTaskLocationPayload {
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+  timestamp?: number | null;
+}
+
+export interface CompleteTaskPayload {
+  notes?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface TaskMetrics {

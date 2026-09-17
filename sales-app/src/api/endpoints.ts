@@ -9,6 +9,10 @@ export const API_ENDPOINTS = {
   TASKS: {
     MY_TASKS: '/tasks/my-tasks',
     GET_BY_ID: (id: string) => `/tasks/${id}`,
+    START: (id: string) => `/tasks/${id}/start`,
+    LOCATION: (id: string) => `/tasks/${id}/location`,
+    COMPLETE: (id: string) => `/tasks/${id}/complete`,
+    TRACKING: (id: string) => `/tasks/${id}/tracking`,
   },
   ATTENDANCE: {
     ME: '/attendance/me',
