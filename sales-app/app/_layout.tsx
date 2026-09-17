@@ -7,6 +7,8 @@ import { queryClient } from '../src/api/queryClient';
 import { useAuthStore } from '../src/auth/auth.store';
 import { theme } from '../src/theme/theme';
 
+import { taskTrackingService } from '../src/services/taskTracking.service';
+
 function NavigationGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isInitialized, initializeAuth } = useAuthStore();
   const segments = useSegments();
@@ -22,11 +24,18 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!isAuthenticated && !inAuthGroup) {
+      // Clear active background tracking when unauthenticated / logged out
+      taskTrackingService.stopTracking();
       // Redirect unauthenticated users to login
       router.replace('/(auth)/login');
     } else if (isAuthenticated && inAuthGroup) {
+      // Reconcile background tracking state upon successful authentication
+      taskTrackingService.reconcileActiveTracking();
       // Redirect authenticated users into protected app
       router.replace('/(app)/(tabs)');
+    } else if (isAuthenticated && !inAuthGroup) {
+      // Active session check
+      taskTrackingService.reconcileActiveTracking();
     }
   }, [isAuthenticated, isInitialized, segments, router]);
 

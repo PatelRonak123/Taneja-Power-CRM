@@ -84,20 +84,23 @@ export default function TaskDetailsScreen() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [liveLocation, setLiveLocation] = useState<CapturedLocation | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
+  const [isBackgroundActive, setIsBackgroundActive] = useState<boolean>(false);
 
   // Subscribe to live tracking updates when task is in progress
   useEffect(() => {
     if (task && task.status === 'IN_PROGRESS') {
       taskTrackingService.startTracking(task.id);
-      const unsubscribe = taskTrackingService.subscribe((loc, err) => {
+      const unsubscribe = taskTrackingService.subscribe((loc, err, bgActive) => {
         setLiveLocation(loc);
         setTrackingError(err || null);
+        setIsBackgroundActive(Boolean(bgActive));
       });
 
       return () => {
+        // Clean up UI listener only on screen unmount — background tracking continues
         unsubscribe();
       };
-    } else {
+    } else if (task && (task.status === 'COMPLETED' || task.status === 'CANCELLED')) {
       taskTrackingService.stopTracking(id);
     }
   }, [task?.status, task?.id]);
@@ -112,6 +115,17 @@ export default function TaskDetailsScreen() {
     setActionError(null);
     setActionLoadingState('ACQUIRING_GPS');
 
+    // 1. Request background location permission contextually if not already granted
+    try {
+      const bgPerm = await LocationService.checkBackgroundPermission();
+      if (!bgPerm.granted && bgPerm.canAskAgain) {
+        await LocationService.requestBackgroundPermission();
+      }
+    } catch (bgErr) {
+      console.warn('Background permission request notice:', bgErr);
+    }
+
+    // 2. Capture initial GPS coordinates
     let capturedLoc: CapturedLocation | null = null;
     try {
       capturedLoc = await LocationService.getCurrentPosition();
@@ -136,6 +150,7 @@ export default function TaskDetailsScreen() {
       return;
     }
 
+    // 3. Submit start task mutation to backend
     setActionLoadingState('SUBMITTING');
     try {
       await startTaskMutation.mutateAsync({
@@ -146,11 +161,14 @@ export default function TaskDetailsScreen() {
         },
       });
 
-      taskTrackingService.startTracking(task.id);
+      const bgStarted = await taskTrackingService.startTracking(task.id);
+      setIsBackgroundActive(bgStarted);
       setActionLoadingState('IDLE');
       Alert.alert(
         'Task Started',
-        'Work order is now in progress. Live route tracking has been activated for dispatch monitoring.'
+        bgStarted
+          ? 'Work order is now in progress. Android background location service & dispatch notification have been activated.'
+          : 'Work order is now in progress. Foreground GPS route tracking is active.'
       );
     } catch (apiErr: any) {
       setActionLoadingState('IDLE');
@@ -167,7 +185,7 @@ export default function TaskDetailsScreen() {
 
     Alert.alert(
       'Complete Work Order',
-      'Are you sure you want to mark this task as completed? This will terminate active location tracking.',
+      'Are you sure you want to mark this task as completed? This will terminate active location tracking and remove the background notification.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -195,11 +213,12 @@ export default function TaskDetailsScreen() {
                 },
               });
 
-              taskTrackingService.stopTracking(task.id);
+              await taskTrackingService.stopTracking(task.id);
+              setIsBackgroundActive(false);
               setActionLoadingState('IDLE');
               Alert.alert(
                 'Task Completed',
-                'Work order has been successfully recorded as completed.'
+                'Work order has been successfully recorded as completed. Tracking service stopped.'
               );
             } catch (apiErr: any) {
               setActionLoadingState('IDLE');
@@ -391,13 +410,21 @@ export default function TaskDetailsScreen() {
             <View style={styles.trackingHeaderRow}>
               <View style={styles.livePulseBox}>
                 <Radio size={18} color={theme.colors.accentAmber} />
-                <Text style={styles.livePulseText}>LIVE GPS TRACKING ACTIVE</Text>
+                <Text style={styles.livePulseText}>
+                  {isBackgroundActive ? 'LIVE BACKGROUND GPS ACTIVE' : 'LIVE GPS TRACKING ACTIVE'}
+                </Text>
               </View>
-              <Badge label="IN PROGRESS" variant="warning" size="sm" />
+              <Badge
+                label={isBackgroundActive ? 'BG SERVICE RUNNING' : 'FOREGROUND ONLY'}
+                variant={isBackgroundActive ? 'success' : 'warning'}
+                size="sm"
+              />
             </View>
 
             <Text style={styles.trackingSubtitle}>
-              Foreground coordinates are transmitting to Admin Dispatch for live route monitoring.
+              {isBackgroundActive
+                ? 'Persistent Android service is transmitting live coordinates to Admin Dispatch, even when the screen is locked.'
+                : 'GPS coordinates are transmitting to Admin Dispatch while the app is active.'}
             </Text>
 
             {liveLocation ? (
@@ -658,7 +685,7 @@ export default function TaskDetailsScreen() {
         <View style={styles.noticeBox}>
           <Info size={16} color={theme.colors.textMuted} />
           <Text style={styles.noticeText}>
-            • Live GPS tracking operates in the foreground only while the active task session is underway.
+            • Live GPS tracking operates in the background with a persistent Android notification while the work order is in progress. Tracking stops automatically upon completion.
           </Text>
         </View>
       </ScrollView>

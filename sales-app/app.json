@@ -28,7 +28,10 @@
       "package": "com.tanejapower.salesapp",
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "web": {
@@ -41,7 +44,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Taneja Power requires location access to record employee check-in and check-out coordinates for daily attendance verification."
+          "locationAlwaysAndWhenInUsePermission": "Taneja Power tracks live location in the background during active assigned sales tasks for real-time dispatch monitoring.",
+          "locationWhenInUsePermission": "Taneja Power requires location access to record employee check-in and check-out coordinates and navigate to task destinations.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ]
     ],
