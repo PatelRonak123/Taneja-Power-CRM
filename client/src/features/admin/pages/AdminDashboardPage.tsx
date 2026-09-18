@@ -17,7 +17,6 @@ import {
   Clock,
   RefreshCw,
   Plus,
-  Server,
   UserCheck,
   ChevronRight,
   Flame,
