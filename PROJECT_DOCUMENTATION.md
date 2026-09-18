@@ -1,16 +1,17 @@
-# Taneja Power CRM & Field Workforce Management System
-## Comprehensive Technical & Functional Documentation
+# Taneja Power CRM & Enterprise Engineering Management System
+## Comprehensive Technical & Functional Project Documentation
 
 ---
 
 ## 1. Executive Summary & Vision
 
-**Taneja Power CRM** is an enterprise-grade Customer Relationship Management, Field Dispatch, and Telemetry Monitoring platform designed for industrial power, heavy engineering, and energy equipment service operations. 
+**Taneja Power CRM** is an enterprise-grade platform combining Customer Relationship Management (CRM), an authoritative Commercial & Technical Quotation Engine, Multi-Facility Field Workforce Telemetry, and Heavy Equipment Service Operations.
 
-The system unifies:
-- **Enterprise Web Portal (`client/`)**: Comprehensive Web UI for Administrators and Operational Managers to manage staff, clients, multi-facility destination sites, lead pipelines, field dispatches, attendance logs, and telemetry.
-- **Field Workforce Mobile App (`sales-app/`)**: Native mobile experience for field engineers and sales representatives to execute dispatches, record real-time GPS check-ins/outs, and access site specifications on the go.
-- **RESTful Telemetry & API Server (`server/`)**: Scalable backend handling authentication, geocoding pipelines, work order state machines, and live GPS route tracking streams.
+The system is tailored for industrial heavy engineering, power generation, substations, and energy equipment manufacturing. It unifies:
+
+- **Enterprise Web Portal (`client/`)**: Modern React 19 web application for Executives, Sales Engineers, and Operations Managers to create quotations, manage revisions, trigger approval workflows, stream PDFs, dispatch field engineers, and monitor telemetry.
+- **RESTful API & Calculation Engine (`server/`)**: Robust Express TypeScript backend with Drizzle ORM, authoritative multi-tier GST tax engines, sequential numbering services, and vector PDF generation pipelines.
+- **Field Workforce Mobile App (`sales-app/`)**: Native mobile application for field engineers and sales representatives to execute dispatches, capture GPS attendance, and view facility destination specs.
 
 ---
 
@@ -18,19 +19,21 @@ The system unifies:
 
 ```mermaid
 graph TD
-    UserWeb[Admin & Management Web Portal - React + TypeScript] --> API[Node.js / Express TypeScript Server]
-    UserMobile[Field Engineers Mobile App - React Native / Expo] --> API
-    API --> DB[(Prisma ORM & PostgreSQL Database)]
-    API --> Geocode[OpenStreetMap / Nominatim India Geocoding Engine]
-    API --> WhatsApp[WhatsApp Notification Gateway]
+    UserWeb["Admin & Sales Web Portal (React 19 + TypeScript + Vite)"] --> API["Node.js / Express TypeScript Server"]
+    UserMobile["Field Engineers Mobile App (React Native / Expo)"] --> API
+    API --> DB[("PostgreSQL Database (via Drizzle ORM)")]
+    API --> PDFKit["PDFKit Vector Document Engine"]
+    API --> Geocode["Google Places + Nominatim / Photon Geocoder"]
+    API --> WhatsApp["WhatsApp Notification Gateway"]
 ```
 
 ### Core Technologies
-- **Web Frontend**: React 18, TypeScript, Tailwind CSS, Lucide Icons, React Query, Zustand State Management, React Router.
+- **Web Frontend**: React 19, TypeScript, Vite, Tailwind CSS, Lucide Icons, TanStack Query (React Query v5), Zustand, React Router v6.
+- **Backend Server**: Node.js, Express.js, TypeScript, Drizzle ORM, PostgreSQL (`pg`), Zod validation schemas.
+- **Document Engine**: PDFKit with dynamic page buffering, multi-page layout engine, and vector graphic formatting.
+- **Geocoding & Maps**: Multi-tier pipeline combining Google Places API with OpenStreetMap Nominatim and Komoot Photon fallback engines.
 - **Mobile Sales App**: React Native, Expo, TypeScript, React Navigation, Geolocation API.
-- **Backend Server**: Node.js, Express.js, TypeScript, Prisma ORM, PostgreSQL.
-- **Geocoding & Maps**: OpenStreetMap Nominatim Engine (restricted to India `countrycodes=in` with multi-tier landmark fallback).
-- **Authentication**: JWT-based session tokens with role-based access control (`ADMIN` vs `EMPLOYEE`).
+- **Authentication**: JWT-based session tokens with role-based access control (`ADMIN`, `MANAGER`, `SALES`, `ENGINEER`).
 
 ---
 
@@ -39,81 +42,95 @@ graph TD
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Admin as Admin / Manager
-    actor Eng as Field Engineer
-    participant Web as Web Portal
+    actor Sales as Sales Engineer
+    actor Mgr as Management Approver
+    actor Cust as Customer
+    participant Web as CRM Web Portal
     participant API as Backend Server
-    participant Mobile as Mobile App
-    participant Geo as Map Geocoder API
+    participant DB as PostgreSQL Database
+    participant PDF as PDFKit Engine
 
-    Note over Admin, Web: 1. Customer & Facility Setup
-    Admin->>Web: Register Customer & Add Destination Site
-    Web->>Geo: Search Address ("dhyan residency harni water tank road, vadodara")
-    Geo-->>Web: Return Address Details & GPS (Lat: 22.331200, Lon: 73.208900)
-    Web->>API: Save Destination Site with Auto-Populated GPS
-    
-    Note over Admin, Eng: 2. Task Scheduling & Dispatch
-    Admin->>Web: Create Field Task & Assign to Field Engineer
-    API-->>Mobile: Push Dispatch Notification to Engineer
-    
-    Note over Eng, Mobile: 3. Execution & Attendance Log
-    Eng->>Mobile: Daily Attendance Check-In (Captures GPS & Timestamp)
-    Eng->>Mobile: Start Work Order (Live Route Tracking Activated)
-    API-->>Web: Stream Live Telemetry Coordinates
-    Admin->>Web: Monitor Live Route Dispatch Drawer (Auto-poll 10s)
-    Eng->>Mobile: Complete Work Order & Attendance Check-Out
+    Note over Sales, Web: 1. Quotation Drafting
+    Sales->>Web: Create Quotation (Select Customer, Destination Site & Line Items)
+    Web->>API: POST /api/v1/quotations
+    API->>API: Calculate Base, Discounts, Multi-Tier GST & Grand Total
+    API->>DB: Save Quotation & Freeze Revision 1 Snapshot
+    API-->>Web: Return Authoritative Quotation
+
+    Note over Sales, Mgr: 2. Approval Workflow
+    Sales->>Web: Submit Quotation for Approval
+    Web->>API: POST /api/v1/quotations/:id/revisions/1/submit-approval
+    Mgr->>Web: Review Proposal Breakdown & Margin
+    Mgr->>Web: Approve Quotation
+    Web->>API: POST /api/v1/quotations/:id/revisions/1/approve
+    API->>DB: Record Approval Audit Log (Approver ID & Timestamp)
+
+    Note over Sales, Cust: 3. PDF Dispatch & Print
+    Sales->>Web: Preview PDF / Download
+    Web->>API: GET /api/v1/quotations/:id/pdf
+    API->>PDF: Generate A4 Vector Document with Authoritative Snapshot
+    PDF-->>Web: Stream PDF Binary
+    Web->>Cust: Issue Official PDF Proposal to Customer
 ```
 
 ---
 
-## 4. Detailed Component & Feature Flow
+## 4. Comprehensive Functional Modules
 
-### 4.1. Authentication & Session Verification Flow
-- **Route Guard**: Every protected web page is wrapped with `<ProtectedRoute>`.
-- **Preloader UI**: Displays a centered, dark-themed preloader featuring the official **Taneja Power logo** (`/logo.png`) with an animated gradient spinner ring and security validation status (`"Verifying authentication session..."`).
-- **Role Routing**:
-  - `ADMIN` role defaults to `/admin/dashboard`.
-  - `EMPLOYEE` role defaults to `/employee/dashboard`.
+### 4.1. Commercial Quotations & Proposals Engine
+- **Quotation Categories**:
+  - `PRODUCT`: Heavy machinery, diesel generators, switchgear panels, transformers.
+  - `TECHNICAL`: Custom engineering turnkey packages with in-depth technical specifications.
+  - `SERVICE`: On-site testing, installation, commissioning, harmonic analysis.
+  - `AMC`: Annual Maintenance Contracts with service visit schedules.
+- **Authoritative Multi-Tier GST Engine**:
+  - Supports mixed GST rates per line item (0%, 5%, 12%, 18%, 28%).
+  - Automatically identifies Intra-State (Gujarat $\rightarrow$ Gujarat: CGST + SGST) versus Inter-State (Gujarat $\rightarrow$ Other States: IGST).
+  - Authoritative document rounding and Indian Numbering **Amount in Words** formatting.
+- **Immutable Revision Snapshot Pattern**:
+  - When revisions are created (`Rev 1`, `Rev 2`, `Rev N`), all customer metadata, prices, discounts, taxes, and commercial terms are permanently frozen. Master catalog price updates never alter historical proposals.
+- **Multi-Tier Approval State Machine**:
+  - `DRAFT` $\rightarrow$ `PENDING_APPROVAL` $\rightarrow$ `APPROVED` / `REJECTED` $\rightarrow$ `SENT` $\rightarrow$ `ACCEPTED` / `REJECTED_BY_CUSTOMER`.
+  - Enforces role-based permissions (only Managers and Admins can approve high-value proposals).
+- **Production-Ready PDF & Print Studio**:
+  - In-browser live PDF stream preview modal with zoom, download, and print capabilities.
+  - Pixel-perfect vector A4 layout with dynamic multi-page numbering (`Page X of Y`), repeating table headers, and dedicated technical specification scopes.
+  - Clean status-guarded signature blocks: Approved quotations display official review timestamps and approver names; drafts display unapproved proposal indicators.
 
 ---
 
 ### 4.2. Customer & Multi-Facility Destination Management
-- **Enterprise Client Accounts**: Register corporate clients with primary contact details, phone, email, and billing address.
-- **Multi-Facility Destinations**: Add multiple factory sites, turbine units, or field locations under a single customer.
+- **Enterprise Client Directory**: Manage corporate client accounts, legal entity names, GSTIN, PAN, and billing addresses.
+- **Multi-Facility Destinations**: Add multiple factory sites, thermal power plants, or field locations under a single customer account.
 - **India-Only Map Geocoding Autocomplete**:
-  - When typing in the **Facility Address** field, the modal executes debounced queries (400ms) restricted to India (`countrycodes=in`).
-  - **Sanitization & Landmark Fallback**: Strips filler prepositions (`near`, `opp`, `opposite`, `behind`, `landmark`) and uses a 4-tier fallback algorithm (Nominatim + Photon API) so queries like `"dhyan residency near harni water tank road, vadodara"` reliably match **Harni Water Tank Road, Vadodara, Gujarat**.
-  - **Auto-GPS Population**: Selecting a suggestion automatically populates **Latitude**, **Longitude**, **City**, **State**, and **Pincode** fields.
+  - Real-time address autocomplete powered by Google Places with Nominatim and Photon fallbacks.
+  - Automatic population of **Latitude**, **Longitude**, **City**, **State**, and **Pincode**.
+  - Interactive OpenStreetMap Leaflet map preview embedded directly in the creation modal.
 
 ---
 
-### 4.3. Field Task & Dispatch Management
-- **Work Order Lifecycle**: `CREATED` ➔ `ASSIGNED` ➔ `IN_PROGRESS` ➔ `COMPLETED` / `CANCELLED`.
-- **Responsive Task Table**:
-  - **Desktop View (`≥ 768px`)**: Full-width fixed layout (`md:table-fixed`) displaying Task Title, Customer & Site, Engineer, Priority, Status, Scheduled Date, and Actions cleanly without horizontal scrollbars.
-  - **Mobile View (`< 768px`)**: Smooth horizontal scrolling (`overflow-x-auto min-w-[800px]`) ensuring un-squashed badge text and touchable controls.
+### 4.3. Field Task & Telemetry Dispatch Management
+- **Work Order Lifecycle**: `CREATED` $\rightarrow$ `ASSIGNED` $\rightarrow$ `IN_PROGRESS` $\rightarrow$ `COMPLETED` / `CANCELLED`.
+- **Responsive Task Table**: Full-width desktop layout with horizontal touch scrolling on mobile devices.
 - **Live Route Tracking Drawer**:
-  - Portalled into `document.body` with `z-[100]`.
-  - Displays real-time GPS distance calculations (straight-line km/meters) between engineer live position and target destination site.
-  - Auto-polls telemetry every 10 seconds.
-  - Dismissible via close button (`X`) or by clicking anywhere on the background overlay.
+  - Real-time GPS distance calculation between engineer live position and target facility site.
+  - Auto-polls live telemetry coordinates every 10 seconds.
 
 ---
 
 ### 4.4. Employee Attendance System
 - **Employee View (`/employee/attendance`)**:
-  - Live IST Clock & Shift Status Banner.
-  - One-tap **Check-In / Check-Out** with mandatory browser/mobile GPS geolocation capture.
-  - Active duty session timer & work note entry.
+  - Live IST clock and shift status banner.
+  - One-tap check-in and check-out with mandatory browser/mobile GPS capture.
 - **Admin View (`/admin/attendance`)**:
-  - Attendance metrics (Checked-in personnel, on-time percentage, completed duty hours).
-  - Detailed side drawer (`AttendanceDetailModal`) showing verified server timestamps, latitude/longitude coordinates with one-click copy, and total computed duty duration.
+  - Shift analytics (on-time percentage, active on-duty personnel, completed hours).
+  - Detailed side drawer showing verified server timestamps and GPS coordinates with one-click copy.
 
 ---
 
-### 4.5. Deals Pipeline & Lead Management
-- **Kanban Board**: Drag-and-drop or status-card progression for sales leads across pipeline stages (`New`, `Contacted`, `Qualified`, `Proposal Sent`, `Negotiation`, `Won/Lost`).
-- **Lead Drawers**: Slide-over right-to-left drawers (`LeadDrawer.tsx`) portalled at `z-[100]` for editing lead specifications, budget, and follow-up activities.
+### 4.5. Deals Pipeline & Product Catalog
+- **Deals Kanban Board**: Drag-and-drop sales opportunities across stages (`New`, `Contacted`, `Qualified`, `Proposal Sent`, `Negotiation`, `Won/Lost`).
+- **Product & Price Master**: Catalog of engineering equipment, standardized SKUs, unit rates, HSN/SAC codes, and default GST rates.
 
 ---
 
@@ -121,37 +138,44 @@ sequenceDiagram
 
 ```
 Taneja-Power-CRM/
-├── client/                               # Admin & Operations Web Portal
-│   ├── public/logo.png                   # Official Company Logo
+├── client/                               # Admin & Sales Web Portal (React 19 + TS)
+│   ├── public/logo.png                   # Official Company Logo Asset
 │   └── src/
-│       ├── app/router/                   # SPA Navigation & Route Redirects
-│       ├── components/layout/
-│       │   ├── Header.tsx                # Sticky top navbar with user profile
-│       │   ├── Sidebar.tsx               # Brand header & role navigation
-│       │   ├── Layout.tsx                # Main application frame
-│       │   └── ProtectedRoute.tsx        # Preloader with company logo
-│       ├── features/
-│       │   ├── admin/                    # Employee Management & Admin Analytics
-│       │   ├── attendance/               # Employee Attendance & Duty Drawer
-│       │   ├── customers/                # Customer & Destination Geocoding
-│       │   │   ├── components/DestinationModal.tsx  # Map Autocomplete & Auto-GPS
-│       │   │   └── components/DestinationsDrawer.tsx # Facility Sites Drawer
-│       │   ├── employee/                 # Employee Personal Portal & Check-In
-│       │   ├── leads/                    # Leads & Kanban Deals Pipeline
-│       │   ├── tasks/                    # Field Work Orders & Live Tracking
-│       │   │   ├── components/TaskTable.tsx # Responsive Task Table
-│       │   │   └── components/LiveRouteTrackingDrawer.tsx # Live GPS Dispatch
-│       │   └── whatsapp/                 # WhatsApp Alert Notification Gateway
-├── sales-app/                            # Mobile Sales & Field Engineer App
-│   └── src/                              # React Native UI Screens & GPS Capture
-└── server/                               # Backend REST API Server
-    ├── prisma/                           # Database Schema & Migrations
-    └── src/controllers/                  # Route Controllers & Services
+│       ├── app/                          # API Client, Router, Config
+│       ├── components/                   # Shared UI Components (Header, Sidebar, Modals)
+│       └── features/
+│           ├── quotations/               # Complete Quotation Subsystem
+│           │   ├── components/           # QuotationForm, Table, RevisionViewer, PDFModal, PrintDoc
+│           │   ├── pages/                # ListPage, CreatePage, EditPage, DetailPage
+│           │   ├── services/             # quotationService.ts (API client)
+│           │   └── types/                # quotation.types.ts (Domain models)
+│           ├── customers/                # Customer Directory & DestinationModal.tsx
+│           ├── products/                 # Product Catalog & Price Master
+│           ├── tasks/                    # Field Work Orders & Live Tracking
+│           ├── attendance/               # Attendance & GPS Logs
+│           └── leads/                    # Sales Pipeline & Kanban
+├── server/                               # Backend REST API Server (Node.js + TS)
+│   ├── drizzle/                          # Drizzle SQL Migrations
+│   └── src/
+│       ├── database/
+│       │   ├── schema/                   # Drizzle Schemas (quotations.ts, customers.ts, etc.)
+│       │   └── test-quotation-pdf.ts     # Automated PDF Unit & Integration Test Suite
+│       └── modules/
+│           ├── quotations/               # Quotation Backend Module
+│           │   ├── controllers/          # quotation.controller.ts
+│           │   ├── routes/               # quotation.routes.ts
+│           │   ├── services/             # calculation, number, pdf, and quotation services
+│           │   └── validators/           # quotation.validator.ts (Zod schemas)
+│           ├── customers/                # Customer & Destination Services
+│           ├── products/                 # Product Catalog API
+│           ├── geocoding/                # Multi-Provider Geocoding Orchestrator
+│           └── tasks/                    # Field Workforce Dispatch Module
+└── sales-app/                            # Mobile Sales & Field Engineer App (Expo)
 ```
 
 ---
 
-## 6. Development & Deployment Guide
+## 6. Development, Testing & Verification Guide
 
 ### Local Development Setup
 1. **Start Backend Server**:
@@ -170,13 +194,23 @@ Taneja-Power-CRM/
    npx expo start
    ```
 
-### Code Quality Verification
-Run TypeScript validation across the web portal:
-```bash
-cd client
-npx tsc --noEmit
-```
+### Quality & Compilation Verification
+- **Run Backend Typecheck**:
+  ```bash
+  cd server
+  npx tsc --noEmit
+  ```
+- **Run Quotation PDF Automated Test Suite**:
+  ```bash
+  cd server
+  npx tsx src/database/test-quotation-pdf.ts
+  ```
+- **Run Frontend Production Build**:
+  ```bash
+  cd client
+  npm run build
+  ```
 
 ---
 
-*Document compiled for Taneja Power System - Version 2.4.0*
+*Document compiled for Taneja Power System — Version 3.0.0 (Production-Ready Release)*

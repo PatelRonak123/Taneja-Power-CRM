@@ -16,6 +16,10 @@ import { EmployeeDashboardPage } from '../../features/employee/pages/EmployeeDas
 import { EmployeeAttendancePage } from '../../features/employee/pages/EmployeeAttendancePage';
 import { ProfilePage } from '../../features/profile/pages/ProfilePage';
 import { ReportsPage } from '../../features/admin/pages/ReportsPage';
+import { QuotationListPage } from '../../features/quotations/pages/QuotationListPage';
+import { CreateQuotationPage } from '../../features/quotations/pages/CreateQuotationPage';
+import { EditQuotationPage } from '../../features/quotations/pages/EditQuotationPage';
+import { QuotationDetailPage } from '../../features/quotations/pages/QuotationDetailPage';
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -46,6 +50,22 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     if (currentPath === '/pipeline' || currentPath === '/admin/pipeline') {
       return <PipelinePage />;
+    }
+
+    if (currentPath === '/quotations') {
+      return <QuotationListPage />;
+    }
+
+    if (currentPath === '/quotations/new') {
+      return <CreateQuotationPage />;
+    }
+
+    if (currentPath.startsWith('/quotations/') && currentPath.endsWith('/edit')) {
+      return <EditQuotationPage />;
+    }
+
+    if (currentPath.startsWith('/quotations/')) {
+      return <QuotationDetailPage />;
     }
 
     if ((currentPath === '/tasks' || currentPath === '/admin/tasks') && isAdmin) {
