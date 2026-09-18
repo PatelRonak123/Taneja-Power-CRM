@@ -64,6 +64,13 @@
       "when": 1789641707352,
       "tag": "0008_foamy_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789725523260,
+      "tag": "0009_slim_firebird",
+      "breakpoints": true
     }
   ]
 }

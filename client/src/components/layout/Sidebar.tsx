@@ -20,6 +20,7 @@ import {
   PieChart,
   PanelLeftClose,
   PanelLeftOpen,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -102,6 +103,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       description: 'Kanban workflow & deals',
     },
     {
+      id: 'quotation-management',
+      path: '/quotations',
+      aliasPaths: ['/quotations/new'],
+      label: 'Quotations & Proposals',
+      icon: FileSpreadsheet,
+      description: 'Commercial proposals & pricing',
+    },
+    {
       id: 'task-management',
       path: '/tasks',
       aliasPaths: ['/admin/tasks'],
@@ -144,6 +153,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           aliasPaths: ['/dashboard'],
           label: 'Employee Dashboard',
           icon: Home,
+        },
+        {
+          id: 'employee-quotations',
+          path: '/quotations',
+          aliasPaths: ['/quotations/new'],
+          label: 'Quotations & Proposals',
+          icon: FileSpreadsheet,
         },
         {
           id: 'employee-attendance',
