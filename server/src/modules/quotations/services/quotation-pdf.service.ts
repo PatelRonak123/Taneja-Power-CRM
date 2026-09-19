@@ -175,6 +175,8 @@ const getQuotationTypeHeading = (type?: string) => {
   }
 };
 
+import { QuotationAmcPdfService } from './quotation-amc-pdf.service.js';
+
 export class QuotationPdfService {
   /**
    * Generates a high-quality, multi-page Quotation PDF document
@@ -183,6 +185,10 @@ export class QuotationPdfService {
     data: PdfQuotationData,
     companyConfig: CompanyProfileConfig = DEFAULT_COMPANY_CONFIG
   ): Promise<Buffer> {
+    if (data.quotationType === 'AMC') {
+      return QuotationAmcPdfService.generatePdf(data, companyConfig);
+    }
+
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({

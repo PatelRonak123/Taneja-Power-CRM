@@ -111,6 +111,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       description: 'Commercial proposals & pricing',
     },
     {
+      id: 'amc-contract-management',
+      path: '/amc-contracts',
+      aliasPaths: [],
+      label: 'AMC Contracts',
+      icon: ShieldCheck,
+      description: 'Maintenance contracts & schedule',
+    },
+    {
       id: 'task-management',
       path: '/tasks',
       aliasPaths: ['/admin/tasks'],

@@ -15,6 +15,7 @@ import attendanceRoutes from './modules/attendance/routes/attendance.routes.js';
 import leadRoutes from './modules/leads/routes/lead.routes.js';
 import geocodingRoutes from './modules/geocoding/geocoding.routes.js';
 import quotationRoutes from './modules/quotations/routes/quotation.routes.js';
+import amcContractRoutes from './modules/amc-contracts/routes/amc-contract.routes.js';
 import { sendResponse } from './common/utils/responseEnvelope.js';
 
 export const createApp = (): Application => {
@@ -47,6 +48,8 @@ export const createApp = (): Application => {
   app.use(`${APP_CONSTANTS.API_PREFIX}/leads`, leadRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/geocoding`, geocodingRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/quotations`, quotationRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/amc-contracts`, amcContractRoutes);
+
 
   // 404 Handler
   app.use(notFoundMiddleware);

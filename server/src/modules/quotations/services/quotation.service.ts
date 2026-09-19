@@ -4,6 +4,9 @@ import {
   quotations,
   quotationRevisions,
   quotationItems,
+  quotationAmcScopeItems,
+  quotationAmcExclusions,
+  quotationAmcEscalations,
   quotationApprovals,
   quotationActivityLogs,
 } from '../../../database/schema/quotations.js';
@@ -107,6 +110,9 @@ export class QuotationService {
           serviceDurationMonths: item.serviceDurationMonths,
           serviceVisitsIncluded: item.serviceVisitsIncluded,
           serviceScope: item.serviceScope,
+          equipmentType: item.equipmentType || null,
+          equipmentConfiguration: item.equipmentConfiguration || null,
+          equipmentRating: item.equipmentRating || null,
           sortOrder: item.sortOrder,
           itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
         });
@@ -130,6 +136,9 @@ export class QuotationService {
           serviceDurationMonths: item.serviceDurationMonths,
           serviceVisitsIncluded: item.serviceVisitsIncluded,
           serviceScope: item.serviceScope,
+          equipmentType: item.equipmentType || null,
+          equipmentConfiguration: item.equipmentConfiguration || null,
+          equipmentRating: item.equipmentRating || null,
           sortOrder: item.sortOrder,
           itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
         });
@@ -228,6 +237,21 @@ export class QuotationService {
           warrantyTerms: input.warrantyTerms || null,
           notes: input.notes || null,
           internalRemarks: input.internalRemarks || null,
+
+          // AMC Contract Snapshot Metadata
+          amcPlan: input.amcPlan || null,
+          amcStartDate: input.amcStartDate ? new Date(input.amcStartDate) : null,
+          amcEndDate: input.amcEndDate ? new Date(input.amcEndDate) : null,
+          amcServiceFrequency: input.amcServiceFrequency || null,
+          amcScheduledVisits: input.amcScheduledVisits !== undefined ? input.amcScheduledVisits : null,
+          amcBreakdownVisitType: input.amcBreakdownVisitType || null,
+          endUser: input.endUser || null,
+          customerCode: input.customerCode || null,
+          branch: input.branch || null,
+          zone: input.zone || null,
+          specialClauses: input.specialClauses || null,
+          amcPaymentTerms: input.amcPaymentTerms || null,
+
           revisionReason: 'Initial revision created',
           createdById: authUser.userId,
         })
@@ -240,6 +264,42 @@ export class QuotationService {
             ...item,
             quotationRevisionId: newRevision.id,
             quotationId: newQuotation.id,
+          }))
+        );
+      }
+
+      // C1. Insert AMC Scope Items
+      if (input.amcScope && input.amcScope.length > 0) {
+        await tx.insert(quotationAmcScopeItems).values(
+          input.amcScope.map((s, idx) => ({
+            quotationRevisionId: newRevision.id,
+            description: s.description,
+            sortOrder: s.sortOrder !== undefined ? s.sortOrder : idx,
+          }))
+        );
+      }
+
+      // C2. Insert AMC Exclusions
+      if (input.amcExclusions && input.amcExclusions.length > 0) {
+        await tx.insert(quotationAmcExclusions).values(
+          input.amcExclusions.map((e, idx) => ({
+            quotationRevisionId: newRevision.id,
+            description: e.description,
+            sortOrder: e.sortOrder !== undefined ? e.sortOrder : idx,
+          }))
+        );
+      }
+
+      // C3. Insert AMC Escalations
+      if (input.amcEscalations && input.amcEscalations.length > 0) {
+        await tx.insert(quotationAmcEscalations).values(
+          input.amcEscalations.map((esc, idx) => ({
+            quotationRevisionId: newRevision.id,
+            level: esc.level,
+            contactName: esc.contactName || null,
+            phone: esc.phone || null,
+            email: esc.email || null,
+            sortOrder: esc.sortOrder !== undefined ? esc.sortOrder : idx,
           }))
         );
       }
@@ -345,6 +405,9 @@ export class QuotationService {
             serviceDurationMonths: item.serviceDurationMonths,
             serviceVisitsIncluded: item.serviceVisitsIncluded,
             serviceScope: item.serviceScope,
+            equipmentType: item.equipmentType || null,
+            equipmentConfiguration: item.equipmentConfiguration || null,
+            equipmentRating: item.equipmentRating || null,
             sortOrder: item.sortOrder,
             itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
           });
@@ -367,6 +430,9 @@ export class QuotationService {
             serviceDurationMonths: item.serviceDurationMonths,
             serviceVisitsIncluded: item.serviceVisitsIncluded,
             serviceScope: item.serviceScope,
+            equipmentType: item.equipmentType || null,
+            equipmentConfiguration: item.equipmentConfiguration || null,
+            equipmentRating: item.equipmentRating || null,
             sortOrder: item.sortOrder,
             itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
           });
@@ -392,6 +458,9 @@ export class QuotationService {
         serviceDurationMonths: item.serviceDurationMonths,
         serviceVisitsIncluded: item.serviceVisitsIncluded,
         serviceScope: item.serviceScope,
+        equipmentType: item.equipmentType,
+        equipmentConfiguration: item.equipmentConfiguration,
+        equipmentRating: item.equipmentRating,
         sortOrder: item.sortOrder,
         itemType: item.itemType,
       }));
@@ -490,6 +559,21 @@ export class QuotationService {
             input.internalRemarks !== undefined
               ? input.internalRemarks
               : currentRevision.internalRemarks,
+
+          // AMC Contract Snapshot Metadata
+          amcPlan: input.amcPlan !== undefined ? input.amcPlan : currentRevision.amcPlan,
+          amcStartDate: input.amcStartDate !== undefined ? (input.amcStartDate ? new Date(input.amcStartDate) : null) : currentRevision.amcStartDate,
+          amcEndDate: input.amcEndDate !== undefined ? (input.amcEndDate ? new Date(input.amcEndDate) : null) : currentRevision.amcEndDate,
+          amcServiceFrequency: input.amcServiceFrequency !== undefined ? input.amcServiceFrequency : currentRevision.amcServiceFrequency,
+          amcScheduledVisits: input.amcScheduledVisits !== undefined ? input.amcScheduledVisits : currentRevision.amcScheduledVisits,
+          amcBreakdownVisitType: input.amcBreakdownVisitType !== undefined ? input.amcBreakdownVisitType : currentRevision.amcBreakdownVisitType,
+          endUser: input.endUser !== undefined ? input.endUser : currentRevision.endUser,
+          customerCode: input.customerCode !== undefined ? input.customerCode : currentRevision.customerCode,
+          branch: input.branch !== undefined ? input.branch : currentRevision.branch,
+          zone: input.zone !== undefined ? input.zone : currentRevision.zone,
+          specialClauses: input.specialClauses !== undefined ? input.specialClauses : currentRevision.specialClauses,
+          amcPaymentTerms: input.amcPaymentTerms !== undefined ? input.amcPaymentTerms : currentRevision.amcPaymentTerms,
+
           updatedAt: new Date(),
         })
         .where(eq(quotationRevisions.id, currentRevision.id));
@@ -505,6 +589,51 @@ export class QuotationService {
             quotationId: quotation.id,
           }))
         );
+      }
+
+      // Update AMC Scope Items if provided
+      if (input.amcScope !== undefined) {
+        await tx.delete(quotationAmcScopeItems).where(eq(quotationAmcScopeItems.quotationRevisionId, currentRevision.id));
+        if (input.amcScope && input.amcScope.length > 0) {
+          await tx.insert(quotationAmcScopeItems).values(
+            input.amcScope.map((s, idx) => ({
+              quotationRevisionId: currentRevision.id,
+              description: s.description,
+              sortOrder: s.sortOrder !== undefined ? s.sortOrder : idx,
+            }))
+          );
+        }
+      }
+
+      // Update AMC Exclusions if provided
+      if (input.amcExclusions !== undefined) {
+        await tx.delete(quotationAmcExclusions).where(eq(quotationAmcExclusions.quotationRevisionId, currentRevision.id));
+        if (input.amcExclusions && input.amcExclusions.length > 0) {
+          await tx.insert(quotationAmcExclusions).values(
+            input.amcExclusions.map((e, idx) => ({
+              quotationRevisionId: currentRevision.id,
+              description: e.description,
+              sortOrder: e.sortOrder !== undefined ? e.sortOrder : idx,
+            }))
+          );
+        }
+      }
+
+      // Update AMC Escalations if provided
+      if (input.amcEscalations !== undefined) {
+        await tx.delete(quotationAmcEscalations).where(eq(quotationAmcEscalations.quotationRevisionId, currentRevision.id));
+        if (input.amcEscalations && input.amcEscalations.length > 0) {
+          await tx.insert(quotationAmcEscalations).values(
+            input.amcEscalations.map((esc, idx) => ({
+              quotationRevisionId: currentRevision.id,
+              level: esc.level,
+              contactName: esc.contactName || null,
+              phone: esc.phone || null,
+              email: esc.email || null,
+              sortOrder: esc.sortOrder !== undefined ? esc.sortOrder : idx,
+            }))
+          );
+        }
       }
 
       // Log update activity
@@ -576,6 +705,9 @@ export class QuotationService {
             serviceDurationMonths: item.serviceDurationMonths,
             serviceVisitsIncluded: item.serviceVisitsIncluded,
             serviceScope: item.serviceScope,
+            equipmentType: item.equipmentType || null,
+            equipmentConfiguration: item.equipmentConfiguration || null,
+            equipmentRating: item.equipmentRating || null,
             sortOrder: item.sortOrder,
             itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
           });
@@ -598,6 +730,9 @@ export class QuotationService {
             serviceDurationMonths: item.serviceDurationMonths,
             serviceVisitsIncluded: item.serviceVisitsIncluded,
             serviceScope: item.serviceScope,
+            equipmentType: item.equipmentType || null,
+            equipmentConfiguration: item.equipmentConfiguration || null,
+            equipmentRating: item.equipmentRating || null,
             sortOrder: item.sortOrder,
             itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
           });
@@ -622,6 +757,9 @@ export class QuotationService {
         serviceDurationMonths: item.serviceDurationMonths,
         serviceVisitsIncluded: item.serviceVisitsIncluded,
         serviceScope: item.serviceScope,
+        equipmentType: item.equipmentType,
+        equipmentConfiguration: item.equipmentConfiguration,
+        equipmentRating: item.equipmentRating,
         sortOrder: item.sortOrder,
         itemType: item.itemType,
       }));
@@ -716,6 +854,21 @@ export class QuotationService {
             input.internalRemarks !== undefined
               ? input.internalRemarks
               : currentRevision.internalRemarks,
+
+          // AMC Contract Snapshot Metadata (copied from input or prior revision)
+          amcPlan: input.amcPlan !== undefined ? input.amcPlan : currentRevision.amcPlan,
+          amcStartDate: input.amcStartDate !== undefined ? (input.amcStartDate ? new Date(input.amcStartDate) : null) : currentRevision.amcStartDate,
+          amcEndDate: input.amcEndDate !== undefined ? (input.amcEndDate ? new Date(input.amcEndDate) : null) : currentRevision.amcEndDate,
+          amcServiceFrequency: input.amcServiceFrequency !== undefined ? input.amcServiceFrequency : currentRevision.amcServiceFrequency,
+          amcScheduledVisits: input.amcScheduledVisits !== undefined ? input.amcScheduledVisits : currentRevision.amcScheduledVisits,
+          amcBreakdownVisitType: input.amcBreakdownVisitType !== undefined ? input.amcBreakdownVisitType : currentRevision.amcBreakdownVisitType,
+          endUser: input.endUser !== undefined ? input.endUser : currentRevision.endUser,
+          customerCode: input.customerCode !== undefined ? input.customerCode : currentRevision.customerCode,
+          branch: input.branch !== undefined ? input.branch : currentRevision.branch,
+          zone: input.zone !== undefined ? input.zone : currentRevision.zone,
+          specialClauses: input.specialClauses !== undefined ? input.specialClauses : currentRevision.specialClauses,
+          amcPaymentTerms: input.amcPaymentTerms !== undefined ? input.amcPaymentTerms : currentRevision.amcPaymentTerms,
+
           revisionReason: input.revisionReason,
           createdById: authUser.userId,
         })
@@ -728,6 +881,75 @@ export class QuotationService {
             ...item,
             quotationRevisionId: newRev.id,
             quotationId: quotation.id,
+          }))
+        );
+      }
+
+      // 3a. AMC Scope Items: Copy from input if provided, else copy from prior revision
+      if (input.amcScope !== undefined && input.amcScope !== null) {
+        if (input.amcScope.length > 0) {
+          await tx.insert(quotationAmcScopeItems).values(
+            input.amcScope.map((s, idx) => ({
+              quotationRevisionId: newRev.id,
+              description: s.description,
+              sortOrder: s.sortOrder !== undefined ? s.sortOrder : idx,
+            }))
+          );
+        }
+      } else if (currentRevision.amcScope && currentRevision.amcScope.length > 0) {
+        await tx.insert(quotationAmcScopeItems).values(
+          currentRevision.amcScope.map((s) => ({
+            quotationRevisionId: newRev.id,
+            description: s.description,
+            sortOrder: s.sortOrder,
+          }))
+        );
+      }
+
+      // 3b. AMC Exclusions: Copy from input if provided, else copy from prior revision
+      if (input.amcExclusions !== undefined && input.amcExclusions !== null) {
+        if (input.amcExclusions.length > 0) {
+          await tx.insert(quotationAmcExclusions).values(
+            input.amcExclusions.map((e, idx) => ({
+              quotationRevisionId: newRev.id,
+              description: e.description,
+              sortOrder: e.sortOrder !== undefined ? e.sortOrder : idx,
+            }))
+          );
+        }
+      } else if (currentRevision.amcExclusions && currentRevision.amcExclusions.length > 0) {
+        await tx.insert(quotationAmcExclusions).values(
+          currentRevision.amcExclusions.map((e) => ({
+            quotationRevisionId: newRev.id,
+            description: e.description,
+            sortOrder: e.sortOrder,
+          }))
+        );
+      }
+
+      // 3c. AMC Escalations: Copy from input if provided, else copy from prior revision
+      if (input.amcEscalations !== undefined && input.amcEscalations !== null) {
+        if (input.amcEscalations.length > 0) {
+          await tx.insert(quotationAmcEscalations).values(
+            input.amcEscalations.map((esc, idx) => ({
+              quotationRevisionId: newRev.id,
+              level: esc.level,
+              contactName: esc.contactName || null,
+              phone: esc.phone || null,
+              email: esc.email || null,
+              sortOrder: esc.sortOrder !== undefined ? esc.sortOrder : idx,
+            }))
+          );
+        }
+      } else if (currentRevision.amcEscalations && currentRevision.amcEscalations.length > 0) {
+        await tx.insert(quotationAmcEscalations).values(
+          currentRevision.amcEscalations.map((esc) => ({
+            quotationRevisionId: newRev.id,
+            level: esc.level,
+            contactName: esc.contactName,
+            phone: esc.phone,
+            email: esc.email,
+            sortOrder: esc.sortOrder,
           }))
         );
       }

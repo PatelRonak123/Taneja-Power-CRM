@@ -21,6 +21,9 @@ export interface LineItemCalculationInput {
   serviceDurationMonths?: number | null;
   serviceVisitsIncluded?: number | null;
   serviceScope?: string | null;
+  equipmentType?: string | null;
+  equipmentConfiguration?: string | null;
+  equipmentRating?: string | null;
   sortOrder?: number;
   itemType?: string;
 }
@@ -53,6 +56,9 @@ export interface CalculatedLineItem {
   serviceDurationMonths?: number | null;
   serviceVisitsIncluded?: number | null;
   serviceScope?: string | null;
+  equipmentType?: string | null;
+  equipmentConfiguration?: string | null;
+  equipmentRating?: string | null;
   sortOrder: number;
 }
 
@@ -178,6 +184,9 @@ export class QuotationCalculationService {
       serviceDurationMonths: input.serviceDurationMonths || null,
       serviceVisitsIncluded: input.serviceVisitsIncluded || null,
       serviceScope: input.serviceScope || null,
+      equipmentType: input.equipmentType || null,
+      equipmentConfiguration: input.equipmentConfiguration || null,
+      equipmentRating: input.equipmentRating || null,
       sortOrder: input.sortOrder !== undefined ? input.sortOrder : sortOrder,
     };
   }

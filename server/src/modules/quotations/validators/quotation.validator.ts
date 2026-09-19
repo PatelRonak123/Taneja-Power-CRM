@@ -28,90 +28,183 @@ export const lineItemSchema = z.object({
   serviceDurationMonths: z.coerce.number().int().min(0).optional().nullable(),
   serviceVisitsIncluded: z.coerce.number().int().min(0).optional().nullable(),
   serviceScope: z.string().optional().nullable(),
+  equipmentType: z.string().max(100).optional().nullable(),
+  equipmentConfiguration: z.string().max(100).optional().nullable(),
+  equipmentRating: z.string().max(100).optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).optional(),
 });
 
-export const createQuotationSchema = z.object({
-  body: z.object({
-    quotationType: z
-      .enum([
-        APP_CONSTANTS.QUOTATION_TYPES.PRODUCT,
-        APP_CONSTANTS.QUOTATION_TYPES.TECHNICAL,
-        APP_CONSTANTS.QUOTATION_TYPES.SERVICE,
-        APP_CONSTANTS.QUOTATION_TYPES.AMC,
-      ])
-      .optional()
-      .default(APP_CONSTANTS.QUOTATION_TYPES.PRODUCT),
-    customerId: z.string().uuid('Invalid customer ID'),
-    destinationId: z.string().uuid('Invalid destination ID').optional().nullable(),
-    quotationDate: z.string().optional(),
-    validityDays: z.coerce.number().int().min(1).max(365).optional().default(30),
-    currency: z.string().max(10).optional().default('INR'),
-    subject: z.string().max(500).optional().nullable(),
-    termsAndConditions: z.string().optional().nullable(),
-    paymentTerms: z.string().optional().nullable(),
-    deliveryTerms: z.string().optional().nullable(),
-    warrantyTerms: z.string().optional().nullable(),
-    notes: z.string().optional().nullable(),
-    internalRemarks: z.string().optional().nullable(),
-    freightCharges: z.coerce.number().min(0).optional().default(0),
-    otherCharges: z.coerce.number().min(0).optional().default(0),
-    roundOff: z.coerce.number().optional(),
-    items: z.array(lineItemSchema).min(1, 'At least one line item is required'),
+export const amcScopeItemSchema = z.object({
+  id: z.string().uuid().optional(),
+  description: z.string().min(1, 'Scope description is required'),
+  sortOrder: z.coerce.number().int().min(0).optional(),
+});
+
+export const amcExclusionSchema = z.object({
+  id: z.string().uuid().optional(),
+  description: z.string().min(1, 'Exclusion description is required'),
+  sortOrder: z.coerce.number().int().min(0).optional(),
+});
+
+export const amcEscalationSchema = z.object({
+  id: z.string().uuid().optional(),
+  level: z.enum(['LEVEL_1', 'LEVEL_2', 'LEVEL_3'], {
+    errorMap: () => ({ message: 'Level must be LEVEL_1, LEVEL_2, or LEVEL_3' }),
   }),
+  contactName: z.string().max(255).optional().nullable(),
+  phone: z.string().max(50).optional().nullable(),
+  email: z.string().email('Invalid email address').or(z.literal('')).optional().nullable(),
+  sortOrder: z.coerce.number().int().min(0).optional(),
+});
+
+const amcFieldsSchema = z.object({
+  amcPlan: z.string().max(100).optional().nullable(),
+  amcStartDate: z.string().optional().nullable(),
+  amcEndDate: z.string().optional().nullable(),
+  amcServiceFrequency: z.string().optional().nullable(),
+  amcScheduledVisits: z.coerce.number().int().min(0).optional().nullable(),
+  amcBreakdownVisitType: z.enum(['INCLUDED', 'LIMITED', 'UNLIMITED', 'NOT_INCLUDED']).or(z.string()).optional().nullable(),
+  endUser: z.string().max(255).optional().nullable(),
+  customerCode: z.string().max(100).optional().nullable(),
+  branch: z.string().max(100).optional().nullable(),
+  zone: z.string().max(100).optional().nullable(),
+  specialClauses: z.string().optional().nullable(),
+  amcPaymentTerms: z.string().optional().nullable(),
+  amcScope: z.array(amcScopeItemSchema).optional().nullable(),
+  amcExclusions: z.array(amcExclusionSchema).optional().nullable(),
+  amcEscalations: z.array(amcEscalationSchema).optional().nullable(),
+});
+
+export const createQuotationSchema = z.object({
+  body: z
+    .object({
+      quotationType: z
+        .enum([
+          APP_CONSTANTS.QUOTATION_TYPES.PRODUCT,
+          APP_CONSTANTS.QUOTATION_TYPES.TECHNICAL,
+          APP_CONSTANTS.QUOTATION_TYPES.SERVICE,
+          APP_CONSTANTS.QUOTATION_TYPES.AMC,
+        ])
+        .optional()
+        .default(APP_CONSTANTS.QUOTATION_TYPES.PRODUCT),
+      customerId: z.string().uuid('Invalid customer ID'),
+      destinationId: z.string().uuid('Invalid destination ID').optional().nullable(),
+      quotationDate: z.string().optional(),
+      validityDays: z.coerce.number().int().min(1).max(365).optional().default(30),
+      currency: z.string().max(10).optional().default('INR'),
+      subject: z.string().max(500).optional().nullable(),
+      termsAndConditions: z.string().optional().nullable(),
+      paymentTerms: z.string().optional().nullable(),
+      deliveryTerms: z.string().optional().nullable(),
+      warrantyTerms: z.string().optional().nullable(),
+      notes: z.string().optional().nullable(),
+      internalRemarks: z.string().optional().nullable(),
+      freightCharges: z.coerce.number().min(0).optional().default(0),
+      otherCharges: z.coerce.number().min(0).optional().default(0),
+      roundOff: z.coerce.number().optional(),
+      items: z.array(lineItemSchema).min(1, 'At least one line item is required'),
+    })
+    .merge(amcFieldsSchema)
+    .superRefine((data, ctx) => {
+      if (data.quotationType === APP_CONSTANTS.QUOTATION_TYPES.AMC) {
+        if (data.amcStartDate && data.amcEndDate) {
+          const start = new Date(data.amcStartDate);
+          const end = new Date(data.amcEndDate);
+          if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end < start) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'AMC End Date must be greater than or equal to AMC Start Date',
+              path: ['amcEndDate'],
+            });
+          }
+        }
+      }
+    }),
 });
 
 export const updateQuotationSchema = z.object({
   params: z.object({
     id: z.string().uuid('Invalid quotation ID'),
   }),
-  body: z.object({
-    quotationType: z
-      .enum([
-        APP_CONSTANTS.QUOTATION_TYPES.PRODUCT,
-        APP_CONSTANTS.QUOTATION_TYPES.TECHNICAL,
-        APP_CONSTANTS.QUOTATION_TYPES.SERVICE,
-        APP_CONSTANTS.QUOTATION_TYPES.AMC,
-      ])
-      .optional(),
-    destinationId: z.string().uuid('Invalid destination ID').optional().nullable(),
-    quotationDate: z.string().optional(),
-    validityDays: z.coerce.number().int().min(1).max(365).optional(),
-    currency: z.string().max(10).optional(),
-    subject: z.string().max(500).optional().nullable(),
-    termsAndConditions: z.string().optional().nullable(),
-    paymentTerms: z.string().optional().nullable(),
-    deliveryTerms: z.string().optional().nullable(),
-    warrantyTerms: z.string().optional().nullable(),
-    notes: z.string().optional().nullable(),
-    internalRemarks: z.string().optional().nullable(),
-    freightCharges: z.coerce.number().min(0).optional(),
-    otherCharges: z.coerce.number().min(0).optional(),
-    roundOff: z.coerce.number().optional(),
-    items: z.array(lineItemSchema).min(1, 'At least one line item is required').optional(),
-  }),
+  body: z
+    .object({
+      quotationType: z
+        .enum([
+          APP_CONSTANTS.QUOTATION_TYPES.PRODUCT,
+          APP_CONSTANTS.QUOTATION_TYPES.TECHNICAL,
+          APP_CONSTANTS.QUOTATION_TYPES.SERVICE,
+          APP_CONSTANTS.QUOTATION_TYPES.AMC,
+        ])
+        .optional(),
+      destinationId: z.string().uuid('Invalid destination ID').optional().nullable(),
+      quotationDate: z.string().optional(),
+      validityDays: z.coerce.number().int().min(1).max(365).optional(),
+      currency: z.string().max(10).optional(),
+      subject: z.string().max(500).optional().nullable(),
+      termsAndConditions: z.string().optional().nullable(),
+      paymentTerms: z.string().optional().nullable(),
+      deliveryTerms: z.string().optional().nullable(),
+      warrantyTerms: z.string().optional().nullable(),
+      notes: z.string().optional().nullable(),
+      internalRemarks: z.string().optional().nullable(),
+      freightCharges: z.coerce.number().min(0).optional(),
+      otherCharges: z.coerce.number().min(0).optional(),
+      roundOff: z.coerce.number().optional(),
+      items: z.array(lineItemSchema).min(1, 'At least one line item is required').optional(),
+    })
+    .merge(amcFieldsSchema)
+    .superRefine((data, ctx) => {
+      if (data.quotationType === APP_CONSTANTS.QUOTATION_TYPES.AMC) {
+        if (data.amcStartDate && data.amcEndDate) {
+          const start = new Date(data.amcStartDate);
+          const end = new Date(data.amcEndDate);
+          if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end < start) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'AMC End Date must be greater than or equal to AMC Start Date',
+              path: ['amcEndDate'],
+            });
+          }
+        }
+      }
+    }),
 });
 
 export const createRevisionSchema = z.object({
   params: z.object({
     id: z.string().uuid('Invalid quotation ID'),
   }),
-  body: z.object({
-    revisionReason: z.string().min(1, 'Revision reason is required'),
-    quotationDate: z.string().optional(),
-    validityDays: z.coerce.number().int().min(1).max(365).optional(),
-    subject: z.string().max(500).optional().nullable(),
-    termsAndConditions: z.string().optional().nullable(),
-    paymentTerms: z.string().optional().nullable(),
-    deliveryTerms: z.string().optional().nullable(),
-    warrantyTerms: z.string().optional().nullable(),
-    notes: z.string().optional().nullable(),
-    internalRemarks: z.string().optional().nullable(),
-    freightCharges: z.coerce.number().min(0).optional(),
-    otherCharges: z.coerce.number().min(0).optional(),
-    roundOff: z.coerce.number().optional(),
-    items: z.array(lineItemSchema).min(1, 'At least one line item is required').optional(),
-  }),
+  body: z
+    .object({
+      revisionReason: z.string().min(1, 'Revision reason is required'),
+      quotationDate: z.string().optional(),
+      validityDays: z.coerce.number().int().min(1).max(365).optional(),
+      subject: z.string().max(500).optional().nullable(),
+      termsAndConditions: z.string().optional().nullable(),
+      paymentTerms: z.string().optional().nullable(),
+      deliveryTerms: z.string().optional().nullable(),
+      warrantyTerms: z.string().optional().nullable(),
+      notes: z.string().optional().nullable(),
+      internalRemarks: z.string().optional().nullable(),
+      freightCharges: z.coerce.number().min(0).optional(),
+      otherCharges: z.coerce.number().min(0).optional(),
+      roundOff: z.coerce.number().optional(),
+      items: z.array(lineItemSchema).min(1, 'At least one line item is required').optional(),
+    })
+    .merge(amcFieldsSchema)
+    .superRefine((data, ctx) => {
+      if (data.amcStartDate && data.amcEndDate) {
+        const start = new Date(data.amcStartDate);
+        const end = new Date(data.amcEndDate);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end < start) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'AMC End Date must be greater than or equal to AMC Start Date',
+            path: ['amcEndDate'],
+          });
+        }
+      }
+    }),
 });
 
 export const submitQuotationSchema = z.object({
@@ -190,4 +283,5 @@ export type SubmitQuotationDto = z.input<typeof submitQuotationSchema>['body'];
 export type ApproveQuotationDto = z.input<typeof approveQuotationSchema>['body'];
 export type RejectQuotationDto = z.input<typeof rejectQuotationSchema>['body'];
 export type ListQuotationsQueryDto = z.input<typeof listQuotationsSchema>['query'];
+
 

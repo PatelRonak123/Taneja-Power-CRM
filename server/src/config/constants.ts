@@ -51,6 +51,25 @@ export const APP_CONSTANTS = {
     AMC: 'AMC',
     CUSTOM: 'CUSTOM',
   } as const,
+  AMC_SERVICE_FREQUENCIES: {
+    MONTHLY: 'Monthly',
+    BI_MONTHLY: 'Bi-Monthly',
+    QUARTERLY: 'Quarterly',
+    HALF_YEARLY: 'Half-Yearly',
+    YEARLY: 'Yearly',
+    CUSTOM: 'Custom',
+  } as const,
+  AMC_BREAKDOWN_VISIT_TYPES: {
+    INCLUDED: 'INCLUDED',
+    LIMITED: 'LIMITED',
+    UNLIMITED: 'UNLIMITED',
+    NOT_INCLUDED: 'NOT_INCLUDED',
+  } as const,
+  AMC_ESCALATION_LEVELS: {
+    LEVEL_1: 'LEVEL_1',
+    LEVEL_2: 'LEVEL_2',
+    LEVEL_3: 'LEVEL_3',
+  } as const,
 } as const;
 
 export type UserRole = (typeof APP_CONSTANTS.ROLES)[keyof typeof APP_CONSTANTS.ROLES];
@@ -59,4 +78,7 @@ export type QuotationType = (typeof APP_CONSTANTS.QUOTATION_TYPES)[keyof typeof 
 export type QuotationStatus = (typeof APP_CONSTANTS.QUOTATION_STATUSES)[keyof typeof APP_CONSTANTS.QUOTATION_STATUSES];
 export type QuotationApprovalAction = (typeof APP_CONSTANTS.QUOTATION_APPROVAL_ACTIONS)[keyof typeof APP_CONSTANTS.QUOTATION_APPROVAL_ACTIONS];
 export type QuotationItemType = (typeof APP_CONSTANTS.QUOTATION_ITEM_TYPES)[keyof typeof APP_CONSTANTS.QUOTATION_ITEM_TYPES];
+export type AmcServiceFrequency = (typeof APP_CONSTANTS.AMC_SERVICE_FREQUENCIES)[keyof typeof APP_CONSTANTS.AMC_SERVICE_FREQUENCIES];
+export type AmcBreakdownVisitType = (typeof APP_CONSTANTS.AMC_BREAKDOWN_VISIT_TYPES)[keyof typeof APP_CONSTANTS.AMC_BREAKDOWN_VISIT_TYPES];
+export type AmcEscalationLevel = (typeof APP_CONSTANTS.AMC_ESCALATION_LEVELS)[keyof typeof APP_CONSTANTS.AMC_ESCALATION_LEVELS];
 

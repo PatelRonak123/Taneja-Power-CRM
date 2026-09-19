@@ -15,6 +15,33 @@ export type QuotationApprovalAction = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'W
 
 export type QuotationItemType = 'PRODUCT' | 'SERVICE' | 'AMC' | 'CUSTOM';
 
+export interface QuotationAmcScopeItem {
+  id?: string;
+  quotationRevisionId?: string;
+  description: string;
+  sortOrder?: number;
+  createdAt?: string;
+}
+
+export interface QuotationAmcExclusion {
+  id?: string;
+  quotationRevisionId?: string;
+  description: string;
+  sortOrder?: number;
+  createdAt?: string;
+}
+
+export interface QuotationAmcEscalation {
+  id?: string;
+  quotationRevisionId?: string;
+  level: 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3';
+  contactName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  sortOrder?: number;
+  createdAt?: string;
+}
+
 export interface QuotationItem {
   id: string;
   quotationRevisionId: string;
@@ -46,6 +73,9 @@ export interface QuotationItem {
   serviceDurationMonths?: number | null;
   serviceVisitsIncluded?: number | null;
   serviceScope?: string | null;
+  equipmentType?: string | null;
+  equipmentConfiguration?: string | null;
+  equipmentRating?: string | null;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -98,10 +128,25 @@ export interface QuotationRevision {
   notes?: string | null;
   internalRemarks?: string | null;
   revisionReason?: string | null;
+  amcPlan?: string | null;
+  amcStartDate?: string | null;
+  amcEndDate?: string | null;
+  amcServiceFrequency?: string | null;
+  amcScheduledVisits?: number | null;
+  amcBreakdownVisitType?: string | null;
+  endUser?: string | null;
+  customerCode?: string | null;
+  branch?: string | null;
+  zone?: string | null;
+  specialClauses?: string | null;
+  amcPaymentTerms?: string | null;
   createdById: string;
   createdAt: string;
   updatedAt: string;
   items?: QuotationItem[];
+  amcScope?: QuotationAmcScopeItem[];
+  amcExclusions?: QuotationAmcExclusion[];
+  amcEscalations?: QuotationAmcEscalation[];
 }
 
 export interface QuotationApproval {
@@ -244,7 +289,12 @@ export interface QuotationDetailedView {
     fullName: string;
     email: string;
   } | null;
-  currentRevision?: (QuotationRevision & { items: QuotationItem[] }) | null;
+  currentRevision?: (QuotationRevision & {
+    items: QuotationItem[];
+    amcScope?: QuotationAmcScopeItem[];
+    amcExclusions?: QuotationAmcExclusion[];
+    amcEscalations?: QuotationAmcEscalation[];
+  }) | null;
   approvals: QuotationApproval[];
   activityLogs: QuotationActivityLog[];
   attachments: QuotationAttachment[];
@@ -269,6 +319,9 @@ export interface LineItemFormInput {
   serviceDurationMonths?: number | null;
   serviceVisitsIncluded?: number | null;
   serviceScope?: string | null;
+  equipmentType?: string | null;
+  equipmentConfiguration?: string | null;
+  equipmentRating?: string | null;
   sortOrder?: number;
 }
 
@@ -289,7 +342,22 @@ export interface CreateQuotationPayload {
   freightCharges?: number;
   otherCharges?: number;
   roundOff?: number;
+  amcPlan?: string | null;
+  amcStartDate?: string | null;
+  amcEndDate?: string | null;
+  amcServiceFrequency?: string | null;
+  amcScheduledVisits?: number | null;
+  amcBreakdownVisitType?: string | null;
+  endUser?: string | null;
+  customerCode?: string | null;
+  branch?: string | null;
+  zone?: string | null;
+  specialClauses?: string | null;
+  amcPaymentTerms?: string | null;
   items: LineItemFormInput[];
+  amcScope?: QuotationAmcScopeItem[];
+  amcExclusions?: QuotationAmcExclusion[];
+  amcEscalations?: QuotationAmcEscalation[];
 }
 
 export interface UpdateQuotationPayload {
@@ -308,7 +376,22 @@ export interface UpdateQuotationPayload {
   freightCharges?: number;
   otherCharges?: number;
   roundOff?: number;
+  amcPlan?: string | null;
+  amcStartDate?: string | null;
+  amcEndDate?: string | null;
+  amcServiceFrequency?: string | null;
+  amcScheduledVisits?: number | null;
+  amcBreakdownVisitType?: string | null;
+  endUser?: string | null;
+  customerCode?: string | null;
+  branch?: string | null;
+  zone?: string | null;
+  specialClauses?: string | null;
+  amcPaymentTerms?: string | null;
   items?: LineItemFormInput[];
+  amcScope?: QuotationAmcScopeItem[];
+  amcExclusions?: QuotationAmcExclusion[];
+  amcEscalations?: QuotationAmcEscalation[];
 }
 
 export interface CreateRevisionPayload {
@@ -325,7 +408,22 @@ export interface CreateRevisionPayload {
   freightCharges?: number;
   otherCharges?: number;
   roundOff?: number;
+  amcPlan?: string | null;
+  amcStartDate?: string | null;
+  amcEndDate?: string | null;
+  amcServiceFrequency?: string | null;
+  amcScheduledVisits?: number | null;
+  amcBreakdownVisitType?: string | null;
+  endUser?: string | null;
+  customerCode?: string | null;
+  branch?: string | null;
+  zone?: string | null;
+  specialClauses?: string | null;
+  amcPaymentTerms?: string | null;
   items?: LineItemFormInput[];
+  amcScope?: QuotationAmcScopeItem[];
+  amcExclusions?: QuotationAmcExclusion[];
+  amcEscalations?: QuotationAmcEscalation[];
 }
 
 export interface SubmitQuotationPayload {
@@ -356,3 +454,4 @@ export interface QuotationQueryParams {
   startDate?: string;
   endDate?: string;
 }
+

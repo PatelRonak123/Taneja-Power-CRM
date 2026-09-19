@@ -20,6 +20,8 @@ import { QuotationListPage } from '../../features/quotations/pages/QuotationList
 import { CreateQuotationPage } from '../../features/quotations/pages/CreateQuotationPage';
 import { EditQuotationPage } from '../../features/quotations/pages/EditQuotationPage';
 import { QuotationDetailPage } from '../../features/quotations/pages/QuotationDetailPage';
+import { AmcContractListPage } from '../../features/amc-contracts/pages/AmcContractListPage';
+import { AmcContractDetailPage } from '../../features/amc-contracts/pages/AmcContractDetailPage';
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -66,6 +68,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     if (currentPath.startsWith('/quotations/')) {
       return <QuotationDetailPage />;
+    }
+
+    if (currentPath === '/amc-contracts' || currentPath === '/admin/amc-contracts') {
+      return <AmcContractListPage />;
+    }
+
+    if (currentPath.startsWith('/amc-contracts/')) {
+      return <AmcContractDetailPage />;
     }
 
     if ((currentPath === '/tasks' || currentPath === '/admin/tasks') && isAdmin) {

@@ -91,8 +91,8 @@ export const QuotationPrintDocument: React.FC<Props> = ({ quotation, revisionOve
         </div>
       </div>
 
-      {/* Customer & Destination Metadata Grid */}
-      <div className="relative z-10 grid grid-cols-2 gap-4 mb-5">
+      {/* Customer & Destination / AMC Metadata Grid */}
+      <div className="relative z-10 grid grid-cols-2 gap-4 mb-4">
         {/* Bill To */}
         <div className="bg-slate-50/70 border border-slate-200 rounded-lg p-3 text-[11px]">
           <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
@@ -103,7 +103,7 @@ export const QuotationPrintDocument: React.FC<Props> = ({ quotation, revisionOve
             <p className="text-slate-700">Attn: {rev.customerName}</p>
           )}
           <p className="text-slate-600 mt-0.5">
-            {[rev.billingAddress, rev.billingCity, rev.billingState, rev.billingPincode].filter(Boolean).join(', ') || 'Address on file'}
+            {[rev.billingAddress || undefined, rev.billingCity || undefined, rev.billingState || undefined, rev.billingPincode || undefined].filter(Boolean).join(', ') || 'Address on file'}
           </p>
           {(rev.customerGstin || rev.customerPan) && (
             <p className="text-[10px] text-slate-700 font-mono mt-1.5 pt-1 border-t border-slate-200">
@@ -114,20 +114,36 @@ export const QuotationPrintDocument: React.FC<Props> = ({ quotation, revisionOve
           )}
         </div>
 
-        {/* Ship To */}
+        {/* Ship To / AMC Identifiers */}
         <div className="bg-slate-50/70 border border-slate-200 rounded-lg p-3 text-[11px]">
           <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-            DELIVERY DESTINATION / SITE:
+            {quotation.quotationType === 'AMC' ? 'AMC CONTRACT METADATA:' : 'DELIVERY DESTINATION / SITE:'}
           </span>
-          <p className="font-bold text-slate-950 text-xs">
-            {rev.shippingName || quotation.destination?.name || 'Customer Facility Address'}
-          </p>
-          <p className="text-slate-600 mt-0.5">
-            {[rev.shippingAddress || quotation.destination?.address, rev.shippingCity || quotation.destination?.city, rev.shippingState || quotation.destination?.state, rev.shippingPincode || quotation.destination?.pincode].filter(Boolean).join(', ') || 'As per billing address'}
-          </p>
-          <p className="text-[10px] text-slate-500 mt-1.5 pt-1 border-t border-slate-200">
-            <strong>Sales Representative:</strong> {salesRep}
-          </p>
+          {quotation.quotationType === 'AMC' ? (
+            <div className="space-y-0.5 text-[10.5px]">
+              <div><strong className="text-slate-900">AMC Plan:</strong> <span className="text-blue-700 font-bold">{rev.amcPlan || 'Ultra Care (UC)'}</span></div>
+              <div><strong className="text-slate-900">End User:</strong> {rev.endUser || rev.companyName || '—'}</div>
+              <div><strong className="text-slate-900">Contract Period:</strong> {formatDate(rev.amcStartDate || undefined)} to {formatDate(rev.amcEndDate || undefined)}</div>
+              <div><strong className="text-slate-900">Visits:</strong> {rev.amcServiceFrequency || 'Quarterly'} ({rev.amcScheduledVisits ?? 4} Preventive, {rev.amcBreakdownVisitType || 'UNLIMITED'} Breakdown)</div>
+              {(rev.customerCode || rev.branch || rev.zone) && (
+                <p className="text-[10px] text-slate-500 mt-1 pt-1 border-t border-slate-200">
+                  Code: {rev.customerCode || '—'} | Branch: {rev.branch || '—'} | Zone: {rev.zone || '—'}
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="font-bold text-slate-950 text-xs">
+                {rev.shippingName || quotation.destination?.name || 'Customer Facility Address'}
+              </p>
+              <p className="text-slate-600 mt-0.5">
+                {[(rev.shippingAddress || quotation.destination?.address) || undefined, (rev.shippingCity || quotation.destination?.city) || undefined, (rev.shippingState || quotation.destination?.state) || undefined, (rev.shippingPincode || quotation.destination?.pincode) || undefined].filter(Boolean).join(', ') || 'As per billing address'}
+              </p>
+              <p className="text-[10px] text-slate-500 mt-1.5 pt-1 border-t border-slate-200">
+                <strong>Sales Representative:</strong> {salesRep}
+              </p>
+            </>
+          )}
         </div>
       </div>
 
@@ -147,7 +163,9 @@ export const QuotationPrintDocument: React.FC<Props> = ({ quotation, revisionOve
               <th className="py-2 px-2.5 min-w-[160px]">Product / Description</th>
               <th className="py-2 px-2 text-center w-16">HSN/SAC</th>
               <th className="py-2 px-2 text-right w-14">Qty</th>
-              <th className="py-2 px-2 text-right w-18">Rate (₹)</th>
+              <th className="py-2 px-2 text-right w-18">
+                {quotation.quotationType === 'AMC' ? 'AMC Amount' : 'Rate (₹)'}
+              </th>
               <th className="py-2 px-2 text-right w-12">Disc</th>
               <th className="py-2 px-2 text-right w-18">Taxable</th>
               <th className="py-2 px-2 text-right w-12">GST</th>
@@ -160,6 +178,11 @@ export const QuotationPrintDocument: React.FC<Props> = ({ quotation, revisionOve
                 <td className="py-2 px-2 text-center text-slate-400 font-medium">{idx + 1}</td>
                 <td className="py-2 px-2.5">
                   <div className="font-bold text-slate-900">{item.productName}</div>
+                  {(item.equipmentType || item.equipmentConfiguration || item.equipmentRating) && (
+                    <div className="text-[9px] text-blue-800 font-semibold">
+                      {[item.equipmentType ? `Type: ${item.equipmentType}` : null, item.equipmentConfiguration ? `Config: ${item.equipmentConfiguration}` : null, item.equipmentRating ? `Rating: ${item.equipmentRating}` : null].filter(Boolean).join(' • ')}
+                    </div>
+                  )}
                   {(item.productSku || item.make) && (
                     <div className="text-[9px] text-slate-500">
                       {[item.productSku ? `SKU: ${item.productSku}` : null, item.make ? `Make: ${item.make}` : null].filter(Boolean).join(' • ')}
@@ -181,6 +204,39 @@ export const QuotationPrintDocument: React.FC<Props> = ({ quotation, revisionOve
           </tbody>
         </table>
       </div>
+
+      {/* Scope of Work & Exclusions Block for AMC */}
+      {quotation.quotationType === 'AMC' && (
+        <div className="relative z-10 grid grid-cols-2 gap-4 mb-4 text-[10px]">
+          {/* Scope */}
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+            <strong className="text-blue-900 block text-[9.5px] font-bold uppercase mb-1">AMC Scope of Work:</strong>
+            {rev.amcScope && rev.amcScope.length > 0 ? (
+              <ol className="list-decimal list-inside space-y-0.5 text-slate-800">
+                {rev.amcScope.map((s: any, idx: number) => (
+                  <li key={s.id || idx}>{s.description}</li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-slate-500 italic">Standard Preventive Scope Applies</p>
+            )}
+          </div>
+
+          {/* Exclusions */}
+          <div className="bg-rose-50/50 border border-rose-200 rounded-lg p-2.5">
+            <strong className="text-rose-900 block text-[9.5px] font-bold uppercase mb-1">Excluded Components:</strong>
+            {rev.amcExclusions && rev.amcExclusions.length > 0 ? (
+              <ul className="list-disc list-inside space-y-0.5 text-rose-800 font-semibold">
+                {rev.amcExclusions.map((ex: any, idx: number) => (
+                  <li key={ex.id || idx}>{ex.description}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-rose-600 italic">Standard Plan Exclusions Apply</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Technical Specifications Section */}
       {rev.items?.some((i) => i.technicalSpecifications && i.technicalSpecifications.trim().length > 0) && (
@@ -211,8 +267,9 @@ export const QuotationPrintDocument: React.FC<Props> = ({ quotation, revisionOve
           <p className="font-semibold text-slate-900 italic bg-white p-2 rounded border border-slate-200">
             "{rev.amountInWords || 'Indian Rupees Only'}"
           </p>
-          {(rev.notes || rev.internalRemarks) && (
-            <div className="text-[9.5px] text-slate-600 pt-1">
+          {(rev.notes || rev.internalRemarks || rev.specialClauses) && (
+            <div className="text-[9.5px] text-slate-600 pt-1 space-y-1">
+              {rev.specialClauses && <p className="text-amber-900 font-medium"><strong>Special Clause:</strong> {rev.specialClauses}</p>}
               {rev.notes && <p><strong>Notes:</strong> {rev.notes}</p>}
             </div>
           )}
@@ -278,7 +335,7 @@ export const QuotationPrintDocument: React.FC<Props> = ({ quotation, revisionOve
         <div className="grid grid-cols-3 gap-3 text-slate-800">
           <div>
             <strong className="text-slate-900 block text-[9px]">PAYMENT TERMS:</strong>
-            <p>{rev.paymentTerms || '100% Advance with order'}</p>
+            <p>{rev.amcPaymentTerms || rev.paymentTerms || '100% Advance with order'}</p>
           </div>
           <div>
             <strong className="text-slate-900 block text-[9px]">DELIVERY TERMS:</strong>
