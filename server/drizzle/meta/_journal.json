@@ -106,6 +106,13 @@
       "when": 1789812090828,
       "tag": "0014_hot_demogoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789970242188,
+      "tag": "0015_pink_changeling",
+      "breakpoints": true
     }
   ]
 }

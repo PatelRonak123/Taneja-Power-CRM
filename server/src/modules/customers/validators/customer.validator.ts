@@ -46,14 +46,8 @@ export const listCustomersSchema = z.object({
   query: z.object({
     search: z.string().optional(),
     status: z.string().optional(),
-    page: z
-      .string()
-      .optional()
-      .transform((val) => (val ? parseInt(val, 10) : 1)),
-    limit: z
-      .string()
-      .optional()
-      .transform((val) => (val ? parseInt(val, 10) : 10)),
+    page: z.coerce.number().int().positive().default(1),
+    limit: z.coerce.number().int().positive().default(10),
   }),
 });
 

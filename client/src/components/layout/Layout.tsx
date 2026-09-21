@@ -22,6 +22,14 @@ import { EditQuotationPage } from '../../features/quotations/pages/EditQuotation
 import { QuotationDetailPage } from '../../features/quotations/pages/QuotationDetailPage';
 import { AmcContractListPage } from '../../features/amc-contracts/pages/AmcContractListPage';
 import { AmcContractDetailPage } from '../../features/amc-contracts/pages/AmcContractDetailPage';
+import { FsrDashboardPage } from '../../features/field-service/pages/FsrDashboardPage';
+import { FsrListPage } from '../../features/field-service/pages/FsrListPage';
+import { MyVisitsPage } from '../../features/field-service/pages/MyVisitsPage';
+import { CreateFsrPage } from '../../features/field-service/pages/CreateFsrPage';
+import { EditFsrPage } from '../../features/field-service/pages/EditFsrPage';
+import { FsrDetailPage } from '../../features/field-service/pages/FsrDetailPage';
+
+import { ToastContainer } from '../ui/ToastContainer';
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -52,6 +60,31 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     if (currentPath === '/pipeline' || currentPath === '/admin/pipeline') {
       return <PipelinePage />;
+    }
+
+    // Field Service Routes
+    if (currentPath === '/field-service') {
+      return <FsrDashboardPage />;
+    }
+
+    if (currentPath === '/field-service/reports') {
+      return <FsrListPage />;
+    }
+
+    if (currentPath === '/field-service/my-visits') {
+      return <MyVisitsPage />;
+    }
+
+    if (currentPath === '/field-service/new') {
+      return <CreateFsrPage />;
+    }
+
+    if (currentPath.startsWith('/field-service/') && currentPath.endsWith('/edit')) {
+      return <EditFsrPage />;
+    }
+
+    if (currentPath.startsWith('/field-service/')) {
+      return <FsrDetailPage />;
     }
 
     if (currentPath === '/quotations') {
@@ -195,6 +228,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         <Header onToggleMobileMenu={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} />
         <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">{renderContent()}</main>
       </div>
+      <ToastContainer />
     </div>
   );
 };

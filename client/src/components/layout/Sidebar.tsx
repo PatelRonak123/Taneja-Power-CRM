@@ -21,6 +21,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   FileSpreadsheet,
+  Wrench,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -103,6 +104,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       description: 'Kanban workflow & deals',
     },
     {
+      id: 'field-service-management',
+      path: '/field-service',
+      aliasPaths: ['/field-service/reports', '/field-service/my-visits', '/field-service/new'],
+      label: 'Field Service (FSR)',
+      icon: Wrench,
+      description: 'UPS visits & battery logs',
+    },
+    {
       id: 'quotation-management',
       path: '/quotations',
       aliasPaths: ['/quotations/new'],
@@ -161,6 +170,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           aliasPaths: ['/dashboard'],
           label: 'Employee Dashboard',
           icon: Home,
+        },
+        {
+          id: 'employee-field-service',
+          path: '/field-service',
+          aliasPaths: ['/field-service/reports', '/field-service/my-visits', '/field-service/new'],
+          label: 'Field Service (FSR)',
+          icon: Wrench,
         },
         {
           id: 'employee-quotations',
