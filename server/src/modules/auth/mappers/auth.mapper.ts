@@ -10,6 +10,8 @@ export class AuthMapper {
       email: entity.email,
       fullName: entity.fullName,
       role: entity.role as UserRole,
+      designation: entity.designation,
+      phone: entity.phone,
       avatarUrl: entity.avatarUrl,
     };
   }
@@ -20,6 +22,8 @@ export class AuthMapper {
       email: entity.email,
       fullName: entity.fullName,
       role: entity.role,
+      designation: entity.designation,
+      phone: entity.phone,
       avatarUrl: entity.avatarUrl,
       createdAt: entity.createdAt.toISOString(),
     };

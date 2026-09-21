@@ -33,6 +33,27 @@ export default function AppStackLayout() {
           presentation: 'card',
         }}
       />
+      <Stack.Screen
+        name="field-service/[id]"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="field-service/[id]/battery"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="field-service/[id]/photos"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
     </Stack>
   );
 }

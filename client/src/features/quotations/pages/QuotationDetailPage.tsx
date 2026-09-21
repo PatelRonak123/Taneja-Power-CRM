@@ -13,6 +13,8 @@ import { QuotationActivityTimeline } from '../components/QuotationActivityTimeli
 import { QuotationPdfModal } from '../components/QuotationPdfModal';
 import { QuotationPrintDocument } from '../components/QuotationPrintDocument';
 import { QuotationRevision, QuotationItem } from '../types/quotation.types';
+import { amcContractApi } from '../../amc-contracts/api/amcContractApi';
+
 import {
   ArrowLeft,
   Edit,
@@ -261,6 +263,26 @@ export const QuotationDetailPage: React.FC = () => {
               </>
             )}
 
+            {quotation.quotationType === 'AMC' && (
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await amcContractApi.createFromQuotation(quotation.id);
+                    if (res.data?.id) {
+                      navigate(`/amc-contracts/${res.data.id}`);
+                    }
+                  } catch (err: any) {
+                    alert(err?.message || 'Failed to create AMC Contract.');
+                  }
+                }}
+                className="inline-flex items-center px-4 py-2 border border-emerald-300 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors cursor-pointer"
+                title="Create AMC Contract from this AMC proposal"
+              >
+                <ShieldCheck className="w-4 h-4 mr-1.5" />
+                Create AMC Contract
+              </button>
+            )}
+
             {canCreateRevision && (
               <button
                 onClick={() => setIsRevisionModalOpen(true)}
@@ -399,12 +421,69 @@ export const QuotationDetailPage: React.FC = () => {
         </div>
       </div>
 
+      {/* AMC CONTRACT DETAILS CARD (Condition: quotation.quotationType === 'AMC') */}
+      {quotation.quotationType === 'AMC' && (
+        <div className="bg-white rounded-xl border border-blue-200 p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-blue-100 pb-3">
+            <div className="flex items-center space-x-2">
+              <ShieldCheck className="w-5 h-5 text-blue-600" />
+              <h2 className="text-base font-bold text-gray-900">AMC Contract Details</h2>
+            </div>
+            <span className="px-3 py-1 bg-blue-100 text-blue-800 font-bold text-xs rounded-full">
+              {activeRev?.amcPlan || 'Ultra Care (UC)'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+              <span className="text-xs text-gray-500 font-medium uppercase tracking-wider block">Contract Start</span>
+              <p className="font-semibold text-gray-900">{formatDate(activeRev?.amcStartDate || undefined)}</p>
+            </div>
+            <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+              <span className="text-xs text-gray-500 font-medium uppercase tracking-wider block">Contract End</span>
+              <p className="font-semibold text-gray-900">{formatDate(activeRev?.amcEndDate || undefined)}</p>
+            </div>
+            <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+              <span className="text-xs text-gray-500 font-medium uppercase tracking-wider block">Service Frequency</span>
+              <p className="font-semibold text-gray-900">{activeRev?.amcServiceFrequency || 'Quarterly'}</p>
+            </div>
+            <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+              <span className="text-xs text-gray-500 font-medium uppercase tracking-wider block">Scheduled Visits</span>
+              <p className="font-semibold text-gray-900">{activeRev?.amcScheduledVisits ?? 4} Visits</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm pt-1">
+            <div>
+              <span className="text-xs text-gray-500 font-medium uppercase tracking-wider block">Breakdown Entitlement</span>
+              <p className="font-medium text-blue-700">{activeRev?.amcBreakdownVisitType || 'UNLIMITED'}</p>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 font-medium uppercase tracking-wider block">End User Facility</span>
+              <p className="font-medium text-gray-900">{activeRev?.endUser || '—'}</p>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 font-medium uppercase tracking-wider block">Customer Code / CC</span>
+              <p className="font-medium text-gray-900">{activeRev?.customerCode || '—'}</p>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 font-medium uppercase tracking-wider block">Branch / Zone</span>
+              <p className="font-medium text-gray-900">
+                {activeRev?.branch || '—'} {activeRev?.zone ? `(${activeRev.zone})` : ''}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Line Items Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Layers className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-base font-bold text-gray-900">Line Items & Bill of Materials</h2>
+            <h2 className="text-base font-bold text-gray-900">
+              {quotation.quotationType === 'AMC' ? 'Covered Equipment & AMC Items' : 'Line Items & Bill of Materials'}
+            </h2>
           </div>
           <span className="text-xs text-gray-500 font-medium">
             Revision {activeRev?.revisionNumber ?? quotation.currentRevisionNumber} ({activeRev?.items?.length || 0} items)
@@ -416,9 +495,11 @@ export const QuotationDetailPage: React.FC = () => {
             <thead className="bg-gray-100/70 text-xs uppercase font-semibold text-gray-600 border-b border-gray-200">
               <tr>
                 <th className="py-3 px-4 w-12 text-center">#</th>
-                <th className="py-3 px-4 min-w-[240px]">Product / Description</th>
+                <th className="py-3 px-4 min-w-[240px]">Equipment / Description</th>
                 <th className="py-3 px-4 w-20 text-right">Qty</th>
-                <th className="py-3 px-4 w-28 text-right">Unit Price</th>
+                <th className="py-3 px-4 w-32 text-right">
+                  {quotation.quotationType === 'AMC' ? 'AMC Amount / Unit' : 'Unit Price'}
+                </th>
                 <th className="py-3 px-4 w-20 text-right">Disc %</th>
                 <th className="py-3 px-4 w-28 text-right">Taxable</th>
                 <th className="py-3 px-4 w-28 text-right">GST Rate</th>
@@ -433,6 +514,13 @@ export const QuotationDetailPage: React.FC = () => {
                     <td className="py-3.5 px-4 text-center font-medium text-gray-400">{idx + 1}</td>
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-gray-900">{item.productName}</div>
+                      {(item.equipmentType || item.equipmentConfiguration || item.equipmentRating) && (
+                        <div className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-0.5 mt-1 inline-flex gap-2">
+                          {item.equipmentType && <span><strong>Type:</strong> {item.equipmentType}</span>}
+                          {item.equipmentConfiguration && <span><strong>Config:</strong> {item.equipmentConfiguration}</span>}
+                          {item.equipmentRating && <span><strong>Rating:</strong> {item.equipmentRating}</span>}
+                        </div>
+                      )}
                       {item.productSku && (
                         <div className="text-xs text-gray-500 mt-0.5">
                           SKU: <span className="font-mono">{item.productSku}</span> {item.make ? `• ${item.make}` : ''}
@@ -549,6 +637,108 @@ export const QuotationDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* AMC SCOPE & EXCLUSIONS SECTION (Condition: quotation.quotationType === 'AMC') */}
+      {quotation.quotationType === 'AMC' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* SCOPE OF WORK */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-3">
+            <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-2">
+              Scope of Work
+            </h2>
+            {activeRev?.amcScope && activeRev.amcScope.length > 0 ? (
+              <ol className="list-decimal list-inside space-y-1.5 text-sm text-gray-800 font-medium">
+                {activeRev.amcScope.map((s, idx) => (
+                  <li key={s.id || idx} className="py-0.5">
+                    {s.description}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-sm text-gray-400 italic">No scope items specified.</p>
+            )}
+          </div>
+
+          {/* EXCLUSIONS */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-3">
+            <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-2">
+              Excluded Equipment / Items
+            </h2>
+            {activeRev?.amcExclusions && activeRev.amcExclusions.length > 0 ? (
+              <ul className="flex flex-wrap gap-2 text-sm">
+                {activeRev.amcExclusions.map((ex, idx) => (
+                  <li
+                    key={ex.id || idx}
+                    className="px-3 py-1 bg-rose-50 border border-rose-200 text-rose-800 font-medium rounded-lg text-xs flex items-center gap-1.5"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    <span>{ex.description}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-400 italic">No explicit exclusions specified.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* AMC COMMERCIAL TERMS & ESCALATION MATRIX (Condition: quotation.quotationType === 'AMC') */}
+      {quotation.quotationType === 'AMC' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* AMC COMMERCIAL TERMS */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-3">
+            <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-2">
+              AMC Commercial Terms & Special Clauses
+            </h2>
+            <div className="space-y-3 text-sm">
+              {activeRev?.amcPaymentTerms && (
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wider block mb-1">
+                    AMC Payment Terms
+                  </span>
+                  <p className="font-semibold text-gray-900">{activeRev.amcPaymentTerms}</p>
+                </div>
+              )}
+              {activeRev?.specialClauses && (
+                <div className="p-3 bg-amber-50/60 rounded-lg border border-amber-200/80">
+                  <span className="text-xs text-amber-800 font-bold uppercase tracking-wider block mb-1">
+                    Special AMC Clauses
+                  </span>
+                  <p className="text-xs text-amber-900 font-medium leading-relaxed">{activeRev.specialClauses}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* MALFUNCTION ESCALATION MATRIX */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-3">
+            <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-2">
+              Malfunction Reporting & Escalation Matrix
+            </h2>
+            {activeRev?.amcEscalations && activeRev.amcEscalations.filter((esc) => esc.contactName || esc.phone || esc.email).length > 0 ? (
+              <div className="space-y-2 text-sm">
+                {activeRev.amcEscalations
+                  .filter((esc) => esc.contactName || esc.phone || esc.email)
+                  .map((esc) => (
+                    <div key={esc.id || esc.level} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-blue-900 block">{esc.level.replace('_', ' ')}</span>
+                        <span className="font-semibold text-slate-800">{esc.contactName || '—'}</span>
+                      </div>
+                      <div className="text-right text-xs text-slate-600">
+                        <div>{esc.phone || ''}</div>
+                        <div className="text-slate-500">{esc.email || ''}</div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 italic">No escalation contacts configured.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Commercial Terms & Conditions Accordion / Section */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-4">

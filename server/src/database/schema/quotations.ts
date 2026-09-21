@@ -119,6 +119,20 @@ export const quotationRevisions = pgTable(
     notes: text('notes'),
     internalRemarks: text('internal_remarks'),
 
+    // AMC Contract Snapshot Metadata
+    amcPlan: varchar('amc_plan', { length: 100 }),
+    amcStartDate: timestamp('amc_start_date', { withTimezone: true }),
+    amcEndDate: timestamp('amc_end_date', { withTimezone: true }),
+    amcServiceFrequency: varchar('amc_service_frequency', { length: 50 }),
+    amcScheduledVisits: integer('amc_scheduled_visits'),
+    amcBreakdownVisitType: varchar('amc_breakdown_visit_type', { length: 50 }),
+    endUser: varchar('end_user', { length: 255 }),
+    customerCode: varchar('customer_code', { length: 100 }),
+    branch: varchar('branch', { length: 100 }),
+    zone: varchar('zone', { length: 100 }),
+    specialClauses: text('special_clauses'),
+    amcPaymentTerms: text('amc_payment_terms'),
+
     // Revision Metadata
     revisionReason: text('revision_reason'),
     createdById: uuid('created_by_id')
@@ -186,6 +200,11 @@ export const quotationItems = pgTable(
     serviceVisitsIncluded: integer('service_visits_included'),
     serviceScope: text('service_scope'),
 
+    // AMC Equipment Metadata
+    equipmentType: varchar('equipment_type', { length: 100 }),
+    equipmentConfiguration: varchar('equipment_configuration', { length: 100 }),
+    equipmentRating: varchar('equipment_rating', { length: 100 }),
+
     sortOrder: integer('sort_order').default(0).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -195,6 +214,72 @@ export const quotationItems = pgTable(
     index('quotation_items_quotation_id_idx').on(table.quotationId),
     index('quotation_items_product_id_idx').on(table.productId),
     index('quotation_items_sort_order_idx').on(table.sortOrder),
+  ]
+);
+
+/**
+ * Quotation AMC Scope Items Table
+ * Revision-level scope of work items for AMC contracts.
+ */
+export const quotationAmcScopeItems = pgTable(
+  'quotation_amc_scope_items',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    quotationRevisionId: uuid('quotation_revision_id')
+      .references(() => quotationRevisions.id, { onDelete: 'cascade' })
+      .notNull(),
+    description: text('description').notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('quotation_amc_scope_items_revision_id_idx').on(table.quotationRevisionId),
+    index('quotation_amc_scope_items_sort_order_idx').on(table.sortOrder),
+  ]
+);
+
+/**
+ * Quotation AMC Exclusions Table
+ * Revision-level explicit exclusions for AMC contracts.
+ */
+export const quotationAmcExclusions = pgTable(
+  'quotation_amc_exclusions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    quotationRevisionId: uuid('quotation_revision_id')
+      .references(() => quotationRevisions.id, { onDelete: 'cascade' })
+      .notNull(),
+    description: text('description').notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('quotation_amc_exclusions_revision_id_idx').on(table.quotationRevisionId),
+    index('quotation_amc_exclusions_sort_order_idx').on(table.sortOrder),
+  ]
+);
+
+/**
+ * Quotation AMC Escalation Contacts Table
+ * Revision-level malfunction report contact points (Level 1, Level 2, Level 3).
+ */
+export const quotationAmcEscalations = pgTable(
+  'quotation_amc_escalations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    quotationRevisionId: uuid('quotation_revision_id')
+      .references(() => quotationRevisions.id, { onDelete: 'cascade' })
+      .notNull(),
+    level: varchar('level', { length: 20 }).notNull(), // LEVEL_1, LEVEL_2, LEVEL_3
+    contactName: varchar('contact_name', { length: 255 }),
+    phone: varchar('phone', { length: 50 }),
+    email: varchar('email', { length: 255 }),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('quotation_amc_escalations_revision_id_idx').on(table.quotationRevisionId),
+    index('quotation_amc_escalations_level_idx').on(table.level),
   ]
 );
 
@@ -324,6 +409,15 @@ export type NewQuotationRevisionEntity = typeof quotationRevisions.$inferInsert;
 
 export type QuotationItemEntity = typeof quotationItems.$inferSelect;
 export type NewQuotationItemEntity = typeof quotationItems.$inferInsert;
+
+export type QuotationAmcScopeItemEntity = typeof quotationAmcScopeItems.$inferSelect;
+export type NewQuotationAmcScopeItemEntity = typeof quotationAmcScopeItems.$inferInsert;
+
+export type QuotationAmcExclusionEntity = typeof quotationAmcExclusions.$inferSelect;
+export type NewQuotationAmcExclusionEntity = typeof quotationAmcExclusions.$inferInsert;
+
+export type QuotationAmcEscalationEntity = typeof quotationAmcEscalations.$inferSelect;
+export type NewQuotationAmcEscalationEntity = typeof quotationAmcEscalations.$inferInsert;
 
 export type QuotationApprovalEntity = typeof quotationApprovals.$inferSelect;
 export type NewQuotationApprovalEntity = typeof quotationApprovals.$inferInsert;

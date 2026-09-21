@@ -32,8 +32,16 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
     if (path.startsWith('/tasks') || path.startsWith('/admin/tasks')) return 'Field Tasks';
     if (path.startsWith('/attendance') || path.startsWith('/admin/attendance')) return 'Employee Attendance';
     if (path.startsWith('/admin/whatsapp') || path.startsWith('/whatsapp')) return 'WhatsApp Integration';
-    if (path.startsWith('/admin/reports') || path.startsWith('/reports')) return 'Reports & Analytics';
-    if (path === '/employee/dashboard' || path === '/dashboard') return 'Employee Dashboard';
+    if (path === '/field-service') return 'Field Service Dashboard';
+    if (path === '/field-service/reports') return 'Field Service Reports';
+    if (path === '/field-service/my-visits') return 'My Service Visits';
+    if (path === '/field-service/new') return 'New Field Service Report';
+    if (path.startsWith('/field-service/') && path.endsWith('/edit')) return 'Edit Service Report';
+    if (path.startsWith('/field-service/')) return 'Service Visit Details';
+    if (path === '/quotations') return 'Quotations & Proposals';
+    if (path === '/quotations/new') return 'New Quotation';
+    if (path.startsWith('/quotations/') && path.endsWith('/edit')) return 'Edit Quotation';
+    if (path.startsWith('/quotations/')) return 'Quotation Details';
     if (path.startsWith('/products')) return 'Equipment & Inventory';
     if (path.startsWith('/analytics')) return 'Energy Telemetry';
     if (path.startsWith('/settings')) return 'System Configuration';

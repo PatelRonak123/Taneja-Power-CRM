@@ -1,10 +1,15 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
-import { Home, Briefcase, CalendarCheck, User } from 'lucide-react-native';
+import { Home, Briefcase, CalendarCheck, User, Wrench } from 'lucide-react-native';
 import { theme } from '../../../src/theme/theme';
+import { useAuthStore } from '../../../src/auth/auth.store';
+import { canAccessFSR } from '../../../src/utils/fsrPermissions';
 
 export default function TabLayout() {
+  const user = useAuthStore((state) => state.user);
+  const hasFsrAccess = canAccessFSR(user);
+
   return (
     <Tabs
       screenOptions={{
@@ -43,6 +48,14 @@ export default function TabLayout() {
         options={{
           title: 'My Tasks',
           tabBarIcon: ({ color, size }) => <Briefcase size={size || 22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="field-service"
+        options={{
+          title: 'Field Service',
+          href: hasFsrAccess ? undefined : null,
+          tabBarIcon: ({ color, size }) => <Wrench size={size || 22} color={color} />,
         }}
       />
       <Tabs.Screen

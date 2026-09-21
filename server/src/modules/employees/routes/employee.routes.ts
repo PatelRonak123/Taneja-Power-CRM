@@ -14,13 +14,41 @@ import { APP_CONSTANTS } from '../../../config/constants.js';
 const router = Router();
 const controller = new EmployeeController();
 
-// All employee routes require authentication and ADMIN role
-router.use(authenticate, requireRoles(APP_CONSTANTS.ROLES.ADMIN));
+// All employee routes require authentication
+router.use(authenticate);
 
-router.get('/', validateRequest(listEmployeesSchema), controller.list);
-router.get('/:id', validateRequest(getEmployeeByIdSchema), controller.getById);
-router.post('/', validateRequest(createEmployeeSchema), controller.create);
-router.put('/:id', validateRequest(updateEmployeeSchema), controller.update);
-router.delete('/:id', validateRequest(deleteEmployeeSchema), controller.delete);
+// 1. Read Endpoints (Admin & Manager)
+router.get(
+  '/',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  validateRequest(listEmployeesSchema),
+  controller.list
+);
+router.get(
+  '/:id',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  validateRequest(getEmployeeByIdSchema),
+  controller.getById
+);
+
+// 2. Mutation Endpoints (Admin Only)
+router.post(
+  '/',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  validateRequest(createEmployeeSchema),
+  controller.create
+);
+router.put(
+  '/:id',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  validateRequest(updateEmployeeSchema),
+  controller.update
+);
+router.delete(
+  '/:id',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  validateRequest(deleteEmployeeSchema),
+  controller.delete
+);
 
 export default router;

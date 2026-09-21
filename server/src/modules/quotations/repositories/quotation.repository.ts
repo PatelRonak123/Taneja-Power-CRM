@@ -4,12 +4,18 @@ import {
   quotations,
   quotationRevisions,
   quotationItems,
+  quotationAmcScopeItems,
+  quotationAmcExclusions,
+  quotationAmcEscalations,
   quotationApprovals,
   quotationActivityLogs,
   quotationAttachments,
   QuotationEntity,
   QuotationRevisionEntity,
   QuotationItemEntity,
+  QuotationAmcScopeItemEntity,
+  QuotationAmcExclusionEntity,
+  QuotationAmcEscalationEntity,
   QuotationApprovalEntity,
   QuotationActivityLogEntity,
   QuotationAttachmentEntity,
@@ -72,6 +78,13 @@ export interface QuotationListItem {
   } | null;
 }
 
+export type FullQuotationRevision = QuotationRevisionEntity & {
+  items: QuotationItemEntity[];
+  amcScope?: QuotationAmcScopeItemEntity[];
+  amcExclusions?: QuotationAmcExclusionEntity[];
+  amcEscalations?: QuotationAmcEscalationEntity[];
+};
+
 export interface QuotationDetailedView extends QuotationEntity {
   customer: {
     id: string;
@@ -103,7 +116,7 @@ export interface QuotationDetailedView extends QuotationEntity {
     fullName: string;
     email: string;
   } | null;
-  currentRevision: (QuotationRevisionEntity & { items: QuotationItemEntity[] }) | null;
+  currentRevision: FullQuotationRevision | null;
   approvals: (QuotationApprovalEntity & {
     requestedBy: { id: string; fullName: string; email: string } | null;
     reviewedBy: { id: string; fullName: string; email: string } | null;
@@ -121,6 +134,43 @@ const reviewedByUsers = aliasedTable(users, 'reviewed_by_users');
 const activityUsers = aliasedTable(users, 'activity_users');
 
 export class QuotationRepository {
+  /**
+   * Helper to load all details attached to a revision (items, amcScope, amcExclusions, amcEscalations)
+   */
+  public async loadRevisionDetails(revisionRecord: QuotationRevisionEntity): Promise<FullQuotationRevision> {
+    const items = await db
+      .select()
+      .from(quotationItems)
+      .where(eq(quotationItems.quotationRevisionId, revisionRecord.id))
+      .orderBy(quotationItems.sortOrder, quotationItems.createdAt);
+
+    const amcScope = await db
+      .select()
+      .from(quotationAmcScopeItems)
+      .where(eq(quotationAmcScopeItems.quotationRevisionId, revisionRecord.id))
+      .orderBy(quotationAmcScopeItems.sortOrder, quotationAmcScopeItems.createdAt);
+
+    const amcExclusions = await db
+      .select()
+      .from(quotationAmcExclusions)
+      .where(eq(quotationAmcExclusions.quotationRevisionId, revisionRecord.id))
+      .orderBy(quotationAmcExclusions.sortOrder, quotationAmcExclusions.createdAt);
+
+    const amcEscalations = await db
+      .select()
+      .from(quotationAmcEscalations)
+      .where(eq(quotationAmcEscalations.quotationRevisionId, revisionRecord.id))
+      .orderBy(quotationAmcEscalations.sortOrder, quotationAmcEscalations.createdAt);
+
+    return {
+      ...revisionRecord,
+      items,
+      amcScope,
+      amcExclusions,
+      amcEscalations,
+    };
+  }
+
   /**
    * Find paginated quotations with filters and joined active revision totals
    */
@@ -322,18 +372,9 @@ export class QuotationRepository {
       )
       .limit(1);
 
-    let currentRevisionWithItems = null;
+    let currentRevisionWithDetails: FullQuotationRevision | null = null;
     if (currentRevisionRecord) {
-      const items = await db
-        .select()
-        .from(quotationItems)
-        .where(eq(quotationItems.quotationRevisionId, currentRevisionRecord.id))
-        .orderBy(quotationItems.sortOrder, quotationItems.createdAt);
-
-      currentRevisionWithItems = {
-        ...currentRevisionRecord,
-        items,
-      };
+      currentRevisionWithDetails = await this.loadRevisionDetails(currentRevisionRecord);
     }
 
     // Fetch approvals
@@ -396,7 +437,7 @@ export class QuotationRepository {
       destination: base.destination?.id ? base.destination : null,
       salesperson: base.salesperson?.id ? base.salesperson : null,
       createdByUser: base.createdByUser?.id ? base.createdByUser : null,
-      currentRevision: currentRevisionWithItems,
+      currentRevision: currentRevisionWithDetails,
       approvals,
       activityLogs,
       attachments,
@@ -409,7 +450,7 @@ export class QuotationRepository {
   async findRevisionByNumber(
     quotationId: string,
     revisionNumber: number
-  ): Promise<(QuotationRevisionEntity & { items: QuotationItemEntity[] }) | undefined> {
+  ): Promise<FullQuotationRevision | undefined> {
     const [rev] = await db
       .select()
       .from(quotationRevisions)
@@ -423,16 +464,7 @@ export class QuotationRepository {
 
     if (!rev) return undefined;
 
-    const items = await db
-      .select()
-      .from(quotationItems)
-      .where(eq(quotationItems.quotationRevisionId, rev.id))
-      .orderBy(quotationItems.sortOrder, quotationItems.createdAt);
-
-    return {
-      ...rev,
-      items,
-    };
+    return this.loadRevisionDetails(rev);
   }
 
   /**
