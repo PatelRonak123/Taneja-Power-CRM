@@ -15,6 +15,7 @@ import {
   FileText,
   Send,
   MessageSquare,
+  UserCheck,
 } from 'lucide-react';
 import { Lead, LeadPriority, LeadStatus, LeadSource } from '../types/lead';
 import { useAuthStore } from '../../../stores/authStore';
@@ -241,6 +242,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
       expectedValue: Number(formData.expectedValue) || 0,
       assignedExecutive: formData.assignedExecutive || user?.fullName || 'Unassigned',
       assignedEmployeeId: lead?.assignedEmployeeId || user?.id,
+      createdBy: lead?.createdBy || `${user?.fullName || 'User'}${user?.role === 'ADMIN' ? ' (Admin)' : user?.role === 'MANAGER' ? ' (Manager)' : ''}`,
       priority: (formData.priority as LeadPriority) || 'Medium',
       status: (formData.status as LeadStatus) || 'New',
       source: (formData.source as LeadSource) || 'Web',
@@ -274,7 +276,26 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
 
   const handleCreateQuotation = () => {
     onClose();
-    navigate('/quotations/new');
+    if (lead) {
+      const params = new URLSearchParams();
+      const cid = selectedCustomerId || lead.linkedClientId;
+      if (cid) {
+        params.set('customerId', cid);
+      }
+      if (lead.customerName) {
+        params.set('customerName', lead.customerName);
+      }
+      if (lead.companyName) {
+        params.set('companyName', lead.companyName);
+      }
+      if (lead.id) {
+        params.set('leadId', lead.id);
+      }
+      const queryStr = params.toString();
+      navigate(`/quotations/new${queryStr ? `?${queryStr}` : ''}`);
+    } else {
+      navigate('/quotations/new');
+    }
   };
 
   return createPortal(
@@ -388,6 +409,16 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                     <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                       <User size={15} className="text-slate-400 shrink-0" />
                       <span>{lead.assignedExecutive}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      ASSIGNED BY / CREATED BY
+                    </span>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                      <UserCheck size={15} className="text-blue-500 shrink-0" />
+                      <span>{lead.createdBy || 'System Admin'}</span>
                     </div>
                   </div>
 

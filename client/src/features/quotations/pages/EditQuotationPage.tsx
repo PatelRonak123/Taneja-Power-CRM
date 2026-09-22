@@ -74,7 +74,23 @@ export const EditQuotationPage: React.FC = () => {
     );
   }
 
-  const isPendingApproval = quotation.status === 'PENDING_APPROVAL';
+  if (quotation.status !== 'DRAFT') {
+    return (
+      <div className="p-8 text-center bg-white rounded-xl border border-amber-200">
+        <AlertCircle className="h-10 w-10 text-amber-500 mx-auto mb-3" />
+        <h3 className="text-lg font-bold text-gray-900">Editing Not Allowed</h3>
+        <p className="text-gray-500 text-sm mt-1">
+          Quotations in <strong>{quotation.status.replace('_', ' ')}</strong> status cannot be edited directly.
+        </p>
+        <button
+          onClick={() => navigate(`/quotations/${quotationId}`)}
+          className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+        >
+          View Quotation Details
+        </button>
+      </div>
+    );
+  }
 
   const handleSubmit = async (payload: CreateQuotationPayload) => {
     await updateMutation.mutateAsync(payload);
@@ -96,17 +112,7 @@ export const EditQuotationPage: React.FC = () => {
         </div>
       </div>
 
-      {isPendingApproval && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start space-x-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-amber-800">
-            <span className="font-semibold">Quotation is Currently Pending Approval:</span>
-            <p className="mt-0.5">
-              Saving changes will automatically withdraw this quotation from the approval queue back to <strong>DRAFT</strong> status. A new approval request must be submitted after edits are saved.
-            </p>
-          </div>
-        </div>
-      )}
+
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <QuotationForm

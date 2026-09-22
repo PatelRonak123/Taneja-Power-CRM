@@ -287,8 +287,53 @@ export const QuotationForm: React.FC<Props> = ({
           productService.getProducts({ limit: 100 }),
         ]);
 
-        if (custRes.data) setCustomers(custRes.data);
+        let loadedCustomers = custRes.data || [];
         if (prodRes.data) setProducts(prodRes.data);
+
+        // Auto-select client if URL search parameters provide customer info (e.g. from Leads pipeline)
+        const params = new URLSearchParams(window.location.search);
+        const paramCustomerId = params.get('customerId');
+        const paramCustomerName = params.get('customerName');
+        const paramCompanyName = params.get('companyName');
+
+        let targetId = initialData?.customerId || '';
+
+        if (!targetId && paramCustomerId) {
+          const exists = loadedCustomers.find((c) => c.id === paramCustomerId);
+          if (exists) {
+            targetId = exists.id;
+          } else {
+            try {
+              const fetchRes = await customerService.getCustomerById(paramCustomerId);
+              if (fetchRes.data) {
+                loadedCustomers = [fetchRes.data, ...loadedCustomers];
+                targetId = fetchRes.data.id;
+              }
+            } catch (e) {
+              console.error('Failed to fetch customer by URL parameter id', e);
+            }
+          }
+        }
+
+        if (!targetId && (paramCustomerName || paramCompanyName)) {
+          const targetName = (paramCustomerName || '').toLowerCase().trim();
+          const targetCompany = (paramCompanyName || '').toLowerCase().trim();
+          const match = loadedCustomers.find(
+            (c) =>
+              (targetName && c.name.toLowerCase().trim() === targetName) ||
+              (targetCompany && c.companyName && c.companyName.toLowerCase().trim() === targetCompany) ||
+              (targetName && c.companyName && c.companyName.toLowerCase().trim() === targetName) ||
+              (targetCompany && c.name.toLowerCase().trim() === targetCompany)
+          );
+          if (match) {
+            targetId = match.id;
+          }
+        }
+
+        setCustomers(loadedCustomers);
+        if (targetId) {
+          setSelectedCustomerId(targetId);
+        }
       } catch (err) {
         console.error('Failed to load customers/products', err);
       } finally {
@@ -297,7 +342,7 @@ export const QuotationForm: React.FC<Props> = ({
     };
 
     loadPrerequisites();
-  }, []);
+  }, [initialData?.customerId]);
 
   // Load destinations when selected customer changes
   useEffect(() => {

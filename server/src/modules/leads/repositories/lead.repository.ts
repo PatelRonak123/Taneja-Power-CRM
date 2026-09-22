@@ -2,6 +2,7 @@ import { eq, ilike, or, and, desc, sql } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import { leads, leadActivityLogs, NewLeadEntity } from '../../../database/schema/leads.js';
 import { customers } from '../../../database/schema/customers.js';
+import { users } from '../../../database/schema/users.js';
 import { JwtPayload } from '../../../common/auth/jwt.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import crypto from 'crypto';
@@ -29,6 +30,14 @@ export class LeadRepository {
           ) THEN
             ALTER TABLE leads ADD COLUMN assigned_employee_id varchar(255);
           END IF;
+
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'leads' AND column_name = 'created_by'
+          ) THEN
+            ALTER TABLE leads ADD COLUMN created_by varchar(255);
+            ALTER TABLE leads ADD COLUMN created_by_id varchar(255);
+          END IF;
         END $$;
       `);
     } catch (err) {
@@ -47,12 +56,24 @@ export class LeadRepository {
     // Server-side Ownership Scoping for Sales Employees (USER / SALES)
     const isSalesRole = user && user.role !== 'ADMIN' && user.role !== 'MANAGER';
     if (isSalesRole && user) {
-      conditions.push(
-        or(
-          eq(leads.assignedEmployeeId, user.userId),
-          ilike(leads.assignedExecutive, `%${user.userId}%`)
-        )
-      );
+      const [currentUser] = await db
+        .select({ fullName: users.fullName })
+        .from(users)
+        .where(eq(users.id, user.userId))
+        .limit(1);
+
+      const userFullName = currentUser?.fullName;
+
+      const scopeConditions = [
+        eq(leads.assignedEmployeeId, user.userId),
+        ilike(leads.assignedExecutive, `%${user.userId}%`),
+      ];
+
+      if (userFullName) {
+        scopeConditions.push(ilike(leads.assignedExecutive, `%${userFullName}%`));
+      }
+
+      conditions.push(or(...scopeConditions));
     }
 
     if (filters.search) {
@@ -106,6 +127,8 @@ export class LeadRepository {
           expectedValue: Number(lead.expectedValue) || 0,
           assignedExecutive: lead.assignedExecutive || 'Unassigned',
           assignedEmployeeId: lead.assignedEmployeeId || undefined,
+          createdBy: lead.createdBy || 'System Admin',
+          createdById: lead.createdById || undefined,
           priority: lead.priority,
           status: lead.status,
           source: lead.source,
@@ -131,9 +154,19 @@ export class LeadRepository {
     // Ownership check for Sales role
     const isSalesRole = user && user.role !== 'ADMIN' && user.role !== 'MANAGER';
     if (isSalesRole && user) {
+      const [currentUser] = await db
+        .select({ fullName: users.fullName })
+        .from(users)
+        .where(eq(users.id, user.userId))
+        .limit(1);
+
+      const userFullName = currentUser?.fullName;
+
       const isOwner =
         leadRecord.assignedEmployeeId === user.userId ||
-        (leadRecord.assignedExecutive && leadRecord.assignedExecutive.includes(user.userId));
+        (leadRecord.assignedExecutive &&
+          (leadRecord.assignedExecutive.includes(user.userId) ||
+            (userFullName && leadRecord.assignedExecutive.toLowerCase().includes(userFullName.toLowerCase()))));
       if (!isOwner) {
         return null;
       }
@@ -157,6 +190,8 @@ export class LeadRepository {
       expectedValue: Number(leadRecord.expectedValue) || 0,
       assignedExecutive: leadRecord.assignedExecutive || 'Unassigned',
       assignedEmployeeId: leadRecord.assignedEmployeeId || undefined,
+      createdBy: leadRecord.createdBy || 'System Admin',
+      createdById: leadRecord.createdById || undefined,
       priority: leadRecord.priority,
       status: leadRecord.status,
       source: leadRecord.source,
@@ -277,6 +312,25 @@ export class LeadRepository {
     const isSalesRole = user && user.role !== 'ADMIN' && user.role !== 'MANAGER';
     const assignedEmployeeId = isSalesRole && user ? user.userId : data.assignedEmployeeId;
 
+    let creatorName = data.createdBy;
+    if (!creatorName && user?.userId) {
+      const [creatorUser] = await db
+        .select({ fullName: users.fullName, role: users.role })
+        .from(users)
+        .where(eq(users.id, user.userId))
+        .limit(1);
+
+      if (creatorUser) {
+        const roleTag =
+          creatorUser.role === 'ADMIN'
+            ? ' (Admin)'
+            : creatorUser.role === 'MANAGER'
+            ? ' (Manager)'
+            : '';
+        creatorName = `${creatorUser.fullName}${roleTag}`;
+      }
+    }
+
     const linkedClientId = await this.ensureCustomerForLead({
       customerName: data.customerName,
       companyName: data.companyName,
@@ -294,6 +348,8 @@ export class LeadRepository {
         leadCode: newCode,
         assignedEmployeeId,
         linkedClientId: linkedClientId || data.linkedClientId,
+        createdBy: creatorName || 'System Admin',
+        createdById: user?.userId || data.createdById,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
