@@ -67,8 +67,14 @@ export class FieldServiceService {
       const mime = matches[1];
       if (mime.includes('jpeg') || mime.includes('jpg')) extension = 'jpg';
       else if (mime.includes('pdf')) extension = 'pdf';
+      else if (mime.includes('svg')) extension = 'svg';
       else if (mime.includes('png')) extension = 'png';
       buffer = Buffer.from(matches[2], 'base64');
+    } else if (base64Data.startsWith('data:image/svg+xml')) {
+      extension = 'svg';
+      const commaIdx = base64Data.indexOf(',');
+      const rawContent = commaIdx !== -1 ? base64Data.slice(commaIdx + 1) : base64Data;
+      buffer = Buffer.from(decodeURIComponent(rawContent), 'utf-8');
     } else if (!base64Data.startsWith('http') && !base64Data.startsWith('/')) {
       buffer = Buffer.from(base64Data, 'base64');
     } else {
@@ -88,6 +94,29 @@ export class FieldServiceService {
   async createFsr(input: CreateFsrDto, authUser: JwtPayload) {
     if (!authUser?.userId) {
       throw AppError.unauthorized('User not authenticated');
+    }
+
+    // Authoritative check on creator
+    if (authUser.role === APP_CONSTANTS.ROLES.USER) {
+      const [currentUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, authUser.userId))
+        .limit(1);
+
+      const designation = (currentUser?.designation || '').toLowerCase();
+      const salesKeywords = ['sales', 'representative', 'executive', 'business dev', 'account manager', 'account exec', 'bd'];
+      const engineeringKeywords = ['engineer', 'tech', 'service', 'fse', 'electrician', 'technician'];
+      const isEngineer = engineeringKeywords.some((k) => designation.includes(k));
+      const isSales = !isEngineer && salesKeywords.some((k) => designation.includes(k));
+
+      if (isSales) {
+        throw AppError.forbidden('Sales representatives cannot create Field Service Reports');
+      }
+
+      if (input.serviceEngineerId && input.serviceEngineerId !== authUser.userId) {
+        throw AppError.forbidden('Field Service Engineers can only create reports assigned to themselves');
+      }
     }
 
     // 1. Authoritative Customer Validation & Snapshot
@@ -303,14 +332,82 @@ export class FieldServiceService {
   }
 
   /**
+   * Helper: Authoritative Row-Level Read Access Check
+   */
+  async assertFsrReadAccess(details: any, authUser: JwtPayload, actionDescription = 'view'): Promise<void> {
+    if (authUser.role === APP_CONSTANTS.ROLES.ADMIN || authUser.role === APP_CONSTANTS.ROLES.MANAGER) {
+      return;
+    }
+
+    if (details.fsr.serviceEngineerId === authUser.userId) {
+      return;
+    }
+
+    // Check if user is a salesperson allowed to read completed/closed FSRs
+    const [currentUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, authUser.userId))
+      .limit(1);
+
+    const designation = (currentUser?.designation || '').toLowerCase();
+    const isExcluded =
+      designation.includes('accountant') ||
+      designation.includes('accounting') ||
+      designation.includes('finance') ||
+      designation.includes('hr') ||
+      designation.includes('admin');
+
+    const engineeringKeywords = ['engineer', 'tech', 'service', 'fse', 'electrician', 'technician'];
+    const salesKeywords = ['sales', 'representative', 'executive', 'business dev', 'account manager', 'account exec', 'bd'];
+
+    const isEngineer = engineeringKeywords.some((k) => designation.includes(k));
+    const isSales = !isExcluded && !isEngineer && salesKeywords.some((k) => designation.includes(k));
+    const isCompletedOrClosed =
+      details.fsr.status === APP_CONSTANTS.FSR_STATUSES.COMPLETED ||
+      details.fsr.status === APP_CONSTANTS.FSR_STATUSES.CLOSED;
+
+    if (!isSales || !isCompletedOrClosed) {
+      throw AppError.forbidden(`You are not authorized to ${actionDescription} this Field Service Report`);
+    }
+  }
+
+  /**
    * 2. List FSRs with pagination, search, and filters
    */
   async listFsrs(options: FsrFilterOptions, authUser: JwtPayload) {
-    // If user is a field employee (USER role without admin/manager override), scope to assigned FSRs
     const queryOptions: FsrFilterOptions = { ...options };
-    if (authUser.role === APP_CONSTANTS.ROLES.USER && !queryOptions.customerId) {
-      // In this CRM, standard FSE users view their assigned FSRs by default
-      queryOptions.allowedServiceEngineerId = authUser.userId;
+
+    // Support assignedEngineerId as alias to serviceEngineerId
+    if (options.assignedEngineerId && !queryOptions.serviceEngineerId) {
+      queryOptions.serviceEngineerId = options.assignedEngineerId;
+    }
+
+    // Normalize callType if long form was sent
+    if (queryOptions.callType) {
+      const ct = queryOptions.callType.toUpperCase();
+      if (ct === 'BREAKDOWN') queryOptions.callType = APP_CONSTANTS.FSR_CALL_TYPES.BD;
+      else if (ct === 'PREVENTIVE_MAINTENANCE') queryOptions.callType = APP_CONSTANTS.FSR_CALL_TYPES.PM;
+      else if (['SITE_SURVEY', 'BATTERY_REPLACEMENT', 'OTHER'].includes(ct)) {
+        queryOptions.callType = APP_CONSTANTS.FSR_CALL_TYPES.COURTESY;
+      }
+    }
+
+    if (authUser.role === APP_CONSTANTS.ROLES.USER) {
+      const [currentUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, authUser.userId))
+        .limit(1);
+
+      const designation = (currentUser?.designation || '').toLowerCase();
+      const engineeringKeywords = ['engineer', 'tech', 'service', 'fse', 'electrician', 'technician'];
+      const isEngineer = engineeringKeywords.some((k) => designation.includes(k));
+
+      // Field Service Engineers are strictly scoped to their assigned visits
+      if (isEngineer) {
+        queryOptions.allowedServiceEngineerId = authUser.userId;
+      }
     }
 
     return await this.repo.findAll(queryOptions);
@@ -319,10 +416,13 @@ export class FieldServiceService {
   /**
    * 3. Get single FSR full details
    */
-  async getFsrById(id: string) {
+  async getFsrById(id: string, authUser?: JwtPayload) {
     const details = await this.repo.findById(id);
     if (!details) {
       throw AppError.notFound(`Field Service Report with ID ${id} not found`);
+    }
+    if (authUser) {
+      await this.assertFsrReadAccess(details, authUser, 'view');
     }
     return details;
   }
@@ -374,7 +474,16 @@ export class FieldServiceService {
           visitDate: input.visitDate ? new Date(input.visitDate) : existing.fsr.visitDate,
           problemReported: input.problemReported !== undefined ? input.problemReported : existing.fsr.problemReported,
           reasonForVisit: input.reasonForVisit !== undefined ? input.reasonForVisit : existing.fsr.reasonForVisit,
-          callType: input.callType || existing.fsr.callType,
+          callType: (() => {
+            if (!input.callType) return existing.fsr.callType;
+            const ct = input.callType.toUpperCase();
+            if (ct === 'BREAKDOWN') return APP_CONSTANTS.FSR_CALL_TYPES.BD;
+            if (ct === 'PREVENTIVE_MAINTENANCE') return APP_CONSTANTS.FSR_CALL_TYPES.PM;
+            if (['SITE_SURVEY', 'BATTERY_REPLACEMENT', 'OTHER'].includes(ct)) {
+              return APP_CONSTANTS.FSR_CALL_TYPES.COURTESY;
+            }
+            return input.callType as any;
+          })(),
           status: input.status || existing.fsr.status,
           warrantyStatus: input.warrantyStatus || existing.fsr.warrantyStatus,
           billingStatus: input.billingStatus || existing.fsr.billingStatus,
@@ -1335,8 +1444,8 @@ export class FieldServiceService {
   /**
    * 18. Activity Log Stream
    */
-  async getActivityLogs(fsrId: string) {
-    await this.getFsrById(fsrId); // Verifies existence
+  async getActivityLogs(fsrId: string, authUser?: JwtPayload) {
+    await this.getFsrById(fsrId, authUser); // Verifies existence & authorization
     return await this.repo.findActivityLogs(fsrId);
   }
 
@@ -1345,41 +1454,7 @@ export class FieldServiceService {
    */
   async generatePdf(id: string, authUser: JwtPayload): Promise<{ buffer: Buffer; filename: string }> {
     const details = await this.getFsrById(id);
-
-    // Authorization:
-    // ADMIN / MANAGER: full access
-    // Assigned Engineer or Salesperson (USER role): allowed according to CRM permissions
-    if (
-      authUser.role === APP_CONSTANTS.ROLES.USER &&
-      details.fsr.serviceEngineerId !== authUser.userId
-    ) {
-      // Check if user is a salesperson allowed to read completed/closed FSRs
-      const [currentUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, authUser.userId))
-        .limit(1);
-
-      const designation = (currentUser?.designation || '').toLowerCase();
-      // Exclude HR, Accounting, Admin, Operations
-      const isExcluded =
-        designation.includes('accountant') ||
-        designation.includes('accounting') ||
-        designation.includes('finance') ||
-        designation.includes('hr') ||
-        designation.includes('admin');
-
-      const engineeringKeywords = ['engineer', 'tech', 'service', 'fse', 'electrician', 'technician'];
-      const salesKeywords = ['sales', 'representative', 'executive', 'business dev', 'account manager', 'account exec', 'bd'];
-
-      const isEngineer = engineeringKeywords.some((k) => designation.includes(k));
-      const isSales = !isExcluded && !isEngineer && salesKeywords.some((k) => designation.includes(k));
-      const isCompletedOrClosed = details.fsr.status === APP_CONSTANTS.FSR_STATUSES.COMPLETED || details.fsr.status === APP_CONSTANTS.FSR_STATUSES.CLOSED;
-
-      if (!isSales || !isCompletedOrClosed) {
-        throw AppError.forbidden('You are not authorized to download this Field Service Report PDF');
-      }
-    }
+    await this.assertFsrReadAccess(details, authUser, 'download');
 
     const buffer = await FsrPdfService.generatePdf(details);
     const safeFsrNumber = details.fsr.fsrNumber.replace(/[\/\\:]/g, '-');

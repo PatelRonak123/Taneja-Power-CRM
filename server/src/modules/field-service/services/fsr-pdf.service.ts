@@ -188,6 +188,28 @@ export class FsrPdfService {
   }
 
   // ==========================================
+  // HELPER: Internal Resistance Formatting
+  // ==========================================
+  private static formatResistance(rawVal?: string | number | null): { displayPrefix: string; hasOmega: boolean } {
+    if (rawVal === null || rawVal === undefined) return { displayPrefix: '—', hasOmega: false };
+    const str = String(rawVal).trim();
+    if (!str || str === '—' || str === '-') return { displayPrefix: '—', hasOmega: false };
+
+    // Strip any legacy/accidental m, ohm, Ω, :, •, etc.
+    const cleanStr = str
+      .replace(/mΩ/gi, '')
+      .replace(/mohm/gi, '')
+      .replace(/[mΩ:•]/gi, '')
+      .trim();
+
+    const num = parseFloat(cleanStr);
+    if (!isNaN(num)) {
+      return { displayPrefix: `${num.toFixed(1)} m`, hasOmega: true };
+    }
+    return { displayPrefix: str, hasOmega: false };
+  }
+
+  // ==========================================
   // 1. HEADER & META BOX
   // ==========================================
   private static renderHeader(
@@ -626,29 +648,40 @@ export class FsrPdfService {
     }
 
     data.batteryBanks.forEach((bank, bankIdx) => {
-      this.ensureSpace(doc, 50);
+      this.ensureSpace(doc, 60);
 
-      // Bank Description Header Card
+      // Bank Description Header Card with 2-row clear visual layout and generous padding
       const bankHeaderY = doc.y + 2;
+      const cardHeight = 30;
       doc
-        .rect(leftMargin, bankHeaderY, contentWidth, 22)
-        .fillAndStroke('#f1f5f9', '#94a3b8');
+        .rect(leftMargin, bankHeaderY, contentWidth, cardHeight)
+        .fillAndStroke('#f8fafc', '#94a3b8');
 
-      const bankTitle = `BATTERY BANK ${bank.bankNumber || bankIdx + 1}: ${bank.bankDescription || 'Standard Bank'}`;
+      // Row 1: Bank Title (Prominent, bold, full content width)
+      const bankTitle = `BATTERY BANK ${bank.bankNumber || bankIdx + 1}: ${bank.bankDescription || 'Standard Battery Bank'}`;
       doc
         .font('Helvetica-Bold')
-        .fontSize(8)
+        .fontSize(8.5)
         .fillColor('#0f172a')
-        .text(bankTitle, leftMargin + 6, bankHeaderY + 4, { width: 220, lineBreak: false });
+        .text(bankTitle, leftMargin + 8, bankHeaderY + 5, {
+          width: contentWidth - 16,
+          lineBreak: false,
+          ellipsis: true,
+        });
 
+      // Row 2: Bank Specifications & Electrical Parameters
       const specsText = `Make: ${bank.make || '—'}  |  Ah: ${bank.ah || '—'}  |  Qty: ${bank.quantity || bank.readings?.length || '—'}  |  V: ${bank.voltage ? bank.voltage + 'V' : '—'}  |  Chg: ${bank.chargingCurrent ? bank.chargingCurrent + 'A' : '—'}  |  Dischg: ${bank.dischargingCurrent ? bank.dischargingCurrent + 'A' : '—'}`;
       doc
         .font('Helvetica')
         .fontSize(7)
-        .fillColor('#334155')
-        .text(specsText, leftMargin + 6, bankHeaderY + 13, { width: contentWidth - 12, lineBreak: false });
+        .fillColor('#475569')
+        .text(specsText, leftMargin + 8, bankHeaderY + 17.5, {
+          width: contentWidth - 16,
+          lineBreak: false,
+          ellipsis: true,
+        });
 
-      doc.y = bankHeaderY + 26;
+      doc.y = bankHeaderY + cardHeight + 4;
 
       // Battery Readings Table
       const readings = bank.readings || [];
@@ -744,21 +777,31 @@ export class FsrPdfService {
           cellX += colWidths[2];
 
           // 4. Internal Resistance
+          const irX = cellX + 4;
+          const { displayPrefix, hasOmega } = this.formatResistance(reading.internalResistance);
           doc
             .font('Helvetica')
             .fontSize(7)
             .fillColor('#0f172a')
-            .text(reading.internalResistance ? reading.internalResistance : '—', cellX + 4, rowY + 2.5, {
-              width: colWidths[3] - 8,
+            .text(displayPrefix, irX, rowY + 2.5, {
+              continued: hasOmega,
+              lineBreak: false,
             });
+          if (hasOmega) {
+            doc.font('Symbol').fontSize(7).text('W');
+          }
           cellX += colWidths[3];
 
-          // 5. Remarks
+          // 5. Remarks / State
+          const cleanRemarks = (reading.remarks || '—')
+            .replace(/^[:•\s-]+/, '')
+            .trim() || (reading.remarks ? reading.remarks : '—');
+
           doc
             .font('Helvetica')
             .fontSize(7)
             .fillColor('#475569')
-            .text(reading.remarks || '—', cellX + 4, rowY + 2.5, {
+            .text(cleanRemarks, cellX + 4, rowY + 2.5, {
               width: colWidths[4] - 8,
               lineBreak: false,
             });
@@ -826,7 +869,28 @@ export class FsrPdfService {
     doc.y += 14;
 
     parts.forEach((part, pIdx) => {
-      if (doc.y + 14 > doc.page.height - 40) {
+      const partName = part.partName || 'Part Item';
+      const partNo = part.partNumber || part.product?.sku || '—';
+      const qtyStr = String(part.quantity || 1);
+      const repDetails = part.replacementDetails || '—';
+      const oldStatus = (part.oldPartStatus || 'DEFECTIVE_RETURNED').replace(/_/g, ' ');
+      const remarks = part.remarks || '—';
+
+      // Dynamically measure wrapped height of each cell at 7pt font
+      doc.font('Helvetica-Bold').fontSize(7);
+      const h1 = doc.heightOfString(partName, { width: colWidths[0] - 8 });
+
+      doc.font('Helvetica').fontSize(7);
+      const h2 = doc.heightOfString(partNo, { width: colWidths[1] - 8 });
+      const h3 = doc.heightOfString(qtyStr, { width: colWidths[2] - 4 });
+      const h4 = doc.heightOfString(repDetails, { width: colWidths[3] - 8 });
+      const h5 = doc.heightOfString(oldStatus, { width: colWidths[4] - 8 });
+      const h6 = doc.heightOfString(remarks, { width: colWidths[5] - 8 });
+
+      const verticalPadding = 7; // 3.5pt top + 3.5pt bottom
+      const rowHeight = Math.max(14, Math.max(h1, h2, h3, h4, h5, h6) + verticalPadding);
+
+      if (doc.y + rowHeight > doc.page.height - 40) {
         doc.addPage();
         drawHeader(doc.y);
         doc.y += 14;
@@ -836,7 +900,7 @@ export class FsrPdfService {
       const isEven = pIdx % 2 === 0;
 
       doc
-        .rect(leftMargin, rowY, contentWidth, 13)
+        .rect(leftMargin, rowY, contentWidth, rowHeight)
         .fillAndStroke(isEven ? '#ffffff' : '#f8fafc', '#e2e8f0');
 
       let cellX = leftMargin;
@@ -846,7 +910,7 @@ export class FsrPdfService {
         .font('Helvetica-Bold')
         .fontSize(7)
         .fillColor('#0f172a')
-        .text(part.partName, cellX + 4, rowY + 3, { width: colWidths[0] - 8, lineBreak: false });
+        .text(partName, cellX + 4, rowY + 3.5, { width: colWidths[0] - 8 });
       cellX += colWidths[0];
 
       // 2. Part Number / SKU
@@ -854,10 +918,7 @@ export class FsrPdfService {
         .font('Helvetica')
         .fontSize(7)
         .fillColor('#475569')
-        .text(part.partNumber || part.product?.sku || '—', cellX + 4, rowY + 3, {
-          width: colWidths[1] - 8,
-          lineBreak: false,
-        });
+        .text(partNo, cellX + 4, rowY + 3.5, { width: colWidths[1] - 8 });
       cellX += colWidths[1];
 
       // 3. Qty
@@ -865,10 +926,7 @@ export class FsrPdfService {
         .font('Helvetica-Bold')
         .fontSize(7)
         .fillColor('#0f172a')
-        .text(String(part.quantity || 1), cellX, rowY + 3, {
-          width: colWidths[2],
-          align: 'center',
-        });
+        .text(qtyStr, cellX + 2, rowY + 3.5, { width: colWidths[2] - 4, align: 'center' });
       cellX += colWidths[2];
 
       // 4. Replacement Details
@@ -876,10 +934,7 @@ export class FsrPdfService {
         .font('Helvetica')
         .fontSize(7)
         .fillColor('#0f172a')
-        .text(part.replacementDetails || '—', cellX + 4, rowY + 3, {
-          width: colWidths[3] - 8,
-          lineBreak: false,
-        });
+        .text(repDetails, cellX + 4, rowY + 3.5, { width: colWidths[3] - 8 });
       cellX += colWidths[3];
 
       // 5. Old Part Status
@@ -887,10 +942,7 @@ export class FsrPdfService {
         .font('Helvetica')
         .fontSize(7)
         .fillColor('#475569')
-        .text((part.oldPartStatus || 'DEFECTIVE_RETURNED').replace(/_/g, ' '), cellX + 4, rowY + 3, {
-          width: colWidths[4] - 8,
-          lineBreak: false,
-        });
+        .text(oldStatus, cellX + 4, rowY + 3.5, { width: colWidths[4] - 8 });
       cellX += colWidths[4];
 
       // 6. Remarks
@@ -898,12 +950,9 @@ export class FsrPdfService {
         .font('Helvetica')
         .fontSize(7)
         .fillColor('#64748b')
-        .text(part.remarks || '—', cellX + 4, rowY + 3, {
-          width: colWidths[5] - 8,
-          lineBreak: false,
-        });
+        .text(remarks, cellX + 4, rowY + 3.5, { width: colWidths[5] - 8 });
 
-      doc.y = rowY + 13;
+      doc.y = rowY + rowHeight;
     });
 
     doc.y += 6;

@@ -11,7 +11,11 @@ export interface FsrPermissionTarget {
  */
 export const isAdminOrManager = (user?: User | null): boolean => {
   if (!user) return false;
-  return user.role === 'ADMIN' || user.role === 'MANAGER';
+  return (
+    user.role === 'ADMIN' ||
+    user.role === 'MANAGER' ||
+    (user.designation || '').toLowerCase().includes('manager')
+  );
 };
 
 /**
@@ -177,3 +181,20 @@ export const canDownloadFSR = (user?: User | null, fsr?: FsrPermissionTarget): b
   }
   return fsr.serviceEngineerId === user.id || fsr.status !== 'DRAFT';
 };
+
+/**
+ * Determine if user can assign or reassign service engineers.
+ * Admin and Manager only.
+ */
+export const canAssignFSR = (user?: User | null): boolean => {
+  return isAdminOrManager(user);
+};
+
+// Aliases for explicit naming conventions
+export const canViewFieldService = canAccessFSR;
+export const canCreateFieldService = canCreateFSR;
+export const canEditFieldService = canEditFSR;
+export const canStartFieldService = canStartFSR;
+export const canCompleteFieldService = canCompleteFSR;
+export const canAssignFieldService = canAssignFSR;
+

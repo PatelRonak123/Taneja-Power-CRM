@@ -17,6 +17,7 @@ import geocodingRoutes from './modules/geocoding/geocoding.routes.js';
 import quotationRoutes from './modules/quotations/routes/quotation.routes.js';
 import amcContractRoutes from './modules/amc-contracts/routes/amc-contract.routes.js';
 import fieldServiceRoutes from './modules/field-service/routes/field-service.routes.js';
+import path from 'path';
 import { sendResponse } from './common/utils/responseEnvelope.js';
 
 export const createApp = (): Application => {
@@ -30,8 +31,11 @@ export const createApp = (): Application => {
     })
   );
   app.use(cookieParser());
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: '25mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+  // Static Uploads Serving
+  app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
   // Health Check Endpoint
   app.get('/health', (_req: Request, res: Response) => {

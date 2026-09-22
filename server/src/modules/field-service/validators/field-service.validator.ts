@@ -197,6 +197,11 @@ export const updateFsrSchema = z.object({
         APP_CONSTANTS.FSR_CALL_TYPES.PM,
         APP_CONSTANTS.FSR_CALL_TYPES.INSTALLATION,
         APP_CONSTANTS.FSR_CALL_TYPES.COURTESY,
+        'PREVENTIVE_MAINTENANCE',
+        'BREAKDOWN',
+        'SITE_SURVEY',
+        'BATTERY_REPLACEMENT',
+        'OTHER',
       ])
       .optional(),
     status: z
@@ -422,6 +427,7 @@ export const queryFsrSchema = z.object({
     search: z.string().optional(),
     customerId: z.string().uuid().optional(),
     serviceEngineerId: z.string().uuid().optional(),
+    assignedEngineerId: z.string().uuid().optional(),
     status: z
       .enum([
         APP_CONSTANTS.FSR_STATUSES.DRAFT,
@@ -437,6 +443,11 @@ export const queryFsrSchema = z.object({
         APP_CONSTANTS.FSR_CALL_TYPES.PM,
         APP_CONSTANTS.FSR_CALL_TYPES.INSTALLATION,
         APP_CONSTANTS.FSR_CALL_TYPES.COURTESY,
+        'PREVENTIVE_MAINTENANCE',
+        'BREAKDOWN',
+        'SITE_SURVEY',
+        'BATTERY_REPLACEMENT',
+        'OTHER',
       ])
       .optional(),
     warrantyStatus: z

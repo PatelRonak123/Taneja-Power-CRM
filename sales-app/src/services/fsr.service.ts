@@ -13,6 +13,7 @@ import {
   CustomerSignOffPayload,
   FseSignOffPayload,
   FsrAttachment,
+  UpdateFsrPayload,
 } from '../types/fsr.types';
 
 export const fsrService = {
@@ -23,8 +24,10 @@ export const fsrService = {
     const queryParams: Record<string, string | number> = {};
     if (params?.status && params.status !== 'ALL') queryParams.status = params.status;
     if (params?.search && params.search.trim()) queryParams.search = params.search.trim();
-    if (params?.callType) queryParams.callType = params.callType;
+    if (params?.callType && params.callType !== 'ALL') queryParams.callType = params.callType;
     if (params?.warrantyStatus) queryParams.warrantyStatus = params.warrantyStatus;
+    if (params?.assignedEngineerId) queryParams.assignedEngineerId = params.assignedEngineerId;
+    if (params?.customerId) queryParams.customerId = params.customerId;
     if (params?.page) queryParams.page = params.page;
     if (params?.limit) queryParams.limit = params.limit;
 
@@ -47,6 +50,17 @@ export const fsrService = {
   async getById(id: string): Promise<FsrDetailedView> {
     const response = (await apiClient.get(
       API_ENDPOINTS.FIELD_SERVICE.GET_BY_ID(id)
+    )) as unknown as ApiEnvelope<FsrDetailedView>;
+    return response.data;
+  },
+
+  /**
+   * Update FSR core details (PATCH /api/v1/field-service/:id)
+   */
+  async update(id: string, payload: Partial<UpdateFsrPayload>): Promise<FsrDetailedView> {
+    const response = (await apiClient.patch(
+      API_ENDPOINTS.FIELD_SERVICE.UPDATE(id),
+      payload
     )) as unknown as ApiEnvelope<FsrDetailedView>;
     return response.data;
   },

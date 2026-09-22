@@ -110,6 +110,8 @@ export class FieldServiceRepository {
     // FSE row-level scoping if restricted
     if (options.allowedServiceEngineerId) {
       conditions.push(eq(fieldServiceReports.serviceEngineerId, options.allowedServiceEngineerId));
+    } else if (options.assignedEngineerId && options.assignedEngineerId.trim() !== '') {
+      conditions.push(eq(fieldServiceReports.serviceEngineerId, options.assignedEngineerId.trim()));
     } else if (options.serviceEngineerId && options.serviceEngineerId.trim() !== '') {
       conditions.push(eq(fieldServiceReports.serviceEngineerId, options.serviceEngineerId.trim()));
     }
