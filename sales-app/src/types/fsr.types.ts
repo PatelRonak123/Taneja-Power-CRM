@@ -243,6 +243,9 @@ export interface FsrQueryParams {
   search?: string;
   callType?: string;
   warrantyStatus?: string;
+  assignedEngineerId?: string;
+  serviceEngineerId?: string;
+  customerId?: string;
   page?: number;
   limit?: number;
 }
@@ -256,6 +259,25 @@ export interface FsrListResult {
 }
 
 // Mutation Payloads
+export interface UpdateFsrPayload {
+  visitDate?: string;
+  problemReported?: string | null;
+  reasonForVisit?: string | null;
+  callType?: FsrCallType | string;
+  warrantyStatus?: FsrWarrantyStatus;
+  billingStatus?: FsrBillingStatus;
+  productModel?: string | null;
+  productMake?: string | null;
+  productSerialNumber?: string | null;
+  equipmentStatus?: string;
+  charges?: number;
+  chargesRemarks?: string | null;
+  standbyDetails?: string | null;
+  fseFeedback?: string | null;
+  customerFeedback?: string | null;
+  customerContactName?: string | null;
+}
+
 export interface UpdateSiteObservationPayload {
   inputOnMains?: string | null;
   inputVoltageLN?: number | null;

@@ -50,7 +50,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return <EmployeeManagementPage />;
     }
 
-    if ((currentPath === '/customers' || currentPath === '/admin/customers') && isAdmin) {
+    if (currentPath === '/customers' || currentPath === '/admin/customers') {
       return <CustomerManagementPage />;
     }
 
@@ -111,7 +111,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return <AmcContractDetailPage />;
     }
 
-    if ((currentPath === '/tasks' || currentPath === '/admin/tasks') && isAdmin) {
+    if (currentPath === '/tasks' || currentPath === '/admin/tasks') {
       return <TaskManagementPage />;
     }
 

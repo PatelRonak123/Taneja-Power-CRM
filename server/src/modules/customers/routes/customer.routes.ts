@@ -38,16 +38,16 @@ router.get(
   destinationController.getById
 );
 
-// 2. Admin-Only Mutation Endpoints
+// 2. Customer Mutation Endpoints
 router.post(
   '/',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER, APP_CONSTANTS.ROLES.USER),
   validateRequest(createCustomerSchema),
   customerController.create
 );
 router.put(
   '/:id',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER, APP_CONSTANTS.ROLES.USER),
   validateRequest(updateCustomerSchema),
   customerController.update
 );

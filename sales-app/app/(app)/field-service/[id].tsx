@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,11 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
   Platform,
+  Alert,
+  BackHandler,
+  KeyboardAvoidingView,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -20,17 +20,29 @@ import {
   Phone,
   Mail,
   Cpu,
+  UserCheck,
+  Building2,
+  FileText,
+  AlertCircle,
   BatteryCharging,
   Package,
-  Camera,
-  CheckCircle2,
+  Wrench,
   Clock,
-  Edit3,
+  ShieldCheck,
+  Zap,
   Play,
-  FileCheck,
-  AlertCircle,
-  Plus,
-  Trash2,
+  Edit3,
+  CheckCircle2,
+  Save,
+  X,
+  CreditCard,
+  MessageSquare,
+  User as UserIcon,
+  Activity,
+  Camera,
+  ChevronRight,
+  PenTool,
+  RotateCcw,
   Share2,
 } from 'lucide-react-native';
 import { ScreenContainer } from '../../../src/components/ui/ScreenContainer';
@@ -38,72 +50,482 @@ import { Card } from '../../../src/components/ui/Card';
 import { Badge } from '../../../src/components/ui/Badge';
 import { Button } from '../../../src/components/ui/Button';
 import { Input } from '../../../src/components/ui/Input';
-import { SignaturePadModal } from '../../../src/components/ui/SignaturePadModal';
 import { useAuthStore } from '../../../src/auth/auth.store';
 import {
   useFsrDetail,
   useStartFsr,
+  useUpdateFsr,
   useCompleteFsr,
-  useUpdateSiteObservation,
-  useAddPart,
-  useDeletePart,
   useCustomerSignOff,
   useFseSignOff,
 } from '../../../src/hooks/useFsr';
 import {
   canStartFSR,
-  canCompleteFSR,
   canEditFSR,
+  canCompleteFSR,
   canSignOffFSR,
   canDownloadFSR,
 } from '../../../src/utils/fsrPermissions';
-import { LocationService } from '../../../src/services/location.service';
+import { SignaturePadModal } from '../../../src/components/ui/SignaturePadModal';
+import { env } from '../../../src/config/env';
 import { fsrPdfService } from '../../../src/services/fsrPdf.service';
+import { LocationService, LocationServiceError } from '../../../src/services/location.service';
 import { theme } from '../../../src/theme/theme';
 import { formatDate } from '../../../src/utils/date';
-import {
-  FsrUpsLocation,
-  UpdateSiteObservationPayload,
-  PartPayload,
-} from '../../../src/types/fsr.types';
+import { FsrCallType, FsrStatus, UpdateFsrPayload } from '../../../src/types/fsr.types';
+
+const EQUIPMENT_STATUS_OPTIONS = [
+  { label: 'Working', value: 'WORKING' },
+  { label: 'Not Working', value: 'NOT_WORKING' },
+  { label: 'Degraded', value: 'DEGRADED' },
+  { label: 'Standby', value: 'STANDBY' },
+];
 
 export default function FsrDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const user = useAuthStore((state) => state.user);
 
-  const { data: fsrDetail, isLoading, refetch, error } = useFsrDetail(id);
-
+  const { data: fsrDetail, isLoading, refetch, error } = useFsrDetail(id || '');
   const startMutation = useStartFsr();
+  const updateMutation = useUpdateFsr();
+  const fseSignOffMutation = useFseSignOff();
+  const customerSignOffMutation = useCustomerSignOff();
   const completeMutation = useCompleteFsr();
-  const observationMutation = useUpdateSiteObservation();
-  const addPartMutation = useAddPart();
-  const deletePartMutation = useDeletePart();
-  const customerSignMutation = useCustomerSignOff();
-  const fseSignMutation = useFseSignOff();
 
-  const fsrId = id || '';
-
-  const [isGpsCapturing, setIsGpsCapturing] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isFseSigModalOpen, setIsFseSigModalOpen] = useState(false);
+  const [isCustSigModalOpen, setIsCustSigModalOpen] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-  const [customerSignModalVisible, setCustomerSignModalVisible] = useState(false);
-  const [fseSignModalVisible, setFseSignModalVisible] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Observation Modal state
-  const [obsModalVisible, setObsModalVisible] = useState(false);
-  const [obsForm, setObsForm] = useState<UpdateSiteObservationPayload>({});
-
-  // Add Part Modal state
-  const [partModalVisible, setPartModalVisible] = useState(false);
-  const [partForm, setPartForm] = useState<PartPayload>({
-    partName: '',
-    partNumber: '',
-    quantity: 1,
-    replacementDetails: '',
-    oldPartStatus: '',
-    remarks: '',
+  // Form State for Edit Mode
+  const [formData, setFormData] = useState({
+    problemReported: '',
+    reasonForVisit: '',
+    productModel: '',
+    productSerialNumber: '',
+    equipmentStatus: 'WORKING',
+    charges: '',
+    chargesRemarks: '',
+    standbyDetails: '',
+    fseFeedback: '',
+    customerFeedback: '',
+    customerContactName: '',
   });
 
+  const fsr = fsrDetail?.fsr;
+
+  // Resolve absolute image URL for signatures/attachments
+  const resolveImageUrl = useCallback((filePath?: string | null) => {
+    if (!filePath) return null;
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+      return filePath;
+    }
+    const cleanPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
+    const serverRoot = env.API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+    return `${serverRoot}${cleanPath}`;
+  }, []);
+
+  // Initialize/sync form state when fsrDetail loads or changes
+  useEffect(() => {
+    if (fsr) {
+      setFormData({
+        problemReported: fsr.problemReported || '',
+        reasonForVisit: fsr.reasonForVisit || '',
+        productModel: fsr.productModel || '',
+        productSerialNumber: fsr.productSerialNumber || '',
+        equipmentStatus: fsr.equipmentStatus || 'WORKING',
+        charges: fsr.charges != null && Number(fsr.charges) > 0 ? String(fsr.charges) : '',
+        chargesRemarks: fsr.chargesRemarks || '',
+        standbyDetails: fsr.standbyDetails || '',
+        fseFeedback: fsr.fseFeedback || '',
+        customerFeedback: fsr.customerFeedback || '',
+        customerContactName: fsr.customerContactName || '',
+      });
+    }
+  }, [fsr]);
+
+  // Authorization flags
+  const canStart = useMemo(() => {
+    if (!user || !fsr) return false;
+    return canStartFSR(user, fsr);
+  }, [user, fsr]);
+
+  const canEdit = useMemo(() => {
+    if (!user || !fsr) return false;
+    return canEditFSR(user, fsr);
+  }, [user, fsr]);
+
+  const canSign = useMemo(() => {
+    if (!user || !fsr) return false;
+    return canSignOffFSR(user, fsr);
+  }, [user, fsr]);
+
+  const canComplete = useMemo(() => {
+    if (!user || !fsr) return false;
+    return canCompleteFSR(user, fsr);
+  }, [user, fsr]);
+
+  const canDownload = useMemo(() => {
+    if (!user || !fsr) return false;
+    return canDownloadFSR(user, fsr);
+  }, [user, fsr]);
+
+  // Track if form is dirty
+  const isDirty = useMemo(() => {
+    if (!fsr) return false;
+    return (
+      formData.problemReported !== (fsr.problemReported || '') ||
+      formData.reasonForVisit !== (fsr.reasonForVisit || '') ||
+      formData.productModel !== (fsr.productModel || '') ||
+      formData.productSerialNumber !== (fsr.productSerialNumber || '') ||
+      formData.equipmentStatus !== (fsr.equipmentStatus || 'WORKING') ||
+      formData.charges !== (fsr.charges != null && Number(fsr.charges) > 0 ? String(fsr.charges) : '') ||
+      formData.chargesRemarks !== (fsr.chargesRemarks || '') ||
+      formData.standbyDetails !== (fsr.standbyDetails || '') ||
+      formData.fseFeedback !== (fsr.fseFeedback || '') ||
+      formData.customerFeedback !== (fsr.customerFeedback || '') ||
+      formData.customerContactName !== (fsr.customerContactName || '')
+    );
+  }, [formData, fsr]);
+
+  // Handle Cancel Edit with Unsaved Changes check
+  const handleCancelEdit = useCallback(() => {
+    if (isDirty) {
+      Alert.alert(
+        'Discard changes?',
+        'You have unsaved changes.',
+        [
+          { text: 'Keep Editing', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => {
+              if (fsr) {
+                setFormData({
+                  problemReported: fsr.problemReported || '',
+                  reasonForVisit: fsr.reasonForVisit || '',
+                  productModel: fsr.productModel || '',
+                  productSerialNumber: fsr.productSerialNumber || '',
+                  equipmentStatus: fsr.equipmentStatus || 'WORKING',
+                  charges: fsr.charges != null && Number(fsr.charges) > 0 ? String(fsr.charges) : '',
+                  chargesRemarks: fsr.chargesRemarks || '',
+                  standbyDetails: fsr.standbyDetails || '',
+                  fseFeedback: fsr.fseFeedback || '',
+                  customerFeedback: fsr.customerFeedback || '',
+                  customerContactName: fsr.customerContactName || '',
+                });
+              }
+              setValidationError(null);
+              setIsEditing(false);
+            },
+          },
+        ]
+      );
+    } else {
+      setValidationError(null);
+      setIsEditing(false);
+    }
+  }, [isDirty, fsr]);
+
+  // Handle Back Button navigation with Unsaved Changes check
+  const handleBackPress = useCallback(() => {
+    if (isEditing && isDirty) {
+      Alert.alert(
+        'Discard changes?',
+        'You have unsaved changes.',
+        [
+          { text: 'Keep Editing', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => router.back(),
+          },
+        ]
+      );
+    } else {
+      router.back();
+    }
+  }, [isEditing, isDirty, router]);
+
+  // Android hardware back handler
+  useEffect(() => {
+    const onHardwareBack = () => {
+      if (isEditing && isDirty) {
+        handleBackPress();
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => sub.remove();
+  }, [isEditing, isDirty, handleBackPress]);
+
+  // Start Visit Action
+  const handleStartVisit = () => {
+    if (!fsr) return;
+
+    Alert.alert(
+      'Start Service Visit?',
+      'You are about to begin this service visit.\nLocation access is required to continue.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Start Visit',
+          onPress: async () => {
+            setIsStarting(true);
+            try {
+              // 1. Client-side visit-start gate: check foreground location permission & availability
+              await LocationService.getCurrentPosition();
+
+              // 2. Call existing backend start endpoint (POST /api/v1/field-service/:id/start)
+              await startMutation.mutateAsync(fsr.id);
+              Alert.alert('Success', 'Service visit started');
+            } catch (err: any) {
+              let errorMsg = 'Failed to start service visit. Please try again.';
+              if (err instanceof LocationServiceError) {
+                errorMsg = err.message;
+                if (err.code === 'PERMISSION_PERMANENTLY_DENIED') {
+                  Alert.alert('Location Permission Required', errorMsg, [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Open Settings', onPress: () => LocationService.openAppSettings() },
+                  ]);
+                  return;
+                }
+              } else if (err?.response?.data?.message) {
+                errorMsg = err.response.data.message;
+              } else if (err?.message) {
+                errorMsg = err.message;
+              }
+              Alert.alert('Unable to Start Visit', errorMsg);
+            } finally {
+              setIsStarting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Save Edit Action
+  const handleSave = async () => {
+    if (!fsr) return;
+
+    let numericCharges: number | undefined = undefined;
+    if (formData.charges.trim()) {
+      const parsed = Number(formData.charges.trim());
+      if (isNaN(parsed) || parsed < 0) {
+        setValidationError('Charges must be a valid non-negative number.');
+        return;
+      }
+      numericCharges = parsed;
+    }
+    setValidationError(null);
+
+    const payload: Partial<UpdateFsrPayload> = {
+      problemReported: formData.problemReported.trim() || undefined,
+      reasonForVisit: formData.reasonForVisit.trim() || undefined,
+      productModel: formData.productModel.trim() || undefined,
+      productSerialNumber: formData.productSerialNumber.trim() || undefined,
+      equipmentStatus: formData.equipmentStatus,
+      charges: numericCharges ?? (fsr.charges ? Number(fsr.charges) : 0),
+      chargesRemarks: formData.chargesRemarks.trim() || undefined,
+      standbyDetails: formData.standbyDetails.trim() || undefined,
+      fseFeedback: formData.fseFeedback.trim() || undefined,
+      customerFeedback: formData.customerFeedback.trim() || undefined,
+      customerContactName: formData.customerContactName.trim() || undefined,
+    };
+
+    try {
+      await updateMutation.mutateAsync({ id: fsr.id, payload });
+      setIsEditing(false);
+      Alert.alert('Success', 'FSR updated successfully');
+    } catch (err: any) {
+      let errorMsg = 'Failed to update FSR. Please try again.';
+      if (err?.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      } else if (err?.message) {
+        errorMsg = err.message;
+      }
+      Alert.alert('Update Failed', errorMsg);
+    }
+  };
+
+  // Submit FSE Sign-Off
+  const handleFseSignOffConfirm = async (payload: {
+    signerName: string;
+    signerPhone?: string;
+    signatureDataUrl: string;
+  }) => {
+    if (!fsr) return;
+    await fseSignOffMutation.mutateAsync({
+      id: fsr.id,
+      payload: {
+        fseName: payload.signerName,
+        fseNumber: payload.signerPhone || null,
+        fseSignature: payload.signatureDataUrl,
+        fseSignatureDate: new Date().toISOString(),
+      },
+    });
+    Alert.alert('Success', 'Service Engineer sign-off recorded successfully.');
+  };
+
+  // Submit Customer Sign-Off
+  const handleCustomerSignOffConfirm = async (payload: {
+    signerName: string;
+    signerPhone?: string;
+    signatureDataUrl: string;
+    stampDataUrl?: string | null;
+  }) => {
+    if (!fsr) return;
+    await customerSignOffMutation.mutateAsync({
+      id: fsr.id,
+      payload: {
+        customerContactName: payload.signerName,
+        customerSignature: payload.signatureDataUrl,
+        customerStamp: payload.stampDataUrl || null,
+        customerSignedAt: new Date().toISOString(),
+      },
+    });
+    Alert.alert('Success', 'Customer sign-off recorded successfully.');
+  };
+
+  // Complete FSR Action with Validations & Confirmation
+  const handleCompleteVisit = () => {
+    if (!fsr) return;
+
+    if (!fsr.customerName) {
+      Alert.alert('Missing Information', 'Customer details are incomplete on this FSR.');
+      return;
+    }
+    if (!fsr.visitDate) {
+      Alert.alert('Missing Information', 'Visit date is missing on this FSR.');
+      return;
+    }
+    if (!fsr.callType) {
+      Alert.alert('Missing Information', 'Call type is missing on this FSR.');
+      return;
+    }
+
+    const hasFseSig = Boolean(fsr.fseSignature);
+    const hasCustSig = Boolean(fsr.customerSignature);
+
+    const proceedCompletion = () => {
+      Alert.alert(
+        'Complete Service Visit?',
+        'You are about to mark this Field Service Report as COMPLETED.\nOnce completed, further operational modifications will be restricted.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Complete Visit',
+            style: 'default',
+            onPress: async () => {
+              setIsCompleting(true);
+              try {
+                await completeMutation.mutateAsync(fsr.id);
+                Alert.alert('Visit Completed', 'Field Service Report has been marked as COMPLETED.');
+              } catch (err: any) {
+                const errorMsg =
+                  err?.response?.data?.message || err?.message || 'Failed to complete FSR.';
+                Alert.alert('Completion Error', errorMsg);
+              } finally {
+                setIsCompleting(false);
+              }
+            },
+          },
+        ]
+      );
+    };
+
+    if (!hasFseSig || !hasCustSig) {
+      const missingList: string[] = [];
+      if (!hasFseSig) missingList.push('Service Engineer (FSE) Signature');
+      if (!hasCustSig) missingList.push('Customer Representative Signature');
+
+      Alert.alert(
+        'Signatures Incomplete',
+        `The following sign-off is pending:\n• ${missingList.join('\n• ')}\n\nDo you want to proceed with completion anyway?`,
+        [
+          { text: 'Keep Editing', style: 'cancel' },
+          {
+            text: 'Complete Anyway',
+            style: 'destructive',
+            onPress: proceedCompletion,
+          },
+        ]
+      );
+      return;
+    }
+
+    proceedCompletion();
+  };
+
+  // Download & Share Official FSR PDF
+  const handleDownloadPdf = async () => {
+    if (!fsr) return;
+    try {
+      setIsDownloadingPdf(true);
+      await fsrPdfService.downloadAndSharePdf(fsr.id, fsr.fsrNumber);
+    } catch (err: any) {
+      Alert.alert('PDF Error', err?.message || 'Failed to download or share official FSR PDF.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const getStatusVariant = (status?: FsrStatus | string): 'primary' | 'success' | 'warning' | 'error' | 'neutral' => {
+    switch (status) {
+      case 'IN_PROGRESS':
+        return 'warning';
+      case 'COMPLETED':
+        return 'success';
+      case 'CLOSED':
+        return 'primary';
+      case 'CANCELLED':
+        return 'error';
+      case 'DRAFT':
+      default:
+        return 'neutral';
+    }
+  };
+
+  const getCallTypeVariant = (callType?: FsrCallType | string): 'primary' | 'success' | 'warning' | 'error' | 'neutral' => {
+    switch (callType) {
+      case 'BD':
+      case 'BREAKDOWN':
+        return 'error';
+      case 'PM':
+      case 'PREVENTIVE_MAINTENANCE':
+        return 'primary';
+      case 'INSTALLATION':
+        return 'success';
+      case 'COURTESY':
+      default:
+        return 'neutral';
+    }
+  };
+
+  const formatCallTypeLabel = (callType?: string) => {
+    switch (callType) {
+      case 'BD':
+      case 'BREAKDOWN':
+        return 'Breakdown Service';
+      case 'PM':
+      case 'PREVENTIVE_MAINTENANCE':
+        return 'Preventive Maintenance';
+      case 'INSTALLATION':
+        return 'Installation & Commissioning';
+      case 'COURTESY':
+        return 'Courtesy Visit';
+      default:
+        return callType || 'Service Visit';
+    }
+  };
+
+  // 1. Loading State
   if (isLoading) {
     return (
       <ScreenContainer>
@@ -115,890 +537,946 @@ export default function FsrDetailScreen() {
     );
   }
 
-  if (error || !fsrDetail) {
+  // 2. Error State
+  if (error || !fsrDetail || !fsr) {
     return (
       <ScreenContainer>
         <View style={styles.centerContainer}>
-          <AlertCircle size={48} color={theme.colors.accentRose} />
-          <Text style={styles.errorTitle}>Report Not Found</Text>
+          <AlertCircle size={52} color={theme.colors.accentRose} />
+          <Text style={styles.errorTitle}>Unable to load report</Text>
           <Text style={styles.errorSubtitle}>
-            {error instanceof Error ? error.message : 'Could not retrieve report details.'}
+            {error instanceof Error ? error.message : 'The requested Field Service Report could not be found.'}
           </Text>
-          <Button
-            title="Go Back"
-            variant="outline"
-            onPress={() => router.back()}
-            style={styles.retryButton}
-          />
+          <View style={styles.errorActionRow}>
+            <Button title="Try Again" variant="primary" onPress={() => refetch()} style={styles.actionBtn} />
+            <Button title="Go Back" variant="outline" onPress={() => router.back()} style={styles.actionBtn} />
+          </View>
         </View>
       </ScreenContainer>
     );
   }
 
-  const { fsr, customer, destination, siteObservation, batteryBanks, parts, attachments } = fsrDetail;
-
-  const canStart = canStartFSR(user, fsr);
-  const canComplete = canCompleteFSR(user, fsr);
-  const canEdit = canEditFSR(user, fsr);
-  const canSign = canSignOffFSR(user, fsr);
-  const canDownload = canDownloadFSR(user, fsr);
-
-  // Handler: Start FSR with GPS
-  const handleStartFsr = async () => {
-    Alert.alert(
-      'Start Service Visit',
-      'This will record your current GPS coordinates and transition the report to IN PROGRESS.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Start Now',
-          onPress: async () => {
-            try {
-              setIsGpsCapturing(true);
-              const position = await LocationService.getCurrentPosition();
-              await startMutation.mutateAsync(id);
-              Alert.alert(
-                'Visit Started',
-                `GPS position logged at (${position.latitude.toFixed(4)}, ${position.longitude.toFixed(4)}). Report is now In Progress.`
-              );
-            } catch (err: any) {
-              Alert.alert(
-                'Location Error',
-                err?.message || 'Current GPS position is required to start the report. Please enable GPS and try again.'
-              );
-            } finally {
-              setIsGpsCapturing(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  // Handler: Complete FSR with Validation & GPS
-  const handleCompleteFsr = async () => {
-    // Validate completion prerequisites
-    const missing: string[] = [];
-    if (!fsr.customerSignature) missing.push('Customer signature');
-    if (!fsr.fseSignature) missing.push('Service engineer signature');
-
-    if (missing.length > 0) {
-      Alert.alert(
-        'Incomplete Report',
-        `Please complete the following required items before completing the report:\n\n• ${missing.join('\n• ')}`
-      );
-      return;
-    }
-
-    Alert.alert(
-      'Complete Service Visit',
-      'Are you sure you want to mark this report as COMPLETED? Your current GPS position will be logged.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm & Complete',
-          onPress: async () => {
-            try {
-              setIsGpsCapturing(true);
-              const position = await LocationService.getCurrentPosition();
-              await completeMutation.mutateAsync(id);
-              Alert.alert(
-                'Report Completed',
-                `Service report marked COMPLETED. Verified GPS: (${position.latitude.toFixed(4)}, ${position.longitude.toFixed(4)}).`
-              );
-            } catch (err: any) {
-              Alert.alert(
-                'Completion Error',
-                err?.message || 'Failed to complete report. Please check your GPS and internet connection.'
-              );
-            } finally {
-              setIsGpsCapturing(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  // Open Observation Editor
-  const openObsModal = () => {
-    setObsForm({
-      inputOnMains: siteObservation?.inputOnMains || '',
-      inputVoltageLN: siteObservation?.inputVoltageLN ? Number(siteObservation.inputVoltageLN) : undefined,
-      inputVoltageLL: siteObservation?.inputVoltageLL ? Number(siteObservation.inputVoltageLL) : undefined,
-      outputVoltageLN: siteObservation?.outputVoltageLN ? Number(siteObservation.outputVoltageLN) : undefined,
-      outputVoltageLL: siteObservation?.outputVoltageLL ? Number(siteObservation.outputVoltageLL) : undefined,
-      vac: siteObservation?.vac ? Number(siteObservation.vac) : undefined,
-      frequency: siteObservation?.frequency ? Number(siteObservation.frequency) : undefined,
-      dcVoltage: siteObservation?.dcVoltage ? Number(siteObservation.dcVoltage) : undefined,
-      outputLoadPercent: siteObservation?.outputLoadPercent ? Number(siteObservation.outputLoadPercent) : undefined,
-      inputFrequency: siteObservation?.inputFrequency ? Number(siteObservation.inputFrequency) : undefined,
-      outputFrequency: siteObservation?.outputFrequency ? Number(siteObservation.outputFrequency) : undefined,
-      environmentCondition: siteObservation?.environmentCondition || '',
-      environmentRemarks: siteObservation?.environmentRemarks || '',
-      upsLocation: siteObservation?.upsLocation || null,
-      otherLocationSpecification: siteObservation?.otherLocationSpecification || '',
-      observationsNotes: siteObservation?.observationsNotes || '',
-    });
-    setObsModalVisible(true);
-  };
-
-  // Save Observation Form
-  const handleSaveObservation = async () => {
-    try {
-      await observationMutation.mutateAsync({ id, payload: obsForm });
-      setObsModalVisible(false);
-      Alert.alert('Success', 'Site observations updated successfully.');
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to save site observations.');
-    }
-  };
-
-  // Add Part
-  const handleAddPart = async () => {
-    if (!partForm.partName.trim()) {
-      Alert.alert('Validation Error', 'Part name is required.');
-      return;
-    }
-    try {
-      await addPartMutation.mutateAsync({
-        id,
-        payload: {
-          ...partForm,
-          quantity: Number(partForm.quantity) || 1,
-        },
-      });
-      setPartForm({
-        partName: '',
-        partNumber: '',
-        quantity: 1,
-        replacementDetails: '',
-        oldPartStatus: '',
-        remarks: '',
-      });
-      setPartModalVisible(false);
-      Alert.alert('Success', 'Replaced part added.');
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to add part.');
-    }
-  };
-
-  // Delete Part
-  const handleDeletePart = (partId?: string) => {
-    if (!partId) return;
-    Alert.alert('Delete Part', 'Are you sure you want to remove this replacement entry?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deletePartMutation.mutateAsync({ id: fsrId, partId });
-          } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Failed to delete part.');
-          }
-        },
-      },
-    ]);
-  };
-
-  // Customer Sign-off handler
-  const handleSaveCustomerSign = async ({
-    signerName,
-    signatureDataUrl,
-  }: {
-    signerName: string;
-    signatureDataUrl: string;
-  }) => {
-    await customerSignMutation.mutateAsync({
-      id: fsrId,
-      payload: {
-        customerContactName: signerName,
-        customerSignature: signatureDataUrl,
-      },
-    });
-    Alert.alert('Signed', 'Customer sign-off recorded successfully.');
-  };
-
-  // FSE Sign-off handler
-  const handleSaveFseSign = async ({
-    signerName,
-    signerPhone,
-    signatureDataUrl,
-  }: {
-    signerName: string;
-    signerPhone?: string;
-    signatureDataUrl: string;
-  }) => {
-    await fseSignMutation.mutateAsync({
-      id: fsrId,
-      payload: {
-        fseName: signerName,
-        fseNumber: signerPhone,
-        fseSignature: signatureDataUrl,
-      },
-    });
-    Alert.alert('Signed', 'Service engineer sign-off recorded successfully.');
-  };
-
-  // Download and Share PDF handler
-  const handleDownloadPdf = async () => {
-    try {
-      setIsDownloadingPdf(true);
-      await fsrPdfService.downloadAndSharePdf(fsr.id, fsr.fsrNumber);
-    } catch (err: any) {
-      Alert.alert('PDF Error', err?.message || 'Failed to download or share official PDF report.');
-    } finally {
-      setIsDownloadingPdf(false);
-    }
-  };
+  const { customer, destination, product, serviceEngineer, siteObservation, batteryBanks, parts, attachments } = fsrDetail;
 
   return (
     <ScreenContainer>
-      <View style={styles.container}>
-        {/* Top App Bar */}
-        <View style={styles.navBar}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <ArrowLeft size={22} color={theme.colors.textPrimary} />
-          </TouchableOpacity>
-          <View style={styles.navTitleWrapper}>
-            <Text style={styles.navFsrNumber}>{fsr.fsrNumber}</Text>
-            <Text style={styles.navCustomerName} numberOfLines={1}>
-              {customer?.companyName || customer?.name}
-            </Text>
-          </View>
-          <Badge
-            label={fsr.status.replace('_', ' ')}
-            variant={
-              fsr.status === 'COMPLETED'
-                ? 'success'
-                : fsr.status === 'IN_PROGRESS'
-                ? 'warning'
-                : fsr.status === 'CLOSED'
-                ? 'primary'
-                : 'neutral'
-            }
-            size="sm"
-          />
-        </View>
-
-        <ScrollView
-          style={styles.scrollContent}
-          contentContainerStyle={styles.scrollInner}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Workflow Status Banner */}
-          <Card style={styles.statusBannerCard}>
-            <View style={styles.statusBannerHeader}>
-              <View style={styles.statusBadgeRow}>
-                <Badge
-                  label={fsr.callType}
-                  variant={fsr.callType === 'BD' ? 'error' : 'primary'}
-                  size="sm"
-                />
-                <Badge label={fsr.warrantyStatus.replace('_', ' ')} variant="neutral" size="sm" />
-                <Badge label={fsr.billingStatus.replace('_', ' ')} variant="neutral" size="sm" />
-              </View>
-              <View style={styles.visitDateRow}>
-                <Calendar size={13} color={theme.colors.textMuted} />
-                <Text style={styles.visitDateText}>{formatDate(fsr.visitDate)}</Text>
-              </View>
-            </View>
-
-            {/* Checklist Overview */}
-            <View style={styles.checklistRow}>
-              <View style={styles.checklistItem}>
-                <CheckCircle2
-                  size={14}
-                  color={fsr.status !== 'DRAFT' ? theme.colors.accentEmerald : theme.colors.textMuted}
-                />
-                <Text style={styles.checklistText}>Started</Text>
-              </View>
-              <View style={styles.checklistItem}>
-                <CheckCircle2
-                  size={14}
-                  color={siteObservation ? theme.colors.accentEmerald : theme.colors.textMuted}
-                />
-                <Text style={styles.checklistText}>Observations</Text>
-              </View>
-              <View style={styles.checklistItem}>
-                <CheckCircle2
-                  size={14}
-                  color={batteryBanks?.length > 0 ? theme.colors.accentEmerald : theme.colors.textMuted}
-                />
-                <Text style={styles.checklistText}>Batteries</Text>
-              </View>
-              <View style={styles.checklistItem}>
-                <CheckCircle2
-                  size={14}
-                  color={fsr.customerSignature ? theme.colors.accentEmerald : theme.colors.textMuted}
-                />
-                <Text style={styles.checklistText}>Cust. Sign</Text>
-              </View>
-              <View style={styles.checklistItem}>
-                <CheckCircle2
-                  size={14}
-                  color={fsr.fseSignature ? theme.colors.accentEmerald : theme.colors.textMuted}
-                />
-                <Text style={styles.checklistText}>FSE Sign</Text>
-              </View>
-            </View>
-          </Card>
-
-          {/* Section 1: Customer & Site */}
-          <Card style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Customer & Site</Text>
-            <Text style={styles.primaryCustomerTitle}>{customer?.companyName || customer?.name}</Text>
-            {customer?.name && customer.companyName && (
-              <Text style={styles.contactPersonText}>Contact: {customer.name}</Text>
-            )}
-            {destination && (
-              <View style={styles.detailRow}>
-                <MapPin size={14} color={theme.colors.primaryLight} style={styles.detailIcon} />
-                <Text style={styles.detailText}>
-                  {destination.name} {destination.city ? `(${destination.city})` : ''} - {destination.address}
-                </Text>
-              </View>
-            )}
-            {customer?.phone && (
-              <View style={styles.detailRow}>
-                <Phone size={14} color={theme.colors.textMuted} style={styles.detailIcon} />
-                <Text style={styles.detailText}>{customer.phone}</Text>
-              </View>
-            )}
-            {customer?.email && (
-              <View style={styles.detailRow}>
-                <Mail size={14} color={theme.colors.textMuted} style={styles.detailIcon} />
-                <Text style={styles.detailText}>{customer.email}</Text>
-              </View>
-            )}
-          </Card>
-
-          {/* Section 2: Equipment & Problem */}
-          <Card style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Equipment & Problem</Text>
-            <View style={styles.equipmentRow}>
-              <Cpu size={16} color={theme.colors.primaryLight} style={styles.detailIcon} />
-              <Text style={styles.equipmentText}>
-                {fsr.productModel || 'Standard UPS'} {fsr.productMake ? `(${fsr.productMake})` : ''}
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.container}>
+          {/* Navigation Bar */}
+          <View style={styles.navBar}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBackPress}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <ArrowLeft size={22} color={theme.colors.textPrimary} />
+            </TouchableOpacity>
+            <View style={styles.navTitleContainer}>
+              <Text style={styles.navTitle} numberOfLines={1}>
+                {fsr.fsrNumber}
+              </Text>
+              <Text style={styles.navSubtitle}>
+                {isEditing ? 'Editing Service Report' : 'Field Service Report'}
               </Text>
             </View>
-            {fsr.productSerialNumber && (
-              <Text style={styles.serialNumberText}>S/N: {fsr.productSerialNumber}</Text>
-            )}
-            {fsr.problemReported && (
-              <View style={styles.problemBox}>
-                <Text style={styles.problemBoxLabel}>Reported Problem:</Text>
-                <Text style={styles.problemBoxText}>{fsr.problemReported}</Text>
-              </View>
-            )}
-            {fsr.reasonForVisit && (
-              <View style={styles.problemBox}>
-                <Text style={styles.problemBoxLabel}>Reason for Visit:</Text>
-                <Text style={styles.problemBoxText}>{fsr.reasonForVisit}</Text>
-              </View>
-            )}
-          </Card>
 
-          {/* Section 3: Site Observations */}
-          <Card style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Site Observations</Text>
-              {canEdit && (
+            {/* Header Actions: PDF Download & Edit/Cancel */}
+            <View style={styles.navActionsRow}>
+              {!isEditing && canDownload && (
                 <TouchableOpacity
-                  onPress={openObsModal}
-                  style={styles.sectionActionBtn}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.navPdfButton}
+                  onPress={handleDownloadPdf}
+                  disabled={isDownloadingPdf}
+                  activeOpacity={0.7}
                 >
-                  <Edit3 size={15} color={theme.colors.primaryLight} />
-                  <Text style={styles.sectionActionText}>Edit</Text>
+                  {isDownloadingPdf ? (
+                    <ActivityIndicator size="small" color={theme.colors.primaryLight} />
+                  ) : (
+                    <>
+                      <Share2 size={15} color={theme.colors.primaryLight} />
+                      <Text style={styles.navActionText}>PDF</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {!isEditing && canEdit && (
+                <TouchableOpacity
+                  style={styles.navActionButton}
+                  onPress={() => setIsEditing(true)}
+                  activeOpacity={0.7}
+                >
+                  <Edit3 size={16} color={theme.colors.primaryLight} />
+                  <Text style={styles.navActionText}>Edit</Text>
+                </TouchableOpacity>
+              )}
+
+              {isEditing && (
+                <TouchableOpacity
+                  style={styles.navActionButton}
+                  onPress={handleCancelEdit}
+                  activeOpacity={0.7}
+                >
+                  <X size={16} color={theme.colors.accentRose} />
+                  <Text style={[styles.navActionText, { color: theme.colors.accentRose }]}>Cancel</Text>
                 </TouchableOpacity>
               )}
             </View>
+          </View>
 
-            {siteObservation ? (
-              <View style={styles.obsGrid}>
-                <View style={styles.obsItem}>
-                  <Text style={styles.obsLabel}>Input L-N</Text>
-                  <Text style={styles.obsValue}>
-                    {siteObservation.inputVoltageLN ? `${siteObservation.inputVoltageLN} V` : '—'}
-                  </Text>
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Header Summary Banner */}
+            <Card style={styles.heroCard}>
+              <View style={styles.badgeRow}>
+                <Badge
+                  label={formatCallTypeLabel(fsr.callType)}
+                  variant={getCallTypeVariant(fsr.callType)}
+                  size="md"
+                />
+                <Badge
+                  label={fsr.status.replace('_', ' ')}
+                  variant={getStatusVariant(fsr.status)}
+                  size="md"
+                />
+              </View>
+
+              <Text style={styles.heroCustomerName}>
+                {customer?.companyName || customer?.name || fsr.customerName}
+              </Text>
+
+              <View style={styles.heroMetaRow}>
+                <View style={styles.heroMetaItem}>
+                  <Calendar size={14} color={theme.colors.textSecondary} />
+                  <Text style={styles.heroMetaText}>{formatDate(fsr.visitDate)}</Text>
                 </View>
-                <View style={styles.obsItem}>
-                  <Text style={styles.obsLabel}>Input L-L</Text>
-                  <Text style={styles.obsValue}>
-                    {siteObservation.inputVoltageLL ? `${siteObservation.inputVoltageLL} V` : '—'}
-                  </Text>
-                </View>
-                <View style={styles.obsItem}>
-                  <Text style={styles.obsLabel}>Output L-N</Text>
-                  <Text style={styles.obsValue}>
-                    {siteObservation.outputVoltageLN ? `${siteObservation.outputVoltageLN} V` : '—'}
-                  </Text>
-                </View>
-                <View style={styles.obsItem}>
-                  <Text style={styles.obsLabel}>Output L-L</Text>
-                  <Text style={styles.obsValue}>
-                    {siteObservation.outputVoltageLL ? `${siteObservation.outputVoltageLL} V` : '—'}
-                  </Text>
-                </View>
-                <View style={styles.obsItem}>
-                  <Text style={styles.obsLabel}>Frequency</Text>
-                  <Text style={styles.obsValue}>
-                    {siteObservation.frequency ? `${siteObservation.frequency} Hz` : '—'}
-                  </Text>
-                </View>
-                <View style={styles.obsItem}>
-                  <Text style={styles.obsLabel}>Output Load</Text>
-                  <Text style={styles.obsValue}>
-                    {siteObservation.outputLoadPercent !== undefined && siteObservation.outputLoadPercent !== null
-                      ? `${siteObservation.outputLoadPercent} %`
-                      : '—'}
-                  </Text>
-                </View>
-                <View style={styles.obsItem}>
-                  <Text style={styles.obsLabel}>DC Voltage</Text>
-                  <Text style={styles.obsValue}>
-                    {siteObservation.dcVoltage ? `${siteObservation.dcVoltage} V` : '—'}
-                  </Text>
-                </View>
-                <View style={styles.obsItem}>
-                  <Text style={styles.obsLabel}>Location</Text>
-                  <Text style={styles.obsValue}>
-                    {siteObservation.upsLocation ? siteObservation.upsLocation.replace('_', ' ') : '—'}
-                  </Text>
-                </View>
-                {siteObservation.observationsNotes && (
-                  <View style={styles.obsFullRow}>
-                    <Text style={styles.obsLabel}>Notes:</Text>
-                    <Text style={styles.obsNotesText}>{siteObservation.observationsNotes}</Text>
+                {fsr.warrantyStatus && (
+                  <View style={styles.heroMetaItem}>
+                    <ShieldCheck size={14} color={theme.colors.accentEmerald} />
+                    <Text style={styles.heroMetaText}>{fsr.warrantyStatus.replace(/_/g, ' ')}</Text>
+                  </View>
+                )}
+                {fsr.billingStatus && (
+                  <View style={styles.heroMetaItem}>
+                    <Zap size={14} color={theme.colors.accentAmber} />
+                    <Text style={styles.heroMetaText}>{fsr.billingStatus.replace(/_/g, ' ')}</Text>
                   </View>
                 )}
               </View>
-            ) : (
-              <Text style={styles.emptySectionText}>No site observations recorded yet.</Text>
-            )}
-          </Card>
+            </Card>
 
-          {/* Section 4: Battery Banks */}
-          <Card style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Battery Banks</Text>
+            {/* IN_PROGRESS Active Service Banner */}
+            {fsr.status === 'IN_PROGRESS' && (
+              <Card style={styles.inProgressCard}>
+                <View style={styles.inProgressHeader}>
+                  <View style={styles.inProgressPulse}>
+                    <Activity size={18} color="#F59E0B" />
+                  </View>
+                  <View style={styles.inProgressTitleBlock}>
+                    <Text style={styles.inProgressTitle}>Service Visit In Progress</Text>
+                    <Text style={styles.inProgressSubtitle}>
+                      Active on-site visit. Review and update technical service details below.
+                    </Text>
+                  </View>
+                </View>
+              </Card>
+            )}
+
+            {/* DRAFT Start Visit Action Card */}
+            {fsr.status === 'DRAFT' && canStart && (
+              <Card style={styles.startVisitCard}>
+                <View style={styles.startVisitHeader}>
+                  <View style={styles.startVisitIconBlock}>
+                    <Play size={20} color={theme.colors.primaryLight} fill={theme.colors.primaryLight} />
+                  </View>
+                  <View style={styles.startVisitTitleBlock}>
+                    <Text style={styles.startVisitTitle}>Ready to Start Visit?</Text>
+                    <Text style={styles.startVisitSubtitle}>
+                      Begin your service visit on site. Location access will be verified before starting.
+                    </Text>
+                  </View>
+                </View>
+                <Button
+                  title={isStarting ? 'Starting Visit...' : 'Start Service Visit'}
+                  variant="primary"
+                  loading={isStarting}
+                  disabled={isStarting}
+                  onPress={handleStartVisit}
+                  style={styles.startVisitButton}
+                />
+              </Card>
+            )}
+
+            {/* Read-Only Notice for Draft when user is not authorized to start */}
+            {fsr.status === 'DRAFT' && !canStart && (
+              <View style={styles.noticeContainer}>
+                <AlertCircle size={16} color={theme.colors.accentAmber} style={styles.noticeIcon} />
+                <Text style={styles.noticeText}>
+                  This visit is in DRAFT status and can only be started by the assigned service engineer.
+                </Text>
+              </View>
+            )}
+
+            {/* Validation Error Banner */}
+            {validationError && (
+              <View style={styles.validationErrorBanner}>
+                <AlertCircle size={16} color={theme.colors.error} style={styles.inlineIcon} />
+                <Text style={styles.validationErrorText}>{validationError}</Text>
+              </View>
+            )}
+
+            {/* Customer & Destination Site Card */}
+            <Card style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <Building2 size={18} color={theme.colors.primaryLight} style={styles.sectionIcon} />
+                <Text style={styles.sectionTitle}>Customer & Destination</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Client Name</Text>
+                <Text style={styles.detailValue}>{customer?.name || fsr.customerName}</Text>
+              </View>
+
+              {customer?.companyName && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Company</Text>
+                  <Text style={styles.detailValue}>{customer.companyName}</Text>
+                </View>
+              )}
+
+              {/* Editable or display customerContactName */}
+              {isEditing ? (
+                <Input
+                  label="Contact Person Name"
+                  placeholder="On-site contact person"
+                  value={formData.customerContactName}
+                  onChangeText={(val) => setFormData((prev) => ({ ...prev, customerContactName: val }))}
+                />
+              ) : (
+                Boolean(fsr.customerContactName) && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Contact Person</Text>
+                    <Text style={styles.detailValue}>
+                      {fsr.customerContactName}
+                    </Text>
+                  </View>
+                )
+              )}
+
+              {(customer?.phone || fsr.customerPhone) && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Contact Phone</Text>
+                  <View style={styles.iconValueRow}>
+                    <Phone size={13} color={theme.colors.textMuted} style={styles.inlineIcon} />
+                    <Text style={styles.detailValue}>{customer?.phone || fsr.customerPhone}</Text>
+                  </View>
+                </View>
+              )}
+
+              {(customer?.email || fsr.customerEmail) && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Contact Email</Text>
+                  <View style={styles.iconValueRow}>
+                    <Mail size={13} color={theme.colors.textMuted} style={styles.inlineIcon} />
+                    <Text style={styles.detailValue}>{customer?.email || fsr.customerEmail}</Text>
+                  </View>
+                </View>
+              )}
+
+              {destination && (
+                <View style={[styles.detailRow, styles.destinationBlock]}>
+                  <Text style={styles.detailLabel}>Service Location</Text>
+                  <View style={styles.iconValueRow}>
+                    <MapPin size={14} color={theme.colors.accentRose} style={styles.inlineIcon} />
+                    <Text style={styles.destinationText}>
+                      {destination.name}
+                      {destination.city ? `, ${destination.city}` : ''}
+                      {destination.address ? `\n${destination.address}` : ''}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </Card>
+
+            {/* Equipment & UPS Information Card */}
+            <Card style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <Cpu size={18} color={theme.colors.primaryLight} style={styles.sectionIcon} />
+                <Text style={styles.sectionTitle}>Equipment & Product</Text>
+              </View>
+
+              {isEditing ? (
+                <>
+                  <Input
+                    label="Equipment / Product Model"
+                    placeholder="e.g. Vertiv Liebert GXT4 10kVA"
+                    value={formData.productModel}
+                    onChangeText={(val) => setFormData((prev) => ({ ...prev, productModel: val }))}
+                  />
+
+                  <Input
+                    label="Serial Number"
+                    placeholder="e.g. SN-2024-9982"
+                    value={formData.productSerialNumber}
+                    onChangeText={(val) => setFormData((prev) => ({ ...prev, productSerialNumber: val }))}
+                  />
+
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Equipment Status</Text>
+                    <View style={styles.chipRow}>
+                      {EQUIPMENT_STATUS_OPTIONS.map((opt) => {
+                        const isSelected = formData.equipmentStatus === opt.value;
+                        return (
+                          <TouchableOpacity
+                            key={opt.value}
+                            style={[styles.statusChip, isSelected && styles.statusChipActive]}
+                            onPress={() => setFormData((prev) => ({ ...prev, equipmentStatus: opt.value }))}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.statusChipText,
+                                isSelected && styles.statusChipTextActive,
+                              ]}
+                            >
+                              {opt.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Model / System</Text>
+                    <Text style={styles.detailValue}>
+                      {fsr.productModel || product?.name || 'Not specified'}
+                    </Text>
+                  </View>
+
+                  {fsr.productMake && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Make</Text>
+                      <Text style={styles.detailValue}>{fsr.productMake}</Text>
+                    </View>
+                  )}
+
+                  {fsr.productSerialNumber && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Serial Number</Text>
+                      <Text style={styles.detailMonoValue}>{fsr.productSerialNumber}</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Equipment Status</Text>
+                    <Text style={styles.detailValue}>{fsr.equipmentStatus || 'WORKING'}</Text>
+                  </View>
+                </>
+              )}
+
+              {siteObservation?.upsLocation && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>UPS Room Location</Text>
+                  <Text style={styles.detailValue}>
+                    {siteObservation.upsLocation.replace(/_/g, ' ')}
+                    {siteObservation.otherLocationSpecification
+                      ? ` (${siteObservation.otherLocationSpecification})`
+                      : ''}
+                  </Text>
+                </View>
+              )}
+            </Card>
+
+            {/* Assigned Engineer & Dispatch Card */}
+            <Card style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <UserCheck size={18} color={theme.colors.primaryLight} style={styles.sectionIcon} />
+                <Text style={styles.sectionTitle}>Field Assignment</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Service Engineer</Text>
+                <Text style={styles.detailValue}>
+                  {serviceEngineer?.fullName || fsr.fseName || 'Assigned Engineer'}
+                </Text>
+              </View>
+
+              {serviceEngineer?.phone && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Engineer Contact</Text>
+                  <Text style={styles.detailValue}>{serviceEngineer.phone}</Text>
+                </View>
+              )}
+
+              {serviceEngineer?.designation && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Designation</Text>
+                  <Text style={styles.detailValue}>{serviceEngineer.designation}</Text>
+                </View>
+              )}
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Visit Schedule</Text>
+                <View style={styles.iconValueRow}>
+                  <Clock size={13} color={theme.colors.textMuted} style={styles.inlineIcon} />
+                  <Text style={styles.detailValue}>{formatDate(fsr.visitDate)}</Text>
+                </View>
+              </View>
+            </Card>
+
+            {/* Problem Reported & Visit Reason Card */}
+            <Card style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <FileText size={18} color={theme.colors.primaryLight} style={styles.sectionIcon} />
+                <Text style={styles.sectionTitle}>Reported Reason & Details</Text>
+              </View>
+
+              {isEditing ? (
+                <>
+                  <Input
+                    label="Reason for Visit"
+                    placeholder="Describe purpose of this visit"
+                    value={formData.reasonForVisit}
+                    onChangeText={(val) => setFormData((prev) => ({ ...prev, reasonForVisit: val }))}
+                    multiline
+                    numberOfLines={3}
+                    style={styles.multilineInput}
+                  />
+
+                  <Input
+                    label="Problem Reported"
+                    placeholder="Customer reported symptoms or faults"
+                    value={formData.problemReported}
+                    onChangeText={(val) => setFormData((prev) => ({ ...prev, problemReported: val }))}
+                    multiline
+                    numberOfLines={3}
+                    style={styles.multilineInput}
+                  />
+
+                  <Input
+                    label="Standby Details"
+                    placeholder="Standby equipment or contingency details"
+                    value={formData.standbyDetails}
+                    onChangeText={(val) => setFormData((prev) => ({ ...prev, standbyDetails: val }))}
+                    multiline
+                    numberOfLines={2}
+                    style={styles.multilineInput}
+                  />
+                </>
+              ) : (
+                <>
+                  <View style={styles.notesBlock}>
+                    <Text style={styles.notesLabel}>Reason for Visit</Text>
+                    <Text style={styles.notesContent}>
+                      {fsr.reasonForVisit || 'Scheduled service visit.'}
+                    </Text>
+                  </View>
+
+                  {fsr.problemReported && (
+                    <View style={[styles.notesBlock, styles.notesBlockSpaced]}>
+                      <Text style={styles.notesLabel}>Problem Reported</Text>
+                      <Text style={styles.notesContent}>{fsr.problemReported}</Text>
+                    </View>
+                  )}
+
+                  {fsr.standbyDetails && (
+                    <View style={[styles.notesBlock, styles.notesBlockSpaced]}>
+                      <Text style={styles.notesLabel}>Standby Details</Text>
+                      <Text style={styles.notesContent}>{fsr.standbyDetails}</Text>
+                    </View>
+                  )}
+
+                  {siteObservation?.observationsNotes && (
+                    <View style={[styles.notesBlock, styles.notesBlockSpaced]}>
+                      <Text style={styles.notesLabel}>Site Observations</Text>
+                      <Text style={styles.notesContent}>{siteObservation.observationsNotes}</Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </Card>
+
+            {/* Service Feedback & Charges Card */}
+            <Card style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <CreditCard size={18} color={theme.colors.primaryLight} style={styles.sectionIcon} />
+                <Text style={styles.sectionTitle}>Feedback & Service Charges</Text>
+              </View>
+
+              {isEditing ? (
+                <>
+                  <Input
+                    label="Service Charges (₹)"
+                    placeholder="0"
+                    keyboardType="numeric"
+                    value={formData.charges}
+                    onChangeText={(val) => setFormData((prev) => ({ ...prev, charges: val }))}
+                  />
+
+                  <Input
+                    label="Charges Remarks"
+                    placeholder="e.g. Free warranty service, billable travel"
+                    value={formData.chargesRemarks}
+                    onChangeText={(val) => setFormData((prev) => ({ ...prev, chargesRemarks: val }))}
+                  />
+
+                  <Input
+                    label="Engineer (FSE) Notes & Feedback"
+                    placeholder="Technical diagnosis or action summary"
+                    value={formData.fseFeedback}
+                    onChangeText={(val) => setFormData((prev) => ({ ...prev, fseFeedback: val }))}
+                    multiline
+                    numberOfLines={3}
+                    style={styles.multilineInput}
+                  />
+
+                  <Input
+                    label="Customer Feedback"
+                    placeholder="Customer comments or feedback"
+                    value={formData.customerFeedback}
+                    onChangeText={(val) => setFormData((prev) => ({ ...prev, customerFeedback: val }))}
+                    multiline
+                    numberOfLines={2}
+                    style={styles.multilineInput}
+                  />
+                </>
+              ) : (
+                <>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Charges</Text>
+                    <Text style={styles.detailValue}>
+                      {fsr.charges && Number(fsr.charges) > 0 ? `₹${Number(fsr.charges).toLocaleString()}` : '₹0 (Free / Covered)'}
+                    </Text>
+                  </View>
+
+                  {fsr.chargesRemarks && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Charges Remarks</Text>
+                      <Text style={styles.detailValue}>{fsr.chargesRemarks}</Text>
+                    </View>
+                  )}
+
+                  {fsr.fseFeedback && (
+                    <View style={[styles.notesBlock, styles.notesBlockSpaced]}>
+                      <Text style={styles.notesLabel}>Engineer Feedback</Text>
+                      <Text style={styles.notesContent}>{fsr.fseFeedback}</Text>
+                    </View>
+                  )}
+
+                  {fsr.customerFeedback && (
+                    <View style={[styles.notesBlock, styles.notesBlockSpaced]}>
+                      <Text style={styles.notesLabel}>Customer Feedback</Text>
+                      <Text style={styles.notesContent}>{fsr.customerFeedback}</Text>
+                    </View>
+                  )}
+
+                  {!fsr.charges && !fsr.fseFeedback && !fsr.customerFeedback && (
+                    <Text style={styles.summaryItemMuted}>No feedback or charges entered yet.</Text>
+                  )}
+                </>
+              )}
+            </Card>
+
+            {/* Technical Sections Overview (Preserved from Phase 1/2) */}
+            <Card style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <Wrench size={18} color={theme.colors.primaryLight} style={styles.sectionIcon} />
+                <Text style={styles.sectionTitle}>Technical Sections Overview</Text>
+              </View>
+
+              {/* Site Observations Summary */}
+              <View style={styles.summaryItem}>
+                <View style={styles.summaryHeaderRow}>
+                  <Zap size={14} color={theme.colors.accentAmber} />
+                  <Text style={styles.summaryItemTitle}>Electrical Measurements</Text>
+                </View>
+                {siteObservation ? (
+                  <Text style={styles.summaryItemText}>
+                    Input: {siteObservation.inputVoltageLN || '—'}V L-N | Output: {siteObservation.outputVoltageLN || '—'}V L-N | DC: {siteObservation.dcVoltage || '—'}V
+                  </Text>
+                ) : (
+                  <Text style={styles.summaryItemMuted}>Pending on-site measurements</Text>
+                )}
+              </View>
+
+              {/* Battery Banks Summary (Interactive Phase 4 Workflow) */}
               <TouchableOpacity
+                style={styles.summaryItemInteractive}
+                activeOpacity={0.7}
                 onPress={() =>
                   router.push({
                     pathname: '/(app)/field-service/[id]/battery' as any,
-                    params: { id },
+                    params: { id: fsr.id },
                   })
                 }
-                style={styles.sectionActionBtn}
               >
-                <BatteryCharging size={15} color={theme.colors.primaryLight} />
-                <Text style={styles.sectionActionText}>
-                  {canEdit ? 'Manage Banks' : 'View Readings'}
+                <View style={styles.summaryHeaderRowBetween}>
+                  <View style={styles.summaryHeaderRow}>
+                    <BatteryCharging size={16} color={theme.colors.accentEmerald} />
+                    <Text style={styles.summaryItemTitle}>Battery Banks & Diagnostics</Text>
+                  </View>
+                  <View style={styles.actionChipRow}>
+                    <Text style={styles.actionChipText}>Open</Text>
+                    <ChevronRight size={14} color={theme.colors.primaryLight} />
+                  </View>
+                </View>
+                <Text style={styles.summaryItemText}>
+                  {batteryBanks && batteryBanks.length > 0
+                    ? `${batteryBanks.length} bank(s) recorded (${batteryBanks.reduce((acc, b) => acc + (b.readings?.length || 0), 0)} cell readings)`
+                    : 'No battery bank data recorded yet. Tap to configure banks and cell readings.'}
                 </Text>
               </TouchableOpacity>
-            </View>
 
-            {batteryBanks && batteryBanks.length > 0 ? (
-              <View>
-                {batteryBanks.map((bank, index) => (
-                  <View key={bank.id || index} style={styles.bankSummaryRow}>
-                    <View>
-                      <Text style={styles.bankNameText}>
-                        Bank #{bank.bankNumber} {bank.bankDescription ? `(${bank.bankDescription})` : ''}
-                      </Text>
-                      <Text style={styles.bankMetaText}>
-                        {bank.make || 'Standard'} • {bank.ah || '—'} Ah • {bank.quantity} Cells (
-                        {bank.readings?.length || 0} readings logged)
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <Text style={styles.emptySectionText}>No battery banks configured.</Text>
-            )}
-          </Card>
-
-          {/* Section 5: Replaced Parts */}
-          <Card style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Parts Replacement</Text>
-              {canEdit && (
-                <TouchableOpacity
-                  onPress={() => setPartModalVisible(true)}
-                  style={styles.sectionActionBtn}
-                >
-                  <Plus size={15} color={theme.colors.primaryLight} />
-                  <Text style={styles.sectionActionText}>Add Part</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {parts && parts.length > 0 ? (
-              <View>
-                {parts.map((p, index) => (
-                  <View key={p.id || index} style={styles.partItemRow}>
-                    <View style={styles.partInfo}>
-                      <Text style={styles.partNameText}>{p.partName}</Text>
-                      <Text style={styles.partMetaText}>
-                        Qty: {p.quantity} {p.partNumber ? `• P/N: ${p.partNumber}` : ''}{' '}
-                        {p.oldPartStatus ? `• Old: ${p.oldPartStatus}` : ''}
-                      </Text>
-                      {p.replacementDetails && (
-                        <Text style={styles.partDetailsText}>{p.replacementDetails}</Text>
-                      )}
-                    </View>
-                    {canEdit && (
-                      <TouchableOpacity
-                        onPress={() => handleDeletePart(p.id)}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      >
-                        <Trash2 size={16} color={theme.colors.accentRose} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <Text style={styles.emptySectionText}>No parts replaced on this visit.</Text>
-            )}
-          </Card>
-
-          {/* Section 6: Photos & Attachments */}
-          <Card style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Photos & Attachments</Text>
+              {/* Photos & Attachments Summary (Interactive Phase 4 Workflow) */}
               <TouchableOpacity
+                style={styles.summaryItemInteractive}
+                activeOpacity={0.7}
                 onPress={() =>
                   router.push({
                     pathname: '/(app)/field-service/[id]/photos' as any,
-                    params: { id },
+                    params: { id: fsr.id },
                   })
                 }
-                style={styles.sectionActionBtn}
               >
-                <Camera size={15} color={theme.colors.primaryLight} />
-                <Text style={styles.sectionActionText}>
-                  {canEdit ? 'Manage Photos' : 'View Photos'}
+                <View style={styles.summaryHeaderRowBetween}>
+                  <View style={styles.summaryHeaderRow}>
+                    <Camera size={16} color={theme.colors.info} />
+                    <Text style={styles.summaryItemTitle}>Photos & Attachments</Text>
+                  </View>
+                  <View style={styles.actionChipRow}>
+                    <Text style={styles.actionChipText}>Open</Text>
+                    <ChevronRight size={14} color={theme.colors.primaryLight} />
+                  </View>
+                </View>
+                <Text style={styles.summaryItemText}>
+                  {attachments && attachments.length > 0
+                    ? `${attachments.length} attachment(s) uploaded`
+                    : 'No photos attached. Tap to capture or upload service photos.'}
                 </Text>
               </TouchableOpacity>
-            </View>
-            <Text style={styles.attachmentsCountText}>
-              {attachments?.length || 0} attachments uploaded
-            </Text>
-          </Card>
 
-          {/* Section 7: Sign-offs */}
-          <Card style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Sign-offs</Text>
-
-            {/* Customer Sign-off status */}
-            <View style={styles.signOffStatusRow}>
-              <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={styles.signOffTitle}>Customer Sign-off</Text>
-                <Text style={styles.signOffSubtitle}>
-                  {fsr.customerContactName ? `Signed by: ${fsr.customerContactName}` : 'Signature not captured'}
+              {/* Parts Replacement Summary */}
+              <View style={styles.summaryItem}>
+                <View style={styles.summaryHeaderRow}>
+                  <Package size={14} color={theme.colors.primaryLight} />
+                  <Text style={styles.summaryItemTitle}>Parts Replacement</Text>
+                </View>
+                <Text style={styles.summaryItemText}>
+                  {parts && parts.length > 0
+                    ? `${parts.length} replacement part(s) listed`
+                    : 'No spare parts replaced'}
                 </Text>
               </View>
-              <View style={styles.signActionGroup}>
-                <Badge
-                  label={fsr.customerSignature ? 'SIGNED' : 'PENDING'}
-                  variant={fsr.customerSignature ? 'success' : 'neutral'}
-                  size="sm"
-                />
-                {canSign && (
-                  <TouchableOpacity
-                    onPress={() => setCustomerSignModalVisible(true)}
-                    style={styles.signActionBtn}
-                  >
-                    <Text style={styles.signActionBtnText}>
-                      {fsr.customerSignature ? 'Re-sign' : 'Sign'}
+            </Card>
+
+            {/* Digital Signatures & Authentications Card */}
+            <Card style={styles.sectionCard}>
+              <View style={styles.sectionHeaderRow}>
+                <PenTool size={18} color={theme.colors.primaryLight} />
+                <Text style={styles.sectionTitle}>Digital Sign-Offs & Authentications</Text>
+              </View>
+
+              {/* FSE Sign-off Box */}
+              <View style={styles.signOffBox}>
+                <View style={styles.signOffHeader}>
+                  <View style={styles.signOffTitleRow}>
+                    <UserCheck size={16} color={theme.colors.primaryLight} />
+                    <Text style={styles.signOffTitle}>Service Engineer (FSE)</Text>
+                  </View>
+                  <Badge
+                    label={fsr.fseSignature ? 'SIGNED' : 'PENDING'}
+                    variant={fsr.fseSignature ? 'success' : 'warning'}
+                    size="sm"
+                  />
+                </View>
+
+                {fsr.fseSignature ? (
+                  <View style={styles.signatureDetails}>
+                    <View style={styles.signaturePreviewContainer}>
+                      <Image
+                        source={{ uri: resolveImageUrl(fsr.fseSignature) || '' }}
+                        style={styles.signatureImage}
+                        resizeMode="contain"
+                      />
+                    </View>
+                    <View style={styles.signatureMetaRow}>
+                      <Text style={styles.signatureMetaLabel}>Signed by:</Text>
+                      <Text style={styles.signatureMetaValue}>
+                        {fsr.fseName || serviceEngineer?.fullName || 'Field Service Engineer'}
+                      </Text>
+                    </View>
+                    {fsr.fseSignatureDate && (
+                      <View style={styles.signatureMetaRow}>
+                        <Text style={styles.signatureMetaLabel}>Date:</Text>
+                        <Text style={styles.signatureMetaValue}>
+                          {new Date(fsr.fseSignatureDate).toLocaleDateString('en-GB')}
+                        </Text>
+                      </View>
+                    )}
+                    {canSign && (
+                      <TouchableOpacity
+                        style={styles.reSignBtn}
+                        onPress={() => setIsFseSigModalOpen(true)}
+                        activeOpacity={0.7}
+                      >
+                        <RotateCcw size={13} color={theme.colors.primaryLight} />
+                        <Text style={styles.reSignText}>Update / Re-sign</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.signaturePendingBox}>
+                    <Text style={styles.signaturePendingText}>
+                      Engineer signature has not been recorded for this visit.
                     </Text>
-                  </TouchableOpacity>
+                    {canSign && (
+                      <Button
+                        title="Sign as Service Engineer"
+                        variant="outline"
+                        size="sm"
+                        icon={<PenTool size={14} color={theme.colors.primaryLight} />}
+                        onPress={() => setIsFseSigModalOpen(true)}
+                        style={styles.signActionBtn}
+                      />
+                    )}
+                  </View>
                 )}
               </View>
-            </View>
 
-            {/* FSE Sign-off status */}
-            <View style={styles.signOffStatusRow}>
-              <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={styles.signOffTitle}>Service Engineer Sign-off</Text>
-                <Text style={styles.signOffSubtitle}>
-                  {fsr.fseName ? `Signed by: ${fsr.fseName}` : 'Signature not captured'}
+              {/* Customer Sign-off Box */}
+              <View style={styles.signOffBox}>
+                <View style={styles.signOffHeader}>
+                  <View style={styles.signOffTitleRow}>
+                    <Building2 size={16} color={theme.colors.accentEmerald} />
+                    <Text style={styles.signOffTitle}>Customer Representative</Text>
+                  </View>
+                  <Badge
+                    label={fsr.customerSignature ? 'SIGNED' : 'PENDING'}
+                    variant={fsr.customerSignature ? 'success' : 'warning'}
+                    size="sm"
+                  />
+                </View>
+
+                {fsr.customerSignature ? (
+                  <View style={styles.signatureDetails}>
+                    <View style={styles.signatureRowWithStamp}>
+                      <View style={styles.signaturePreviewContainer}>
+                        <Image
+                          source={{ uri: resolveImageUrl(fsr.customerSignature) || '' }}
+                          style={styles.signatureImage}
+                          resizeMode="contain"
+                        />
+                      </View>
+                      {fsr.customerStamp && (
+                        <View style={styles.stampPreviewContainer}>
+                          <Image
+                            source={{ uri: resolveImageUrl(fsr.customerStamp) || '' }}
+                            style={styles.stampThumbnailImage}
+                            resizeMode="contain"
+                          />
+                          <Text style={styles.stampBadgeText}>Stamp</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.signatureMetaRow}>
+                      <Text style={styles.signatureMetaLabel}>Representative:</Text>
+                      <Text style={styles.signatureMetaValue}>
+                        {fsr.customerContactName || fsr.customerName}
+                      </Text>
+                    </View>
+                    {fsr.customerSignedAt && (
+                      <View style={styles.signatureMetaRow}>
+                        <Text style={styles.signatureMetaLabel}>Date & Time:</Text>
+                        <Text style={styles.signatureMetaValue}>
+                          {new Date(fsr.customerSignedAt).toLocaleString('en-GB')}
+                        </Text>
+                      </View>
+                    )}
+                    {canSign && (
+                      <TouchableOpacity
+                        style={styles.reSignBtn}
+                        onPress={() => setIsCustSigModalOpen(true)}
+                        activeOpacity={0.7}
+                      >
+                        <RotateCcw size={13} color={theme.colors.primaryLight} />
+                        <Text style={styles.reSignText}>Update / Re-sign</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.signaturePendingBox}>
+                    <Text style={styles.signaturePendingText}>
+                      Customer sign-off has not been captured for this visit.
+                    </Text>
+                    {canSign && (
+                      <Button
+                        title="Capture Customer Signature"
+                        variant="outline"
+                        size="sm"
+                        icon={<PenTool size={14} color={theme.colors.primaryLight} />}
+                        onPress={() => setIsCustSigModalOpen(true)}
+                        style={styles.signActionBtn}
+                      />
+                    )}
+                  </View>
+                )}
+              </View>
+            </Card>
+
+            {/* FSR Lifecycle Status / Completion Card */}
+            {fsr.status === 'COMPLETED' ? (
+              <Card style={styles.completedCard}>
+                <View style={styles.statusBannerRow}>
+                  <CheckCircle2 size={24} color={theme.colors.accentEmerald} />
+                  <View style={styles.statusBannerContent}>
+                    <Text style={styles.completedTitle}>Service Visit Completed</Text>
+                    <Text style={styles.completedSubtitle}>
+                      This Field Service Report is COMPLETED and locked from operational edits.
+                    </Text>
+                  </View>
+                </View>
+                {canDownload && (
+                  <Button
+                    title={isDownloadingPdf ? 'Generating PDF...' : 'Download & Share PDF'}
+                    variant="outline"
+                    loading={isDownloadingPdf}
+                    disabled={isDownloadingPdf}
+                    icon={<Share2 size={16} color={theme.colors.textPrimary} />}
+                    onPress={handleDownloadPdf}
+                    style={{ marginTop: theme.spacing.md }}
+                  />
+                )}
+              </Card>
+            ) : fsr.status === 'CLOSED' ? (
+              <Card style={styles.closedCard}>
+                <View style={styles.statusBannerRow}>
+                  <ShieldCheck size={24} color="#818CF8" />
+                  <View style={styles.statusBannerContent}>
+                    <Text style={styles.closedTitle}>Field Service Report Closed</Text>
+                    <Text style={styles.closedSubtitle}>
+                      This report has been reviewed, accepted, and formally closed by management.
+                    </Text>
+                  </View>
+                </View>
+                {canDownload && (
+                  <Button
+                    title={isDownloadingPdf ? 'Generating PDF...' : 'Download & Share PDF'}
+                    variant="outline"
+                    loading={isDownloadingPdf}
+                    disabled={isDownloadingPdf}
+                    icon={<Share2 size={16} color={theme.colors.textPrimary} />}
+                    onPress={handleDownloadPdf}
+                    style={{ marginTop: theme.spacing.md }}
+                  />
+                )}
+              </Card>
+            ) : fsr.status === 'IN_PROGRESS' ? (
+              <Card style={styles.completionActionCard}>
+                <View style={styles.completionHeaderRow}>
+                  <CheckCircle2 size={20} color={theme.colors.accentEmerald} />
+                  <Text style={styles.completionCardTitle}>Complete Service Visit</Text>
+                </View>
+                <Text style={styles.completionCardText}>
+                  Ensure all diagnostic checks, battery readings, photos, and digital sign-offs are in order before marking the service visit as completed.
                 </Text>
-              </View>
-              <View style={styles.signActionGroup}>
-                <Badge
-                  label={fsr.fseSignature ? 'SIGNED' : 'PENDING'}
-                  variant={fsr.fseSignature ? 'success' : 'neutral'}
-                  size="sm"
-                />
-                {canSign && (
-                  <TouchableOpacity
-                    onPress={() => setFseSignModalVisible(true)}
-                    style={styles.signActionBtn}
-                  >
-                    <Text style={styles.signActionBtnText}>
-                      {fsr.fseSignature ? 'Re-sign' : 'Sign'}
-                    </Text>
-                  </TouchableOpacity>
+                {canComplete && (
+                  <Button
+                    title={isCompleting ? 'Completing Visit...' : 'Complete Service Visit'}
+                    variant="primary"
+                    size="lg"
+                    loading={isCompleting}
+                    disabled={isCompleting}
+                    icon={<CheckCircle2 size={18} color={theme.colors.textOnPrimary} />}
+                    onPress={handleCompleteVisit}
+                    style={styles.completeFsrBtn}
+                  />
                 )}
-              </View>
+              </Card>
+            ) : null}
+
+            {/* Phase 6 Scope Notice */}
+            <View style={styles.noticeContainer}>
+              <AlertCircle size={16} color={theme.colors.primaryLight} style={styles.noticeIcon} />
+              <Text style={styles.noticeText}>
+                Phase 6 Production Ready: Official Field Service Report document generation, authenticated signatures, battery diagnostics, and service visit workflow are 100% active.
+              </Text>
             </View>
-          </Card>
-        </ScrollView>
+          </ScrollView>
 
-        {/* Bottom Workflow Action Bar */}
-        <View style={styles.bottomBar}>
-          {canStart && (
-            <Button
-              title="Start Visit (Log GPS)"
-              variant="primary"
-              loading={isGpsCapturing || startMutation.isPending}
-              icon={<Play size={18} color={theme.colors.textOnPrimary} />}
-              onPress={handleStartFsr}
-              style={styles.fullWidthButton}
-            />
-          )}
+          {/* FSE Sign-Off Modal */}
+          <SignaturePadModal
+            visible={isFseSigModalOpen}
+            title="Service Engineer Sign-Off"
+            signerNameLabel="Engineer Name"
+            initialSignerName={fsr.fseName || user?.fullName || ''}
+            initialSignerPhone={fsr.fseNumber || user?.phone || ''}
+            showPhoneInput={true}
+            onClose={() => setIsFseSigModalOpen(false)}
+            onConfirm={handleFseSignOffConfirm}
+          />
 
-          {canComplete && (
-            <Button
-              title="Complete Visit (Log GPS)"
-              variant="primary"
-              loading={isGpsCapturing || completeMutation.isPending}
-              icon={<FileCheck size={18} color={theme.colors.textOnPrimary} />}
-              onPress={handleCompleteFsr}
-              style={styles.fullWidthButton}
-            />
-          )}
+          {/* Customer Digital Sign-Off Modal */}
+          <SignaturePadModal
+            visible={isCustSigModalOpen}
+            title="Customer Digital Sign-Off"
+            signerNameLabel="Representative Name"
+            initialSignerName={fsr.customerContactName || fsr.customerName || ''}
+            initialSignerPhone={fsr.customerPhone || ''}
+            showPhoneInput={false}
+            showStampOption={true}
+            initialStampUrl={fsr.customerStamp ? resolveImageUrl(fsr.customerStamp) : null}
+            onClose={() => setIsCustSigModalOpen(false)}
+            onConfirm={handleCustomerSignOffConfirm}
+          />
 
-          {canDownload && (
-            <Button
-              title="Download / Share PDF"
-              variant={fsr.status === 'COMPLETED' || fsr.status === 'CLOSED' ? 'secondary' : 'outline'}
-              loading={isDownloadingPdf}
-              icon={<Share2 size={18} color={theme.colors.primaryLight} />}
-              onPress={handleDownloadPdf}
-              style={styles.fullWidthButton}
-            />
+          {/* Sticky Bottom Action Bar when in Edit Mode */}
+          {isEditing && (
+            <View style={styles.editBottomBar}>
+              <Button
+                title="Cancel"
+                variant="outline"
+                onPress={handleCancelEdit}
+                style={styles.editBottomBtn}
+                disabled={updateMutation.isPending}
+              />
+              <Button
+                title={updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+                variant="primary"
+                onPress={handleSave}
+                loading={updateMutation.isPending}
+                disabled={updateMutation.isPending || !isDirty}
+                style={styles.editBottomBtn}
+              />
+            </View>
           )}
         </View>
-
-        {/* Customer Signature Modal */}
-        <SignaturePadModal
-          visible={customerSignModalVisible}
-          title="Customer Sign-off"
-          signerNameLabel="Customer Contact Person"
-          initialSignerName={fsr.customerContactName || customer?.name || ''}
-          onClose={() => setCustomerSignModalVisible(false)}
-          onConfirm={handleSaveCustomerSign}
-        />
-
-        {/* FSE Signature Modal */}
-        <SignaturePadModal
-          visible={fseSignModalVisible}
-          title="Service Engineer Sign-off"
-          signerNameLabel="Service Engineer Name"
-          initialSignerName={fsr.fseName || user?.fullName || ''}
-          initialSignerPhone={fsr.fseNumber || user?.phone || ''}
-          showPhoneInput
-          onClose={() => setFseSignModalVisible(false)}
-          onConfirm={handleSaveFseSign}
-        />
-
-        {/* Site Observation Modal */}
-        <Modal
-          visible={obsModalVisible}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setObsModalVisible(false)}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.modalOverlay}
-          >
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Edit Site Observations</Text>
-              <ScrollView style={styles.modalScroll}>
-                <Input
-                  label="Input Voltage L-N (V)"
-                  keyboardType="numeric"
-                  value={obsForm.inputVoltageLN !== undefined ? String(obsForm.inputVoltageLN) : ''}
-                  onChangeText={(val) =>
-                    setObsForm((prev) => ({ ...prev, inputVoltageLN: val ? Number(val) : undefined }))
-                  }
-                />
-                <Input
-                  label="Input Voltage L-L (V)"
-                  keyboardType="numeric"
-                  value={obsForm.inputVoltageLL !== undefined ? String(obsForm.inputVoltageLL) : ''}
-                  onChangeText={(val) =>
-                    setObsForm((prev) => ({ ...prev, inputVoltageLL: val ? Number(val) : undefined }))
-                  }
-                />
-                <Input
-                  label="Output Voltage L-N (V)"
-                  keyboardType="numeric"
-                  value={obsForm.outputVoltageLN !== undefined ? String(obsForm.outputVoltageLN) : ''}
-                  onChangeText={(val) =>
-                    setObsForm((prev) => ({ ...prev, outputVoltageLN: val ? Number(val) : undefined }))
-                  }
-                />
-                <Input
-                  label="Output Voltage L-L (V)"
-                  keyboardType="numeric"
-                  value={obsForm.outputVoltageLL !== undefined ? String(obsForm.outputVoltageLL) : ''}
-                  onChangeText={(val) =>
-                    setObsForm((prev) => ({ ...prev, outputVoltageLL: val ? Number(val) : undefined }))
-                  }
-                />
-                <Input
-                  label="Frequency (Hz)"
-                  keyboardType="numeric"
-                  value={obsForm.frequency !== undefined ? String(obsForm.frequency) : ''}
-                  onChangeText={(val) =>
-                    setObsForm((prev) => ({ ...prev, frequency: val ? Number(val) : undefined }))
-                  }
-                />
-                <Input
-                  label="Output Load (%)"
-                  keyboardType="numeric"
-                  value={obsForm.outputLoadPercent !== undefined ? String(obsForm.outputLoadPercent) : ''}
-                  onChangeText={(val) =>
-                    setObsForm((prev) => ({ ...prev, outputLoadPercent: val ? Number(val) : undefined }))
-                  }
-                />
-                <Input
-                  label="DC Voltage (V)"
-                  keyboardType="numeric"
-                  value={obsForm.dcVoltage !== undefined ? String(obsForm.dcVoltage) : ''}
-                  onChangeText={(val) =>
-                    setObsForm((prev) => ({ ...prev, dcVoltage: val ? Number(val) : undefined }))
-                  }
-                />
-                <Input
-                  label="Environment Condition"
-                  placeholder="e.g. Normal, Dusty, High Temp"
-                  value={obsForm.environmentCondition || ''}
-                  onChangeText={(val) =>
-                    setObsForm((prev) => ({ ...prev, environmentCondition: val }))
-                  }
-                />
-                <Input
-                  label="Observations / Notes"
-                  placeholder="General site observations notes..."
-                  multiline
-                  numberOfLines={3}
-                  value={obsForm.observationsNotes || ''}
-                  onChangeText={(val) =>
-                    setObsForm((prev) => ({ ...prev, observationsNotes: val }))
-                  }
-                />
-              </ScrollView>
-
-              <View style={styles.modalActionRow}>
-                <Button
-                  title="Cancel"
-                  variant="ghost"
-                  onPress={() => setObsModalVisible(false)}
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  title="Save"
-                  variant="primary"
-                  loading={observationMutation.isPending}
-                  onPress={handleSaveObservation}
-                  style={{ flex: 1 }}
-                />
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
-
-        {/* Add Part Modal */}
-        <Modal
-          visible={partModalVisible}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setPartModalVisible(false)}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.modalOverlay}
-          >
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Add Replaced Part</Text>
-              <ScrollView style={styles.modalScroll}>
-                <Input
-                  label="Part Name *"
-                  placeholder="e.g. Cooling Fan 120mm"
-                  value={partForm.partName}
-                  onChangeText={(val) => setPartForm((prev) => ({ ...prev, partName: val }))}
-                />
-                <Input
-                  label="Part Number"
-                  placeholder="e.g. FAN-120-24V"
-                  value={partForm.partNumber || ''}
-                  onChangeText={(val) => setPartForm((prev) => ({ ...prev, partNumber: val }))}
-                />
-                <Input
-                  label="Quantity"
-                  keyboardType="numeric"
-                  value={String(partForm.quantity || 1)}
-                  onChangeText={(val) => setPartForm((prev) => ({ ...prev, quantity: Number(val) || 1 }))}
-                />
-                <Input
-                  label="Replacement Details"
-                  placeholder="e.g. Replaced noisy bearing fan"
-                  value={partForm.replacementDetails || ''}
-                  onChangeText={(val) => setPartForm((prev) => ({ ...prev, replacementDetails: val }))}
-                />
-                <Input
-                  label="Old Part Status"
-                  placeholder="e.g. Defective, Scrapped"
-                  value={partForm.oldPartStatus || ''}
-                  onChangeText={(val) => setPartForm((prev) => ({ ...prev, oldPartStatus: val }))}
-                />
-              </ScrollView>
-
-              <View style={styles.modalActionRow}>
-                <Button
-                  title="Cancel"
-                  variant="ghost"
-                  onPress={() => setPartModalVisible(false)}
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  title="Add Part"
-                  variant="primary"
-                  loading={addPartMutation.isPending}
-                  onPress={handleAddPart}
-                  style={{ flex: 1 }}
-                />
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
-      </View>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardContainer: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },
   centerContainer: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.lg,
+    alignItems: 'center',
+    padding: theme.spacing.xl,
   },
   loadingText: {
     marginTop: theme.spacing.md,
@@ -1012,338 +1490,606 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
   },
   errorSubtitle: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.textMuted,
-    marginTop: 4,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.lg,
   },
-  retryButton: {
-    marginTop: theme.spacing.md,
+  errorActionRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  actionBtn: {
+    minWidth: 120,
   },
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
   },
   backButton: {
-    padding: 6,
-    marginRight: theme.spacing.xs,
-  },
-  navTitleWrapper: {
-    flex: 1,
+    padding: theme.spacing.xs,
     marginRight: theme.spacing.sm,
   },
-  navFsrNumber: {
+  navTitleContainer: {
+    flex: 1,
+  },
+  navTitle: {
     fontSize: theme.fontSize.md,
     fontWeight: theme.fontWeight.bold,
     color: theme.colors.textPrimary,
   },
-  navCustomerName: {
+  navSubtitle: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textSecondary,
+    color: theme.colors.textMuted,
   },
-  scrollContent: {
+  navActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  navPdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surfaceElevated,
+  },
+  navActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surfaceElevated,
+  },
+  navActionText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.primaryLight,
+  },
+  scrollArea: {
     flex: 1,
   },
-  scrollInner: {
+  scrollContent: {
     padding: theme.spacing.md,
-    paddingBottom: 100,
+    paddingBottom: theme.spacing.xxl + 20,
   },
-  statusBannerCard: {
+  heroCard: {
     marginBottom: theme.spacing.md,
     padding: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
   },
-  statusBannerHeader: {
+  badgeRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: theme.spacing.xs,
     marginBottom: theme.spacing.sm,
-  },
-  statusBadgeRow: {
-    flexDirection: 'row',
-    gap: 6,
     flexWrap: 'wrap',
   },
-  visitDateRow: {
+  heroCustomerName: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textPrimary,
+    marginBottom: theme.spacing.sm,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.md,
+  },
+  heroMetaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  visitDateText: {
+  heroMetaText: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textMuted,
-  },
-  checklistRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: theme.spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  checklistItem: {
-    alignItems: 'center',
-    gap: 2,
-  },
-  checklistText: {
-    fontSize: 10,
     color: theme.colors.textSecondary,
+  },
+  inProgressCard: {
+    marginBottom: theme.spacing.md,
+    padding: theme.spacing.md,
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    borderColor: '#F59E0B',
+    borderWidth: 1.2,
+  },
+  inProgressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inProgressPulse: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
+  },
+  inProgressTitleBlock: {
+    flex: 1,
+  },
+  inProgressTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.bold,
+    color: '#F59E0B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  inProgressSubtitle: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  startVisitCard: {
+    marginBottom: theme.spacing.md,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderColor: theme.colors.primaryLight,
+    borderWidth: 1,
+  },
+  startVisitHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  startVisitIconBlock: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primarySoft,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
+  },
+  startVisitTitleBlock: {
+    flex: 1,
+  },
+  startVisitTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textPrimary,
+  },
+  startVisitSubtitle: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  startVisitButton: {
+    width: '100%',
+  },
+  validationErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: theme.colors.error,
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.sm,
+    padding: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  validationErrorText: {
+    flex: 1,
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.error,
     fontWeight: theme.fontWeight.medium,
   },
   sectionCard: {
     marginBottom: theme.spacing.md,
     padding: theme.spacing.md,
   },
-  sectionHeaderRow: {
+  sectionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    paddingBottom: theme.spacing.xs,
+  },
+  sectionIcon: {
+    marginRight: theme.spacing.xs,
   },
   sectionTitle: {
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.bold,
-    color: theme.colors.primaryLight,
+    color: theme.colors.textPrimary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: theme.spacing.xs,
-  },
-  sectionActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: theme.colors.primarySoft,
-  },
-  sectionActionText: {
-    fontSize: theme.fontSize.xs,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.primaryLight,
-  },
-  primaryCustomerTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.textPrimary,
-    marginBottom: 2,
-  },
-  contactPersonText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.xs,
   },
   detailRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginTop: 4,
+    marginBottom: theme.spacing.sm,
   },
-  detailIcon: {
-    marginRight: 6,
-    marginTop: 2,
-  },
-  detailText: {
+  detailLabel: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textSecondary,
-    flex: 1,
-    lineHeight: 18,
+    color: theme.colors.textMuted,
+    width: '35%',
   },
-  equipmentRow: {
+  detailValue: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textPrimary,
+    fontWeight: theme.fontWeight.medium,
+    width: '63%',
+    textAlign: 'right',
+  },
+  detailMonoValue: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.primaryLight,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: theme.fontWeight.semibold,
+    width: '63%',
+    textAlign: 'right',
+  },
+  iconValueRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    width: '63%',
+    justifyContent: 'flex-end',
   },
-  equipmentText: {
-    fontSize: theme.fontSize.md,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.textPrimary,
+  inlineIcon: {
+    marginRight: 4,
   },
-  serialNumberText: {
+  destinationBlock: {
+    marginTop: theme.spacing.xs,
+    paddingTop: theme.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  destinationText: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textMuted,
+    color: theme.colors.textSecondary,
+    textAlign: 'right',
+  },
+  notesBlock: {
     marginBottom: theme.spacing.xs,
   },
-  problemBox: {
-    backgroundColor: theme.colors.surfaceElevated,
-    padding: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    marginTop: theme.spacing.xs,
+  notesBlockSpaced: {
+    marginTop: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
   },
-  problemBoxLabel: {
-    fontSize: 10,
-    fontWeight: theme.fontWeight.bold,
+  notesLabel: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
     color: theme.colors.textMuted,
-    textTransform: 'uppercase',
     marginBottom: 2,
   },
-  problemBoxText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.textSecondary,
-    lineHeight: 18,
-  },
-  obsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.xs,
-  },
-  obsItem: {
-    width: '47%',
-    backgroundColor: theme.colors.surfaceElevated,
-    padding: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-  },
-  obsLabel: {
-    fontSize: 10,
-    color: theme.colors.textMuted,
-    textTransform: 'uppercase',
-  },
-  obsValue: {
+  notesContent: {
     fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.textPrimary,
-    marginTop: 2,
+    color: theme.colors.textSecondary,
+    lineHeight: 20,
   },
-  obsFullRow: {
-    width: '100%',
+  summaryItem: {
+    marginBottom: theme.spacing.sm,
     backgroundColor: theme.colors.surfaceElevated,
     padding: theme.spacing.sm,
     borderRadius: theme.borderRadius.sm,
   },
-  obsNotesText: {
+  summaryItemInteractive: {
+    marginBottom: theme.spacing.sm,
+    backgroundColor: theme.colors.surfaceElevated,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  summaryHeaderRowBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  actionChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  actionChipText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.primaryLight,
+  },
+  summaryHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  summaryItemTitle: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.textPrimary,
+  },
+  summaryItemText: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textSecondary,
-    marginTop: 2,
-    lineHeight: 18,
   },
-  emptySectionText: {
+  summaryItemMuted: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
     fontStyle: 'italic',
-    marginTop: 4,
   },
-  bankSummaryRow: {
-    paddingVertical: theme.spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+  formGroup: {
+    width: '100%',
+    marginBottom: theme.spacing.md,
   },
-  bankNameText: {
+  formLabel: {
     fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.textPrimary,
-  },
-  bankMetaText: {
-    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
     color: theme.colors.textSecondary,
-    marginTop: 2,
+    marginBottom: theme.spacing.xs + 2,
   },
-  partItemRow: {
+  chipRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: theme.spacing.xs,
+  },
+  statusChip: {
+    paddingHorizontal: theme.spacing.sm + 2,
     paddingVertical: theme.spacing.xs + 2,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceElevated,
   },
-  partInfo: {
-    flex: 1,
-    marginRight: theme.spacing.sm,
+  statusChipActive: {
+    borderColor: theme.colors.primaryLight,
+    backgroundColor: theme.colors.primarySoft,
   },
-  partNameText: {
-    fontSize: theme.fontSize.sm,
+  statusChipText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.textSecondary,
+  },
+  statusChipTextActive: {
+    color: theme.colors.primaryLight,
     fontWeight: theme.fontWeight.bold,
-    color: theme.colors.textPrimary,
   },
-  partMetaText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.textMuted,
-    marginTop: 2,
+  multilineInput: {
+    minHeight: 70,
+    textAlignVertical: 'top',
   },
-  partDetailsText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.textSecondary,
-    marginTop: 2,
-  },
-  attachmentsCountText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.textSecondary,
-  },
-  signOffStatusRow: {
+  noticeContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    backgroundColor: '#0F172A',
+    borderColor: '#1E293B',
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.lg,
   },
-  signOffTitle: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.textPrimary,
+  noticeIcon: {
+    marginRight: theme.spacing.sm,
+    flexShrink: 0,
   },
-  signOffSubtitle: {
+  noticeText: {
+    flex: 1,
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textMuted,
-    marginTop: 2,
+    color: theme.colors.textSecondary,
+    lineHeight: 18,
   },
-  signActionGroup: {
+  sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: theme.spacing.md,
   },
-  signActionBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: theme.colors.primarySoft,
+  signOffBox: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: theme.borderRadius.md,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
-  signActionBtnText: {
+  signOffHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  signOffTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  signOffTitle: {
     fontSize: theme.fontSize.xs,
     fontWeight: theme.fontWeight.bold,
-    color: theme.colors.primaryLight,
+    color: theme.colors.textPrimary,
   },
-  bottomBar: {
+  signatureDetails: {
+    marginTop: theme.spacing.xs,
+  },
+  signaturePreviewContainer: {
+    flex: 1,
+    height: 75,
+    backgroundColor: '#FFFFFF',
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
+    marginBottom: theme.spacing.xs,
+  },
+  signatureImage: {
+    width: '100%',
+    height: '100%',
+  },
+  signatureRowWithStamp: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
+  },
+  stampPreviewContainer: {
+    width: 75,
+    height: 75,
+    backgroundColor: '#FFFFFF',
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+    position: 'relative',
+  },
+  stampThumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  stampBadgeText: {
+    position: 'absolute',
+    bottom: 2,
+    fontSize: 8,
+    color: '#64748B',
+    fontWeight: theme.fontWeight.bold,
+  },
+  signatureMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+  },
+  signatureMetaLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textSecondary,
+  },
+  signatureMetaValue: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.textPrimary,
+  },
+  reSignBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    marginTop: theme.spacing.xs,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  reSignText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.primaryLight,
+    fontWeight: theme.fontWeight.medium,
+  },
+  signaturePendingBox: {
+    paddingVertical: theme.spacing.xs,
+  },
+  signaturePendingText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textMuted,
+    marginBottom: theme.spacing.sm,
+  },
+  signActionBtn: {
+    marginTop: theme.spacing.xs,
+  },
+  completedCard: {
+    backgroundColor: '#064E3B',
+    borderColor: '#059669',
+    borderWidth: 1,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+  },
+  closedCard: {
+    backgroundColor: '#1E1B4B',
+    borderColor: '#4338CA',
+    borderWidth: 1,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+  },
+  statusBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  statusBannerContent: {
+    flex: 1,
+  },
+  completedTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.bold,
+    color: '#A7F3D0',
+    marginBottom: 2,
+  },
+  completedSubtitle: {
+    fontSize: theme.fontSize.xs,
+    color: '#D1FAE5',
+    lineHeight: 16,
+  },
+  closedTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.bold,
+    color: '#C7D2FE',
+    marginBottom: 2,
+  },
+  closedSubtitle: {
+    fontSize: theme.fontSize.xs,
+    color: '#E0E7FF',
+    lineHeight: 16,
+  },
+  completionActionCard: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+  },
+  completionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  completionCardTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textPrimary,
+  },
+  completionCardText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: theme.spacing.md,
+  },
+  completeFsrBtn: {
+    width: '100%',
+  },
+  editBottomBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: theme.colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    padding: theme.spacing.md,
-  },
-  fullWidthButton: {
-    width: '100%',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: theme.borderRadius.xl,
-    borderTopRightRadius: theme.borderRadius.xl,
-    padding: theme.spacing.lg,
-    maxHeight: '85%',
-  },
-  modalTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.md,
-  },
-  modalScroll: {
-    maxHeight: 400,
-  },
-  modalActionRow: {
     flexDirection: 'row',
     gap: theme.spacing.md,
-    marginTop: theme.spacing.md,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  editBottomBtn: {
+    flex: 1,
   },
 });

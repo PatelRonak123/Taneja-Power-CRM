@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { fsrService } from '../services/fsr.service';
 import {
   FsrQueryParams,
@@ -12,12 +12,15 @@ import {
   CustomerSignOffPayload,
   FseSignOffPayload,
   FsrAttachment,
+  UpdateFsrPayload,
 } from '../types/fsr.types';
 
 export const fsrKeys = {
   all: ['fsr'] as const,
   lists: () => [...fsrKeys.all, 'list'] as const,
   list: (params?: FsrQueryParams) => [...fsrKeys.lists(), params] as const,
+  infiniteLists: () => [...fsrKeys.all, 'infinite-list'] as const,
+  infiniteList: (params?: FsrQueryParams) => [...fsrKeys.infiniteLists(), params] as const,
   details: () => [...fsrKeys.all, 'detail'] as const,
   detail: (id: string) => [...fsrKeys.details(), id] as const,
 };
@@ -33,6 +36,28 @@ export const useFsrList = (params?: FsrQueryParams) => {
 };
 
 /**
+ * Hook to query paginated FSR list with infinite scrolling / load more
+ */
+export const useInfiniteFsrList = (params?: FsrQueryParams) => {
+  return useInfiniteQuery<FsrListResult>({
+    queryKey: fsrKeys.infiniteList(params),
+    queryFn: ({ pageParam = 1 }) =>
+      fsrService.list({
+        ...params,
+        page: pageParam as number,
+        limit: params?.limit || 10,
+      }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (lastPage.page < lastPage.totalPages) {
+        return lastPage.page + 1;
+      }
+      return undefined;
+    },
+  });
+};
+
+/**
  * Hook to query full FSR detail
  */
 export const useFsrDetail = (id: string) => {
@@ -42,6 +67,11 @@ export const useFsrDetail = (id: string) => {
     enabled: Boolean(id),
   });
 };
+
+// Aliases matching explicit naming convention
+export const useFieldServiceReports = useFsrList;
+export const useInfiniteFieldServiceReports = useInfiniteFsrList;
+export const useFieldServiceReport = useFsrDetail;
 
 /**
  * Hook to start an FSR (DRAFT -> IN_PROGRESS)
@@ -54,7 +84,29 @@ export const useStartFsr = () => {
     onSuccess: (data, id) => {
       queryClient.setQueryData(fsrKeys.detail(id), data);
       queryClient.invalidateQueries({ queryKey: fsrKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: fsrKeys.infiniteLists() });
       queryClient.invalidateQueries({ queryKey: fsrKeys.detail(id) });
+    },
+  });
+};
+
+/**
+ * Hook to update an FSR (PATCH /api/v1/field-service/:id)
+ */
+export const useUpdateFsr = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    FsrDetailedView,
+    Error,
+    { id: string; payload: Partial<UpdateFsrPayload> }
+  >({
+    mutationFn: ({ id, payload }) => fsrService.update(id, payload),
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(fsrKeys.detail(variables.id), data);
+      queryClient.invalidateQueries({ queryKey: fsrKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: fsrKeys.infiniteLists() });
+      queryClient.invalidateQueries({ queryKey: fsrKeys.detail(variables.id) });
     },
   });
 };
@@ -70,6 +122,7 @@ export const useCompleteFsr = () => {
     onSuccess: (data, id) => {
       queryClient.setQueryData(fsrKeys.detail(id), data);
       queryClient.invalidateQueries({ queryKey: fsrKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: fsrKeys.infiniteLists() });
       queryClient.invalidateQueries({ queryKey: fsrKeys.detail(id) });
     },
   });
@@ -288,6 +341,7 @@ export const useCustomerSignOff = () => {
       queryClient.setQueryData(fsrKeys.detail(variables.id), data);
       queryClient.invalidateQueries({ queryKey: fsrKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: fsrKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: fsrKeys.infiniteLists() });
     },
   });
 };
@@ -305,6 +359,7 @@ export const useFseSignOff = () => {
       queryClient.setQueryData(fsrKeys.detail(variables.id), data);
       queryClient.invalidateQueries({ queryKey: fsrKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: fsrKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: fsrKeys.infiniteLists() });
     },
   });
 };

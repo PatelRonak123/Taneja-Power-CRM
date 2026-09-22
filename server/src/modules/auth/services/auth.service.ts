@@ -53,7 +53,9 @@ export class AuthService {
       email: input.email,
       passwordHash,
       fullName: input.fullName,
-      role: 'USER',
+      role: input.role || 'USER',
+      phone: input.phone || null,
+      designation: input.designation || null,
     });
 
     const authenticatedUser = AuthMapper.toAuthenticatedUser(newUser);

@@ -58,7 +58,10 @@ export class FieldServiceController {
    */
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.fsrService.getFsrById(req.params.id);
+      if (!req.user) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+      const result = await this.fsrService.getFsrById(req.params.id, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
@@ -389,7 +392,8 @@ export class FieldServiceController {
    */
   getActivityLogs = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.fsrService.getActivityLogs(req.params.id);
+      if (!req.user) throw AppError.unauthorized('User not authenticated');
+      const result = await this.fsrService.getActivityLogs(req.params.id, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,

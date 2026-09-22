@@ -12,7 +12,17 @@ import {
   Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+
+interface SelectedImageAsset {
+  uri: string;
+  base64?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
+  fileSize?: number;
+  width?: number;
+  height?: number;
+}
 import {
   ArrowLeft,
   Camera,
@@ -50,17 +60,19 @@ const ATTACHMENT_CATEGORIES: { label: string; value: FsrAttachmentCategory }[] =
 export default function FsrPhotosScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const fsrId = id || '';
   const user = useAuthStore((state) => state.user);
 
-  const { data: fsrDetail, isLoading, refetch } = useFsrDetail(id);
+  const { data: fsrDetail, isLoading, refetch } = useFsrDetail(fsrId);
   const uploadMutation = useUploadAttachment();
   const deleteMutation = useDeleteAttachment();
 
   const [selectedCategory, setSelectedCategory] = useState<FsrAttachmentCategory>('UPS_PHOTO');
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [selectedImage, setSelectedImage] = useState<SelectedImageAsset | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
 
   const attachments = fsrDetail?.attachments || [];
   const canEdit = canEditFSR(user, fsrDetail?.fsr);
@@ -72,10 +84,25 @@ export default function FsrPhotosScreen() {
 
   // Take photo with camera
   const handleTakePhoto = async () => {
+    let ImagePicker: any = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      ImagePicker = require('expo-image-picker');
+    } catch {
+      ImagePicker = null;
+    }
+
+    if (!ImagePicker?.launchCameraAsync) {
+      Alert.alert(
+        'Camera Module Required',
+        'Camera native module (ExponentImagePicker) is not linked in this app build. Please rebuild your native app with `npx expo run:android`.'
+      );
+      return;
+    }
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Permission Denied', 'Camera permission is required to capture photos.');
+        Alert.alert('Permission Denied', 'Camera permission is required to capture service photos.');
         return;
       }
 
@@ -97,6 +124,21 @@ export default function FsrPhotosScreen() {
 
   // Pick photo from gallery
   const handlePickPhoto = async () => {
+    let ImagePicker: any = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      ImagePicker = require('expo-image-picker');
+    } catch {
+      ImagePicker = null;
+    }
+
+    if (!ImagePicker?.launchImageLibraryAsync) {
+      Alert.alert(
+        'Gallery Module Required',
+        'Media library native module (ExponentImagePicker) is not linked in this app build. Please rebuild your native app with `npx expo run:android`.'
+      );
+      return;
+    }
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -122,22 +164,48 @@ export default function FsrPhotosScreen() {
 
   // Confirm and upload photo
   const handleConfirmUpload = async () => {
-    if (!selectedImage || !selectedImage.base64) {
-      Alert.alert('Error', 'Image data is missing.');
+    if (!selectedImage) {
+      Alert.alert('Error', 'No image selected.');
+      return;
+    }
+
+    setIsProcessingImage(true);
+    let base64 = selectedImage.base64;
+
+    // Fallback: Read file directly using FileSystem if base64 was not provided by picker
+    if (!base64 && selectedImage.uri) {
+      try {
+        base64 = await FileSystem.readAsStringAsync(selectedImage.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch (err: any) {
+        setIsProcessingImage(false);
+        Alert.alert('File Read Error', 'Failed to read image data from device.');
+        return;
+      }
+    }
+
+    if (!base64) {
+      setIsProcessingImage(false);
+      Alert.alert('Error', 'Image data could not be processed.');
       return;
     }
 
     const mime = selectedImage.mimeType || 'image/jpeg';
-    const fileName = selectedImage.fileName || `fsr-${selectedCategory.toLowerCase()}-${Date.now()}.jpg`;
-    const fileSize = selectedImage.fileSize || Math.round(selectedImage.base64.length * 0.75);
+    const fileName =
+      selectedImage.fileName || `fsr-${selectedCategory.toLowerCase()}-${Date.now()}.jpg`;
+    const fileSize =
+      selectedImage.fileSize && selectedImage.fileSize > 0
+        ? selectedImage.fileSize
+        : Math.max(1024, Math.round((base64.length * 3) / 4));
 
     try {
       await uploadMutation.mutateAsync({
-        id,
+        id: fsrId,
         payload: {
           category: selectedCategory,
           fileName,
-          fileData: `data:${mime};base64,${selectedImage.base64}`,
+          fileData: `data:${mime};base64,${base64}`,
           fileSize,
           mimeType: mime,
         },
@@ -148,6 +216,8 @@ export default function FsrPhotosScreen() {
       Alert.alert('Uploaded', 'Photo attached to report successfully.');
     } catch (err: any) {
       Alert.alert('Upload Failed', err?.message || 'Failed to upload photo.');
+    } finally {
+      setIsProcessingImage(false);
     }
   };
 
@@ -160,7 +230,8 @@ export default function FsrPhotosScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await deleteMutation.mutateAsync({ id, attachmentId });
+            await deleteMutation.mutateAsync({ id: fsrId, attachmentId });
+            Alert.alert('Deleted', 'Photo removed.');
           } catch (err: any) {
             Alert.alert('Error', err?.message || 'Failed to delete attachment.');
           }
@@ -173,9 +244,7 @@ export default function FsrPhotosScreen() {
     if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
       return filePath;
     }
-    // Prepend server base URL if relative path
     const cleanPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
-    // Strip trailing /api/v1 from env.API_BASE_URL to reach root server static uploads
     const serverRoot = env.API_BASE_URL.replace(/\/api\/v1\/?$/, '');
     return `${serverRoot}${cleanPath}`;
   };
@@ -233,12 +302,21 @@ export default function FsrPhotosScreen() {
 
         {/* Filter Categories Chips */}
         <View style={styles.filtersWrapper}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersScroll}
+          >
             <TouchableOpacity
               onPress={() => setFilterCategory('ALL')}
               style={[styles.filterChip, filterCategory === 'ALL' && styles.filterChipActive]}
             >
-              <Text style={[styles.filterChipText, filterCategory === 'ALL' && styles.filterChipTextActive]}>
+              <Text
+                style={[
+                  styles.filterChipText,
+                  filterCategory === 'ALL' && styles.filterChipTextActive,
+                ]}
+              >
                 All ({attachments.length})
               </Text>
             </TouchableOpacity>
@@ -349,7 +427,12 @@ export default function FsrPhotosScreen() {
                       onPress={() => setSelectedCategory(cat.value)}
                       style={[styles.categoryBtn, isSelected && styles.categoryBtnActive]}
                     >
-                      <Text style={[styles.categoryBtnText, isSelected && styles.categoryBtnTextActive]}>
+                      <Text
+                        style={[
+                          styles.categoryBtnText,
+                          isSelected && styles.categoryBtnTextActive,
+                        ]}
+                      >
                         {cat.label}
                       </Text>
                     </TouchableOpacity>
@@ -361,6 +444,7 @@ export default function FsrPhotosScreen() {
                 <Button
                   title="Cancel"
                   variant="ghost"
+                  disabled={uploadMutation.isPending || isProcessingImage}
                   onPress={() => {
                     setSelectedImage(null);
                     setUploadModalVisible(false);
@@ -368,9 +452,12 @@ export default function FsrPhotosScreen() {
                   style={{ flex: 1 }}
                 />
                 <Button
-                  title="Upload Photo"
+                  title={
+                    uploadMutation.isPending || isProcessingImage ? 'Uploading...' : 'Upload Photo'
+                  }
                   variant="primary"
-                  loading={uploadMutation.isPending}
+                  loading={uploadMutation.isPending || isProcessingImage}
+                  disabled={uploadMutation.isPending || isProcessingImage}
                   onPress={handleConfirmUpload}
                   style={{ flex: 1 }}
                 />
@@ -451,13 +538,17 @@ const styles = StyleSheet.create({
   actionHeader: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
-    padding: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
   filtersWrapper: {
-    paddingVertical: theme.spacing.xs,
+    backgroundColor: theme.colors.surfaceElevated,
+    paddingVertical: theme.spacing.xs + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   filtersScroll: {
     paddingHorizontal: theme.spacing.md,
@@ -478,37 +569,38 @@ const styles = StyleSheet.create({
   filterChipText: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textSecondary,
+    fontWeight: theme.fontWeight.medium,
   },
   filterChipTextActive: {
     color: theme.colors.textOnPrimary,
     fontWeight: theme.fontWeight.bold,
   },
   gridContent: {
-    padding: theme.spacing.md,
-    gap: theme.spacing.sm,
+    padding: theme.spacing.sm,
+    paddingBottom: theme.spacing.xl,
   },
   photoCard: {
-    flex: 1,
-    margin: 4,
-    padding: theme.spacing.sm,
+    flex: 0.5,
+    margin: theme.spacing.xs,
+    padding: 0,
+    overflow: 'hidden',
+    position: 'relative',
   },
   imageWrapper: {
-    height: 120,
     width: '100%',
-    borderRadius: theme.borderRadius.sm,
-    overflow: 'hidden',
-    backgroundColor: theme.colors.surfaceElevated,
+    height: 125,
+    backgroundColor: '#000',
   },
   thumbnailImage: {
     width: '100%',
     height: '100%',
   },
   cardInfo: {
-    marginTop: theme.spacing.xs,
+    padding: theme.spacing.sm,
   },
   fileNameText: {
     fontSize: theme.fontSize.xs,
-    fontWeight: theme.fontWeight.semibold,
+    fontWeight: theme.fontWeight.medium,
     color: theme.colors.textPrimary,
   },
   fileSizeText: {
@@ -518,17 +610,17 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     position: 'absolute',
-    top: theme.spacing.sm + 4,
-    right: theme.spacing.sm + 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    top: 6,
+    right: 6,
+    backgroundColor: 'rgba(0,0,0,0.65)',
     padding: 6,
-    borderRadius: theme.borderRadius.sm,
+    borderRadius: theme.borderRadius.full,
   },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.xl,
+    padding: theme.spacing.xl,
   },
   emptyTitle: {
     fontSize: theme.fontSize.md,
@@ -538,41 +630,42 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textMuted,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 18,
+    marginTop: theme.spacing.xs,
+    maxWidth: 260,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   modalContent: {
     backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: theme.borderRadius.xl,
-    borderTopRightRadius: theme.borderRadius.xl,
+    borderTopLeftRadius: theme.borderRadius.lg,
+    borderTopRightRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
-    maxHeight: '90%',
+    maxHeight: '85%',
   },
   modalTitle: {
-    fontSize: theme.fontSize.lg,
+    fontSize: theme.fontSize.md,
     fontWeight: theme.fontWeight.bold,
     color: theme.colors.textPrimary,
     marginBottom: theme.spacing.md,
   },
   uploadPreview: {
     width: '100%',
-    height: 160,
+    height: 180,
     borderRadius: theme.borderRadius.md,
+    backgroundColor: '#000',
     marginBottom: theme.spacing.md,
-    backgroundColor: theme.colors.surfaceElevated,
   },
   modalLabel: {
     fontSize: theme.fontSize.xs,
     fontWeight: theme.fontWeight.semibold,
     color: theme.colors.textSecondary,
     marginBottom: theme.spacing.xs,
+    textTransform: 'uppercase',
   },
   categoriesGrid: {
     flexDirection: 'row',
@@ -584,20 +677,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: theme.borderRadius.sm,
-    backgroundColor: theme.colors.surfaceElevated,
     borderWidth: 1,
     borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceElevated,
   },
   categoryBtnActive: {
-    backgroundColor: theme.colors.primary,
     borderColor: theme.colors.primaryLight,
+    backgroundColor: theme.colors.primarySoft,
   },
   categoryBtnText: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textSecondary,
+    fontWeight: theme.fontWeight.medium,
   },
   categoryBtnTextActive: {
-    color: theme.colors.textOnPrimary,
+    color: theme.colors.primaryLight,
     fontWeight: theme.fontWeight.bold,
   },
   modalActions: {
@@ -618,7 +712,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   fullPreviewImage: {
-    width: '95%',
+    width: '100%',
     height: '80%',
   },
 });

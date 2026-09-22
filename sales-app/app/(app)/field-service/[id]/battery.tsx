@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   TextInput,
-} from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+  BackHandler,
+} from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
   BatteryCharging,
@@ -22,73 +23,76 @@ import {
   Edit2,
   AlertCircle,
   CheckCircle2,
-} from "lucide-react-native";
-import { ScreenContainer } from "../../../../src/components/ui/ScreenContainer";
-import { Card } from "../../../../src/components/ui/Card";
-import { Badge } from "../../../../src/components/ui/Badge";
-import { Button } from "../../../../src/components/ui/Button";
-import { Input } from "../../../../src/components/ui/Input";
-import { useAuthStore } from "../../../../src/auth/auth.store";
+  X,
+} from 'lucide-react-native';
+import { ScreenContainer } from '../../../../src/components/ui/ScreenContainer';
+import { Card } from '../../../../src/components/ui/Card';
+import { Badge } from '../../../../src/components/ui/Badge';
+import { Button } from '../../../../src/components/ui/Button';
+import { Input } from '../../../../src/components/ui/Input';
+import { useAuthStore } from '../../../../src/auth/auth.store';
 import {
   useFsrDetail,
   useAddBatteryBank,
   useUpdateBatteryBank,
   useDeleteBatteryBank,
   useSaveBatteryReadings,
-} from "../../../../src/hooks/useFsr";
-import { canEditFSR } from "../../../../src/utils/fsrPermissions";
-import { theme } from "../../../../src/theme/theme";
+  useUpdateBatteryReading,
+  useDeleteBatteryReading,
+} from '../../../../src/hooks/useFsr';
+import { canEditFSR } from '../../../../src/utils/fsrPermissions';
+import { theme } from '../../../../src/theme/theme';
 import {
   FsrBatteryBank,
   BatteryReadingItem,
   BatteryBankPayload,
-} from "../../../../src/types/fsr.types";
+} from '../../../../src/types/fsr.types';
 
-const QUANTITY_PRESETS = [10, 16, 20, 32, 40];
+const QUANTITY_PRESETS = [8, 10, 12, 16, 20, 24, 30, 32, 40];
 
 export default function BatteryModuleScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const fsrId = id || "";
+  const fsrId = id || '';
   const user = useAuthStore((state) => state.user);
 
-  const { data: fsrDetail, isLoading, refetch, error } = useFsrDetail(fsrId);
+  const { data: fsrDetail, isLoading, refetch } = useFsrDetail(fsrId);
 
   const addBankMutation = useAddBatteryBank();
   const updateBankMutation = useUpdateBatteryBank();
   const deleteBankMutation = useDeleteBatteryBank();
   const saveReadingsMutation = useSaveBatteryReadings();
+  const updateReadingMutation = useUpdateBatteryReading();
+  const deleteReadingMutation = useDeleteBatteryReading();
 
   const [selectedBankIndex, setSelectedBankIndex] = useState(0);
   const [bankModalVisible, setBankModalVisible] = useState(false);
   const [isEditingBank, setIsEditingBank] = useState(false);
+  const [isSavingReadings, setIsSavingReadings] = useState(false);
 
   // Bank Form State
   const [bankForm, setBankForm] = useState<BatteryBankPayload>({
     bankNumber: 1,
-    bankDescription: "",
-    make: "",
-    ah: "",
+    bankDescription: '',
+    make: '',
+    ah: '',
     quantity: 20,
-    frontIndication: "",
+    frontIndication: '',
     voltage: undefined,
     chargingCurrent: undefined,
     dischargingCurrent: undefined,
-    remarks: "",
+    remarks: '',
   });
 
   // Local Readings State for the active bank
-  const [activeReadings, setActiveReadings] = useState<BatteryReadingItem[]>(
-    [],
-  );
+  const [activeReadings, setActiveReadings] = useState<BatteryReadingItem[]>([]);
   const [hasUnsavedReadings, setHasUnsavedReadings] = useState(false);
 
   const batteryBanks = fsrDetail?.batteryBanks || [];
-  const activeBank: FsrBatteryBank | undefined =
-    batteryBanks[selectedBankIndex];
+  const activeBank: FsrBatteryBank | undefined = batteryBanks[selectedBankIndex];
   const canEdit = canEditFSR(user, fsrDetail?.fsr);
 
-  // Initialize readings when switching bank or loading
+  // Initialize readings dynamically when switching bank or when FSR data reloads
   useEffect(() => {
     if (!activeBank) {
       setActiveReadings([]);
@@ -96,33 +100,36 @@ export default function BatteryModuleScreen() {
       return;
     }
 
-    const qty = activeBank.quantity || 20;
     const existingMap = new Map<number, any>();
     (activeBank.readings || []).forEach((r) => {
       existingMap.set(r.batteryNumber, r);
     });
 
+    const maxCell = Math.max(
+      activeBank.quantity || 20,
+      ...(activeBank.readings || []).map((r) => r.batteryNumber),
+      0
+    );
+    const targetQty = maxCell > 0 ? maxCell : 20;
+
     const rows: BatteryReadingItem[] = [];
-    for (let i = 1; i <= qty; i++) {
+    for (let i = 1; i <= targetQty; i++) {
       const existing = existingMap.get(i);
       rows.push({
         batteryNumber: i,
         chargingVoltage:
-          existing?.chargingVoltage !== undefined &&
-          existing?.chargingVoltage !== null
+          existing?.chargingVoltage !== undefined && existing?.chargingVoltage !== null
             ? Number(existing.chargingVoltage)
             : undefined,
         dischargingVoltage:
-          existing?.dischargingVoltage !== undefined &&
-          existing?.dischargingVoltage !== null
+          existing?.dischargingVoltage !== undefined && existing?.dischargingVoltage !== null
             ? Number(existing.dischargingVoltage)
             : undefined,
         internalResistance:
-          existing?.internalResistance !== undefined &&
-          existing?.internalResistance !== null
+          existing?.internalResistance !== undefined && existing?.internalResistance !== null
             ? Number(existing.internalResistance)
             : undefined,
-        remarks: existing?.remarks || "",
+        remarks: existing?.remarks || '',
       });
     }
 
@@ -136,14 +143,14 @@ export default function BatteryModuleScreen() {
     setBankForm({
       bankNumber: nextBankNum,
       bankDescription: `Bank ${nextBankNum}`,
-      make: "",
-      ah: "",
+      make: '',
+      ah: '',
       quantity: 20,
-      frontIndication: "",
+      frontIndication: '',
       voltage: undefined,
       chargingCurrent: undefined,
       dischargingCurrent: undefined,
-      remarks: "",
+      remarks: '',
     });
     setIsEditingBank(false);
     setBankModalVisible(true);
@@ -154,19 +161,21 @@ export default function BatteryModuleScreen() {
     if (!activeBank) return;
     setBankForm({
       bankNumber: activeBank.bankNumber,
-      bankDescription: activeBank.bankDescription || "",
-      make: activeBank.make || "",
-      ah: activeBank.ah || "",
+      bankDescription: activeBank.bankDescription || '',
+      make: activeBank.make || '',
+      ah: activeBank.ah || '',
       quantity: activeBank.quantity || 20,
-      frontIndication: activeBank.frontIndication || "",
-      voltage: activeBank.voltage ? Number(activeBank.voltage) : undefined,
-      chargingCurrent: activeBank.chargingCurrent
-        ? Number(activeBank.chargingCurrent)
-        : undefined,
-      dischargingCurrent: activeBank.dischargingCurrent
-        ? Number(activeBank.dischargingCurrent)
-        : undefined,
-      remarks: activeBank.remarks || "",
+      frontIndication: activeBank.frontIndication || '',
+      voltage: activeBank.voltage !== null && activeBank.voltage !== undefined ? Number(activeBank.voltage) : undefined,
+      chargingCurrent:
+        activeBank.chargingCurrent !== null && activeBank.chargingCurrent !== undefined
+          ? Number(activeBank.chargingCurrent)
+          : undefined,
+      dischargingCurrent:
+        activeBank.dischargingCurrent !== null && activeBank.dischargingCurrent !== undefined
+          ? Number(activeBank.dischargingCurrent)
+          : undefined,
+      remarks: activeBank.remarks || '',
     });
     setIsEditingBank(true);
     setBankModalVisible(true);
@@ -176,22 +185,21 @@ export default function BatteryModuleScreen() {
   const handleSaveBank = async () => {
     const targetQty = Number(bankForm.quantity) || 20;
     if (targetQty < 1 || targetQty > 200) {
-      Alert.alert(
-        "Invalid Quantity",
-        "Battery bank quantity must be between 1 and 200 cells.",
-      );
+      Alert.alert('Invalid Quantity', 'Battery bank quantity must be between 1 and 200 cells.');
       return;
     }
 
     try {
       if (isEditingBank && activeBank?.id) {
-        // If quantity changed, adjust readings preserving existing items
         await updateBankMutation.mutateAsync({
           id: fsrId,
           bankId: activeBank.id,
-          payload: bankForm,
+          payload: {
+            ...bankForm,
+            quantity: targetQty,
+          },
         });
-        Alert.alert("Updated", "Battery bank details updated.");
+        Alert.alert('Updated', 'Battery bank details updated.');
       } else {
         await addBankMutation.mutateAsync({
           id: fsrId,
@@ -201,11 +209,11 @@ export default function BatteryModuleScreen() {
           },
         });
         setSelectedBankIndex(batteryBanks.length);
-        Alert.alert("Success", "New battery bank added.");
+        Alert.alert('Success', 'New battery bank added.');
       }
       setBankModalVisible(false);
     } catch (err: any) {
-      Alert.alert("Error", err?.message || "Failed to save battery bank.");
+      Alert.alert('Error', err?.message || 'Failed to save battery bank.');
     }
   };
 
@@ -213,13 +221,13 @@ export default function BatteryModuleScreen() {
   const handleDeleteBank = () => {
     if (!activeBank?.id) return;
     Alert.alert(
-      "Delete Bank",
-      `Are you sure you want to delete Bank #${activeBank.bankNumber}? All ${activeBank.quantity} cell readings will be removed.`,
+      'Delete Bank',
+      `Are you sure you want to delete Bank #${activeBank.bankNumber}? All cell readings will be removed.`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Delete",
-          style: "destructive",
+          text: 'Delete',
+          style: 'destructive',
           onPress: async () => {
             try {
               await deleteBankMutation.mutateAsync({
@@ -227,16 +235,13 @@ export default function BatteryModuleScreen() {
                 bankId: activeBank.id!,
               });
               setSelectedBankIndex(0);
-              Alert.alert("Deleted", "Battery bank deleted.");
+              Alert.alert('Deleted', 'Battery bank deleted.');
             } catch (err: any) {
-              Alert.alert(
-                "Error",
-                err?.message || "Failed to delete battery bank.",
-              );
+              Alert.alert('Error', err?.message || 'Failed to delete battery bank.');
             }
           },
         },
-      ],
+      ]
     );
   };
 
@@ -244,39 +249,180 @@ export default function BatteryModuleScreen() {
   const updateCellReading = (
     batteryNumber: number,
     field: keyof BatteryReadingItem,
-    val: string,
+    val: string
   ) => {
     setActiveReadings((prev) =>
       prev.map((item) => {
         if (item.batteryNumber !== batteryNumber) return item;
         return {
           ...item,
-          [field]: field === "remarks" ? val : val ? Number(val) : undefined,
+          [field]: field === 'remarks' ? val : val !== '' ? Number(val) : undefined,
         };
-      }),
+      })
     );
     setHasUnsavedReadings(true);
   };
 
-  // Save All Cell Readings for active bank
+  // Save All Cell Readings for active bank (smart batch save & update)
   const handleSaveAllReadings = async () => {
     if (!activeBank?.id) return;
 
-    try {
-      await saveReadingsMutation.mutateAsync({
-        id: fsrId,
-        bankId: activeBank.id!,
-        readings: activeReadings,
-      });
+    const existingMap = new Map<number, any>();
+    (activeBank.readings || []).forEach((r) => {
+      existingMap.set(r.batteryNumber, r);
+    });
+
+    const newReadings: BatteryReadingItem[] = [];
+    const updatedReadings: { id: string; payload: Partial<BatteryReadingItem> }[] = [];
+
+    for (const r of activeReadings) {
+      const existing = existingMap.get(r.batteryNumber);
+      const hasAnyData =
+        r.chargingVoltage !== undefined ||
+        r.dischargingVoltage !== undefined ||
+        r.internalResistance !== undefined ||
+        (r.remarks && r.remarks.trim().length > 0);
+
+      if (!existing) {
+        if (hasAnyData) {
+          newReadings.push(r);
+        }
+      } else {
+        const existChg =
+          existing.chargingVoltage !== null && existing.chargingVoltage !== undefined
+            ? Number(existing.chargingVoltage)
+            : undefined;
+        const existDis =
+          existing.dischargingVoltage !== null && existing.dischargingVoltage !== undefined
+            ? Number(existing.dischargingVoltage)
+            : undefined;
+        const existIr =
+          existing.internalResistance !== null && existing.internalResistance !== undefined
+            ? Number(existing.internalResistance)
+            : undefined;
+        const existRem = existing.remarks || '';
+
+        const changed =
+          existChg !== r.chargingVoltage ||
+          existDis !== r.dischargingVoltage ||
+          existIr !== r.internalResistance ||
+          existRem !== (r.remarks || '');
+
+        if (changed) {
+          updatedReadings.push({
+            id: existing.id,
+            payload: {
+              batteryNumber: r.batteryNumber,
+              chargingVoltage: r.chargingVoltage,
+              dischargingVoltage: r.dischargingVoltage,
+              internalResistance: r.internalResistance,
+              remarks: r.remarks,
+            },
+          });
+        }
+      }
+    }
+
+    if (newReadings.length === 0 && updatedReadings.length === 0) {
       setHasUnsavedReadings(false);
-      Alert.alert(
-        "Saved",
-        `All ${activeReadings.length} battery cell readings saved successfully.`,
-      );
+      Alert.alert('No Changes', 'All cell readings are already up to date.');
+      return;
+    }
+
+    setIsSavingReadings(true);
+    try {
+      if (newReadings.length > 0) {
+        await saveReadingsMutation.mutateAsync({
+          id: fsrId,
+          bankId: activeBank.id,
+          readings: newReadings,
+        });
+      }
+
+      for (const item of updatedReadings) {
+        await updateReadingMutation.mutateAsync({
+          id: fsrId,
+          bankId: activeBank.id,
+          readingId: item.id,
+          payload: item.payload,
+        });
+      }
+
+      setHasUnsavedReadings(false);
+      Alert.alert('Saved', 'Battery cell readings saved successfully.');
     } catch (err: any) {
-      Alert.alert("Save Failed", err?.message || "Failed to save readings.");
+      Alert.alert('Save Failed', err?.message || 'Failed to save readings.');
+    } finally {
+      setIsSavingReadings(false);
     }
   };
+
+  // Delete an individual cell reading from the bank
+  const handleDeleteReading = (batteryNumber: number) => {
+    if (!activeBank?.id) return;
+    const existing = (activeBank.readings || []).find((r) => r.batteryNumber === batteryNumber);
+
+    if (!existing?.id) {
+      // Not persisted on server, just clear local fields
+      updateCellReading(batteryNumber, 'chargingVoltage', '');
+      updateCellReading(batteryNumber, 'dischargingVoltage', '');
+      updateCellReading(batteryNumber, 'internalResistance', '');
+      updateCellReading(batteryNumber, 'remarks', '');
+      return;
+    }
+
+    Alert.alert(
+      'Delete Reading',
+      `Delete cell #${batteryNumber} reading from Bank #${activeBank.bankNumber}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteReadingMutation.mutateAsync({
+                id: fsrId,
+                bankId: activeBank.id!,
+                readingId: existing.id!,
+              });
+              Alert.alert('Deleted', `Reading for cell #${batteryNumber} removed.`);
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Failed to delete reading.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Unsaved changes back press handler
+  const handleBackPress = useCallback(() => {
+    if (hasUnsavedReadings) {
+      Alert.alert(
+        'Discard changes?',
+        'You have unsaved cell readings.',
+        [
+          { text: 'Keep Editing', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: () => router.back() },
+        ]
+      );
+    } else {
+      router.back();
+    }
+  }, [hasUnsavedReadings, router]);
+
+  useEffect(() => {
+    const onHardwareBack = () => {
+      if (hasUnsavedReadings) {
+        handleBackPress();
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => sub.remove();
+  }, [hasUnsavedReadings, handleBackPress]);
 
   if (isLoading) {
     return (
@@ -295,7 +441,7 @@ export default function BatteryModuleScreen() {
         {/* Navigation Header */}
         <View style={styles.navBar}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={handleBackPress}
             style={styles.backButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
@@ -303,15 +449,10 @@ export default function BatteryModuleScreen() {
           </TouchableOpacity>
           <View style={styles.navTitleWrapper}>
             <Text style={styles.navTitle}>Battery Banks & Readings</Text>
-            <Text style={styles.navSubtitle}>
-              {fsrDetail?.fsr?.fsrNumber || "FSR"}
-            </Text>
+            <Text style={styles.navSubtitle}>{fsrDetail?.fsr?.fsrNumber || 'FSR'}</Text>
           </View>
           {canEdit && (
-            <TouchableOpacity
-              onPress={openCreateBankModal}
-              style={styles.addBankHeaderBtn}
-            >
+            <TouchableOpacity onPress={openCreateBankModal} style={styles.addBankHeaderBtn}>
               <Plus size={18} color={theme.colors.primaryLight} />
               <Text style={styles.addBankHeaderText}>Bank</Text>
             </TouchableOpacity>
@@ -334,39 +475,27 @@ export default function BatteryModuleScreen() {
                     onPress={() => {
                       if (hasUnsavedReadings) {
                         Alert.alert(
-                          "Unsaved Changes",
-                          "You have unsaved cell readings on this bank. Save or switch anyway?",
+                          'Unsaved Changes',
+                          'You have unsaved cell readings on this bank. Save or switch anyway?',
                           [
-                            { text: "Stay", style: "cancel" },
+                            { text: 'Stay', style: 'cancel' },
                             {
-                              text: "Switch",
+                              text: 'Switch',
                               onPress: () => setSelectedBankIndex(idx),
                             },
-                          ],
+                          ]
                         );
                       } else {
                         setSelectedBankIndex(idx);
                       }
                     }}
-                    style={[
-                      styles.bankTabChip,
-                      isSelected && styles.bankTabChipActive,
-                    ]}
+                    style={[styles.bankTabChip, isSelected && styles.bankTabChipActive]}
                   >
                     <BatteryCharging
                       size={15}
-                      color={
-                        isSelected
-                          ? theme.colors.textOnPrimary
-                          : theme.colors.textSecondary
-                      }
+                      color={isSelected ? theme.colors.textOnPrimary : theme.colors.textSecondary}
                     />
-                    <Text
-                      style={[
-                        styles.bankTabText,
-                        isSelected && styles.bankTabTextActive,
-                      ]}
-                    >
+                    <Text style={[styles.bankTabText, isSelected && styles.bankTabTextActive]}>
                       Bank #{bank.bankNumber} ({bank.quantity} cells)
                     </Text>
                   </TouchableOpacity>
@@ -382,8 +511,7 @@ export default function BatteryModuleScreen() {
             <BatteryCharging size={54} color={theme.colors.textMuted} />
             <Text style={styles.emptyTitle}>No Battery Banks</Text>
             <Text style={styles.emptySubtitle}>
-              Create a battery bank to log cell voltages, discharge voltages,
-              and internal resistance.
+              Create a battery bank to log cell voltages, discharge voltages, and internal resistance.
             </Text>
             {canEdit && (
               <Button
@@ -400,20 +528,18 @@ export default function BatteryModuleScreen() {
             style={styles.contentScroll}
             contentContainerStyle={styles.contentInner}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {/* Active Bank Overview Card */}
             <Card style={styles.bankOverviewCard}>
               <View style={styles.bankHeaderRow}>
                 <View>
                   <Text style={styles.bankHeading}>
-                    Bank #{activeBank.bankNumber}{" "}
-                    {activeBank.bankDescription
-                      ? `(${activeBank.bankDescription})`
-                      : ""}
+                    Bank #{activeBank.bankNumber}{' '}
+                    {activeBank.bankDescription ? `(${activeBank.bankDescription})` : ''}
                   </Text>
                   <Text style={styles.bankSpecs}>
-                    {activeBank.make || "Standard"} • {activeBank.ah || "—"} Ah
-                    • {activeBank.quantity} Cells
+                    {activeBank.make || 'Standard'} • {activeBank.ah || '—'} Ah • {activeBank.quantity} Cells
                   </Text>
                 </View>
                 {canEdit && (
@@ -441,23 +567,19 @@ export default function BatteryModuleScreen() {
                 <View style={styles.extraSpecItem}>
                   <Text style={styles.extraSpecLabel}>Bank Voltage</Text>
                   <Text style={styles.extraSpecVal}>
-                    {activeBank.voltage ? `${activeBank.voltage} V` : "—"}
+                    {activeBank.voltage ? `${activeBank.voltage} V` : '—'}
                   </Text>
                 </View>
                 <View style={styles.extraSpecItem}>
                   <Text style={styles.extraSpecLabel}>Charging Current</Text>
                   <Text style={styles.extraSpecVal}>
-                    {activeBank.chargingCurrent
-                      ? `${activeBank.chargingCurrent} A`
-                      : "—"}
+                    {activeBank.chargingCurrent ? `${activeBank.chargingCurrent} A` : '—'}
                   </Text>
                 </View>
                 <View style={styles.extraSpecItem}>
                   <Text style={styles.extraSpecLabel}>Discharging Current</Text>
                   <Text style={styles.extraSpecVal}>
-                    {activeBank.dischargingCurrent
-                      ? `${activeBank.dischargingCurrent} A`
-                      : "—"}
+                    {activeBank.dischargingCurrent ? `${activeBank.dischargingCurrent} A` : '—'}
                   </Text>
                 </View>
               </View>
@@ -476,99 +598,106 @@ export default function BatteryModuleScreen() {
             {/* Table Header */}
             <View style={styles.tableHeaderRow}>
               <Text style={[styles.thCell, { flex: 0.6 }]}>#</Text>
-              <Text style={[styles.thCell, { flex: 1.2 }]}>Chg (V)</Text>
-              <Text style={[styles.thCell, { flex: 1.2 }]}>Dis (V)</Text>
-              <Text style={[styles.thCell, { flex: 1.2 }]}>IR (mΩ)</Text>
-              <Text style={[styles.thCell, { flex: 1.8 }]}>Remarks</Text>
+              <Text style={[styles.thCell, { flex: 1.1 }]}>Chg (V)</Text>
+              <Text style={[styles.thCell, { flex: 1.1 }]}>Dis (V)</Text>
+              <Text style={[styles.thCell, { flex: 1.1 }]}>IR (mΩ)</Text>
+              <Text style={[styles.thCell, { flex: 1.6 }]}>Remarks</Text>
+              {canEdit && <Text style={[styles.thCell, { flex: 0.5 }]}>Del</Text>}
             </View>
 
             {/* Table Rows */}
-            {activeReadings.map((reading) => (
-              <View key={reading.batteryNumber} style={styles.tableDataRow}>
-                <Text style={[styles.tdNumber, { flex: 0.6 }]}>
-                  {reading.batteryNumber}
-                </Text>
+            {activeReadings.map((reading) => {
+              const hasRecordedData =
+                reading.chargingVoltage !== undefined ||
+                reading.dischargingVoltage !== undefined ||
+                reading.internalResistance !== undefined ||
+                (reading.remarks && reading.remarks.trim().length > 0);
 
-                <View style={[styles.tdInputWrapper, { flex: 1.2 }]}>
-                  <TextInput
-                    style={styles.cellTextInput}
-                    keyboardType="numeric"
-                    placeholder="—"
-                    placeholderTextColor={theme.colors.textMuted}
-                    editable={canEdit}
-                    value={
-                      reading.chargingVoltage !== undefined
-                        ? String(reading.chargingVoltage)
-                        : ""
-                    }
-                    onChangeText={(val) =>
-                      updateCellReading(
-                        reading.batteryNumber,
-                        "chargingVoltage",
-                        val,
-                      )
-                    }
-                  />
-                </View>
+              return (
+                <View key={reading.batteryNumber} style={styles.tableDataRow}>
+                  <Text style={[styles.tdNumber, { flex: 0.6 }]}>{reading.batteryNumber}</Text>
 
-                <View style={[styles.tdInputWrapper, { flex: 1.2 }]}>
-                  <TextInput
-                    style={styles.cellTextInput}
-                    keyboardType="numeric"
-                    placeholder="—"
-                    placeholderTextColor={theme.colors.textMuted}
-                    editable={canEdit}
-                    value={
-                      reading.dischargingVoltage !== undefined
-                        ? String(reading.dischargingVoltage)
-                        : ""
-                    }
-                    onChangeText={(val) =>
-                      updateCellReading(
-                        reading.batteryNumber,
-                        "dischargingVoltage",
-                        val,
-                      )
-                    }
-                  />
-                </View>
+                  <View style={[styles.tdInputWrapper, { flex: 1.1 }]}>
+                    <TextInput
+                      style={styles.cellTextInput}
+                      keyboardType="numeric"
+                      placeholder="—"
+                      placeholderTextColor={theme.colors.textMuted}
+                      editable={canEdit}
+                      value={
+                        reading.chargingVoltage !== undefined ? String(reading.chargingVoltage) : ''
+                      }
+                      onChangeText={(val) =>
+                        updateCellReading(reading.batteryNumber, 'chargingVoltage', val)
+                      }
+                    />
+                  </View>
 
-                <View style={[styles.tdInputWrapper, { flex: 1.2 }]}>
-                  <TextInput
-                    style={styles.cellTextInput}
-                    keyboardType="numeric"
-                    placeholder="—"
-                    placeholderTextColor={theme.colors.textMuted}
-                    editable={canEdit}
-                    value={
-                      reading.internalResistance !== undefined
-                        ? String(reading.internalResistance)
-                        : ""
-                    }
-                    onChangeText={(val) =>
-                      updateCellReading(
-                        reading.batteryNumber,
-                        "internalResistance",
-                        val,
-                      )
-                    }
-                  />
-                </View>
+                  <View style={[styles.tdInputWrapper, { flex: 1.1 }]}>
+                    <TextInput
+                      style={styles.cellTextInput}
+                      keyboardType="numeric"
+                      placeholder="—"
+                      placeholderTextColor={theme.colors.textMuted}
+                      editable={canEdit}
+                      value={
+                        reading.dischargingVoltage !== undefined
+                          ? String(reading.dischargingVoltage)
+                          : ''
+                      }
+                      onChangeText={(val) =>
+                        updateCellReading(reading.batteryNumber, 'dischargingVoltage', val)
+                      }
+                    />
+                  </View>
 
-                <View style={[styles.tdInputWrapper, { flex: 1.8 }]}>
-                  <TextInput
-                    style={styles.cellTextInput}
-                    placeholder="Notes..."
-                    placeholderTextColor={theme.colors.textMuted}
-                    editable={canEdit}
-                    value={reading.remarks || ""}
-                    onChangeText={(val) =>
-                      updateCellReading(reading.batteryNumber, "remarks", val)
-                    }
-                  />
+                  <View style={[styles.tdInputWrapper, { flex: 1.1 }]}>
+                    <TextInput
+                      style={styles.cellTextInput}
+                      keyboardType="numeric"
+                      placeholder="—"
+                      placeholderTextColor={theme.colors.textMuted}
+                      editable={canEdit}
+                      value={
+                        reading.internalResistance !== undefined
+                          ? String(reading.internalResistance)
+                          : ''
+                      }
+                      onChangeText={(val) =>
+                        updateCellReading(reading.batteryNumber, 'internalResistance', val)
+                      }
+                    />
+                  </View>
+
+                  <View style={[styles.tdInputWrapper, { flex: 1.6 }]}>
+                    <TextInput
+                      style={styles.cellTextInput}
+                      placeholder="Notes..."
+                      placeholderTextColor={theme.colors.textMuted}
+                      editable={canEdit}
+                      value={reading.remarks || ''}
+                      onChangeText={(val) =>
+                        updateCellReading(reading.batteryNumber, 'remarks', val)
+                      }
+                    />
+                  </View>
+
+                  {canEdit && (
+                    <TouchableOpacity
+                      style={[styles.tdDeleteBtn, { flex: 0.5 }]}
+                      onPress={() => handleDeleteReading(reading.batteryNumber)}
+                      disabled={!hasRecordedData}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Trash2
+                        size={13}
+                        color={hasRecordedData ? theme.colors.accentRose : theme.colors.surfaceHighlight}
+                      />
+                    </TouchableOpacity>
+                  )}
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </ScrollView>
         )}
 
@@ -577,24 +706,25 @@ export default function BatteryModuleScreen() {
           <View style={styles.floatingBottomBar}>
             <Button
               title={
-                hasUnsavedReadings
+                isSavingReadings
+                  ? 'Saving Readings...'
+                  : hasUnsavedReadings
                   ? `Save All ${activeReadings.length} Cell Readings`
-                  : "All Readings Saved"
+                  : 'All Readings Saved'
               }
-              variant={hasUnsavedReadings ? "primary" : "secondary"}
-              loading={saveReadingsMutation.isPending}
+              variant={hasUnsavedReadings ? 'primary' : 'secondary'}
+              loading={isSavingReadings}
+              disabled={isSavingReadings || !hasUnsavedReadings}
               icon={
                 <Save
                   size={18}
                   color={
-                    hasUnsavedReadings
-                      ? theme.colors.textOnPrimary
-                      : theme.colors.accentEmerald
+                    hasUnsavedReadings ? theme.colors.textOnPrimary : theme.colors.accentEmerald
                   }
                 />
               }
               onPress={handleSaveAllReadings}
-              style={{ width: "100%" }}
+              style={{ width: '100%' }}
             />
           </View>
         )}
@@ -607,14 +737,12 @@ export default function BatteryModuleScreen() {
           onRequestClose={() => setBankModalVisible(false)}
         >
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.modalOverlay}
           >
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>
-                {isEditingBank
-                  ? `Edit Bank #${bankForm.bankNumber}`
-                  : "Add Battery Bank"}
+                {isEditingBank ? `Edit Bank #${bankForm.bankNumber}` : 'Add Battery Bank'}
               </Text>
 
               <ScrollView style={styles.modalScroll}>
@@ -632,26 +760,20 @@ export default function BatteryModuleScreen() {
                 <Input
                   label="Description"
                   placeholder="e.g. Ground Floor UPS Bank"
-                  value={bankForm.bankDescription || ""}
-                  onChangeText={(val) =>
-                    setBankForm((prev) => ({ ...prev, bankDescription: val }))
-                  }
+                  value={bankForm.bankDescription || ''}
+                  onChangeText={(val) => setBankForm((prev) => ({ ...prev, bankDescription: val }))}
                 />
                 <Input
                   label="Battery Make"
                   placeholder="e.g. Exide, Amaron, Quanta"
-                  value={bankForm.make || ""}
-                  onChangeText={(val) =>
-                    setBankForm((prev) => ({ ...prev, make: val }))
-                  }
+                  value={bankForm.make || ''}
+                  onChangeText={(val) => setBankForm((prev) => ({ ...prev, make: val }))}
                 />
                 <Input
                   label="Ah Rating"
                   placeholder="e.g. 100Ah, 120Ah"
-                  value={bankForm.ah || ""}
-                  onChangeText={(val) =>
-                    setBankForm((prev) => ({ ...prev, ah: val }))
-                  }
+                  value={bankForm.ah || ''}
+                  onChangeText={(val) => setBankForm((prev) => ({ ...prev, ah: val }))}
                 />
 
                 {/* Preset Quantity Buttons */}
@@ -662,13 +784,8 @@ export default function BatteryModuleScreen() {
                     return (
                       <TouchableOpacity
                         key={preset}
-                        onPress={() =>
-                          setBankForm((prev) => ({ ...prev, quantity: preset }))
-                        }
-                        style={[
-                          styles.presetChip,
-                          isSelected && styles.presetChipActive,
-                        ]}
+                        onPress={() => setBankForm((prev) => ({ ...prev, quantity: preset }))}
+                        style={[styles.presetChip, isSelected && styles.presetChipActive]}
                       >
                         <Text
                           style={[
@@ -697,11 +814,7 @@ export default function BatteryModuleScreen() {
                 <Input
                   label="Overall Bank Voltage (V)"
                   keyboardType="numeric"
-                  value={
-                    bankForm.voltage !== undefined
-                      ? String(bankForm.voltage)
-                      : ""
-                  }
+                  value={bankForm.voltage !== undefined ? String(bankForm.voltage) : ''}
                   onChangeText={(val) =>
                     setBankForm((prev) => ({
                       ...prev,
@@ -713,9 +826,7 @@ export default function BatteryModuleScreen() {
                   label="Charging Current (A)"
                   keyboardType="numeric"
                   value={
-                    bankForm.chargingCurrent !== undefined
-                      ? String(bankForm.chargingCurrent)
-                      : ""
+                    bankForm.chargingCurrent !== undefined ? String(bankForm.chargingCurrent) : ''
                   }
                   onChangeText={(val) =>
                     setBankForm((prev) => ({
@@ -730,7 +841,7 @@ export default function BatteryModuleScreen() {
                   value={
                     bankForm.dischargingCurrent !== undefined
                       ? String(bankForm.dischargingCurrent)
-                      : ""
+                      : ''
                   }
                   onChangeText={(val) =>
                     setBankForm((prev) => ({
@@ -742,10 +853,8 @@ export default function BatteryModuleScreen() {
                 <Input
                   label="Remarks"
                   placeholder="General remarks about this bank..."
-                  value={bankForm.remarks || ""}
-                  onChangeText={(val) =>
-                    setBankForm((prev) => ({ ...prev, remarks: val }))
-                  }
+                  value={bankForm.remarks || ''}
+                  onChangeText={(val) => setBankForm((prev) => ({ ...prev, remarks: val }))}
                 />
               </ScrollView>
 
@@ -757,11 +866,9 @@ export default function BatteryModuleScreen() {
                   style={{ flex: 1 }}
                 />
                 <Button
-                  title={isEditingBank ? "Save Bank" : "Create Bank"}
+                  title={isEditingBank ? 'Save Bank' : 'Create Bank'}
                   variant="primary"
-                  loading={
-                    addBankMutation.isPending || updateBankMutation.isPending
-                  }
+                  loading={addBankMutation.isPending || updateBankMutation.isPending}
                   onPress={handleSaveBank}
                   style={{ flex: 1 }}
                 />
@@ -780,8 +887,8 @@ const styles = StyleSheet.create({
   },
   centerContainer: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: theme.spacing.lg,
   },
   loadingText: {
@@ -790,9 +897,9 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
   },
   navBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderBottomWidth: 1,
@@ -816,8 +923,8 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
   },
   addBankHeaderBtn: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -840,8 +947,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   bankTabChip: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -856,51 +963,29 @@ const styles = StyleSheet.create({
   },
   bankTabText: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textSecondary,
     fontWeight: theme.fontWeight.medium,
+    color: theme.colors.textSecondary,
   },
   bankTabTextActive: {
     color: theme.colors.textOnPrimary,
     fontWeight: theme.fontWeight.bold,
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: theme.spacing.xl,
-  },
-  emptyTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.textPrimary,
-    marginTop: theme.spacing.md,
-  },
-  emptySubtitle: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.textMuted,
-    textAlign: "center",
-    marginTop: 4,
-    lineHeight: 18,
-    marginBottom: theme.spacing.lg,
-  },
-  emptyButton: {
-    minWidth: 180,
   },
   contentScroll: {
     flex: 1,
   },
   contentInner: {
     padding: theme.spacing.md,
-    paddingBottom: 110,
+    paddingBottom: 100,
   },
   bankOverviewCard: {
-    marginBottom: theme.spacing.md,
     padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
   },
   bankHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: theme.spacing.sm,
   },
   bankHeading: {
     fontSize: theme.fontSize.md,
@@ -913,7 +998,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   bankActionsRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: theme.spacing.sm,
   },
   bankIconBtn: {
@@ -922,106 +1008,132 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceElevated,
   },
   extraSpecsGrid: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: theme.spacing.sm,
+    flexDirection: 'row',
+    gap: theme.spacing.md,
     paddingTop: theme.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },
   extraSpecItem: {
-    alignItems: "center",
+    flex: 1,
   },
   extraSpecLabel: {
     fontSize: 10,
     color: theme.colors.textMuted,
-    textTransform: "uppercase",
+    textTransform: 'uppercase',
   },
   extraSpecVal: {
-    fontSize: theme.fontSize.xs,
-    fontWeight: theme.fontWeight.bold,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
     color: theme.colors.textPrimary,
     marginTop: 2,
   },
   readingsSectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: theme.spacing.xs,
   },
   readingsSectionTitle: {
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.bold,
-    color: theme.colors.primaryLight,
-    textTransform: "uppercase",
+    color: theme.colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   tableHeaderRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.colors.surfaceElevated,
     paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     borderRadius: theme.borderRadius.sm,
     marginBottom: 4,
   },
   thCell: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: theme.fontWeight.bold,
     color: theme.colors.textMuted,
-    textTransform: "uppercase",
-    textAlign: "center",
+    textAlign: 'center',
   },
   tableDataRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.colors.surface,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    borderRadius: theme.borderRadius.sm,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   tdNumber: {
     fontSize: theme.fontSize.xs,
     fontWeight: theme.fontWeight.bold,
     color: theme.colors.primaryLight,
-    textAlign: "center",
+    textAlign: 'center',
   },
   tdInputWrapper: {
-    paddingHorizontal: 2,
+    paddingHorizontal: 3,
   },
   cellTextInput: {
     backgroundColor: theme.colors.surfaceElevated,
-    color: theme.colors.textPrimary,
-    fontSize: theme.fontSize.xs,
-    textAlign: "center",
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    borderRadius: 4,
     borderWidth: 1,
     borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.sm,
+    color: theme.colors.textPrimary,
+    fontSize: theme.fontSize.xs,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    textAlign: 'center',
+  },
+  tdDeleteBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xl,
+  },
+  emptyTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textPrimary,
+    marginTop: theme.spacing.md,
+  },
+  emptySubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.lg,
+  },
+  emptyButton: {
+    minWidth: 200,
   },
   floatingBottomBar: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.surfaceElevated,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
-    padding: theme.spacing.md,
+    elevation: 8,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    justifyContent: "flex-end",
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   modalContent: {
     backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: theme.borderRadius.xl,
-    borderTopRightRadius: theme.borderRadius.xl,
+    borderTopLeftRadius: theme.borderRadius.lg,
+    borderTopRightRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
-    maxHeight: "85%",
+    maxHeight: '85%',
   },
   modalTitle: {
     fontSize: theme.fontSize.lg,
@@ -1030,16 +1142,17 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   modalScroll: {
-    maxHeight: 400,
+    marginBottom: theme.spacing.md,
   },
   presetLabel: {
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.semibold,
     color: theme.colors.textSecondary,
-    marginBottom: 6,
+    marginBottom: theme.spacing.xs,
   },
   presetRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: theme.spacing.md,
   },
@@ -1047,25 +1160,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: theme.borderRadius.sm,
-    backgroundColor: theme.colors.surfaceElevated,
     borderWidth: 1,
     borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceElevated,
   },
   presetChipActive: {
-    backgroundColor: theme.colors.primary,
     borderColor: theme.colors.primaryLight,
+    backgroundColor: theme.colors.primarySoft,
   },
   presetChipText: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textSecondary,
   },
   presetChipTextActive: {
-    color: theme.colors.textOnPrimary,
+    color: theme.colors.primaryLight,
     fontWeight: theme.fontWeight.bold,
   },
   modalActionRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: theme.spacing.md,
-    marginTop: theme.spacing.md,
   },
 });

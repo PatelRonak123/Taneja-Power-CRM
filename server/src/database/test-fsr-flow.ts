@@ -262,7 +262,52 @@ const runTest = async () => {
       fseAuth,
     );
     console.log(
-      `✓ SUCCESS: Assigned FSE updated problemReported: "${fseUpdated.fsr.problemReported}"\n`,
+      `✓ SUCCESS: Assigned FSE updated problemReported: "${fseUpdated.fsr.problemReported}"`,
+    );
+
+    // D. Unassigned FSE attempting to READ another engineer's DRAFT FSR -> MUST FAIL 403 (IDOR Prevention)
+    try {
+      await fsrService.getFsrById(fsrId, secondFseAuth);
+      console.error("❌ FAILED: Unassigned FSE was able to read another engineer's FSR via IDOR!");
+    } catch (err: any) {
+      console.log(
+        `✓ SUCCESS: IDOR Read Protection correctly blocked unassigned FSE with 403: ${err.message}`,
+      );
+    }
+
+    // E. Salesperson attempting to READ DRAFT FSR -> MUST FAIL 403
+    try {
+      await fsrService.getFsrById(fsrId, salesAuth);
+      console.error("❌ FAILED: Salesperson was able to read DRAFT FSR!");
+    } catch (err: any) {
+      console.log(
+        `✓ SUCCESS: Salesperson read access to DRAFT FSR correctly blocked with 403: ${err.message}`,
+      );
+    }
+
+    // F. Salesperson attempting to CREATE FSR -> MUST FAIL 403
+    try {
+      await fsrService.createFsr(
+        {
+          customerId: customer.id,
+          serviceEngineerId: salesUser.id,
+          visitDate: new Date().toISOString(),
+          callType: "BD",
+        } as any,
+        salesAuth,
+      );
+      console.error("❌ FAILED: Salesperson was able to create FSR!");
+    } catch (err: any) {
+      console.log(
+        `✓ SUCCESS: Salesperson FSR creation correctly blocked with 403: ${err.message}`,
+      );
+    }
+
+    // G. Assigned FSE and Admin READ access -> MUST SUCCEED
+    const fseRead = await fsrService.getFsrById(fsrId, fseAuth);
+    const adminRead = await fsrService.getFsrById(fsrId, adminAuth);
+    console.log(
+      `✓ SUCCESS: Assigned FSE and Admin read access allowed (${fseRead.fsr.fsrNumber} / ${adminRead.fsr.fsrNumber})\n`,
     );
 
     // ==========================================
@@ -337,9 +382,43 @@ const runTest = async () => {
     }
 
     // ==========================================
-    // TEST 5: SIGN-OFF CAPTURE
+    // TEST 5: SIGN-OFF CAPTURE & AUTHORIZATION
     // ==========================================
-    console.log("--- TEST 5: Capturing Sign-Offs ---");
+    console.log("--- TEST 5: Capturing Sign-Offs & Testing Sign-Off Authorization ---");
+
+    // A. Salesperson attempting customer sign-off -> MUST FAIL 403
+    try {
+      await fsrService.customerSignOff(
+        fsrId,
+        {
+          customerContactName: "Unauthorized Contact",
+          customerSignature:
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        },
+        salesAuth,
+      );
+      console.error("❌ FAILED: Salesperson was able to execute customer sign-off!");
+    } catch (err: any) {
+      console.log(`✓ SUCCESS: Salesperson customer sign-off blocked with 403: ${err.message}`);
+    }
+
+    // B. Unassigned FSE attempting customer sign-off -> MUST FAIL 403
+    try {
+      await fsrService.customerSignOff(
+        fsrId,
+        {
+          customerContactName: "Unauthorized Contact",
+          customerSignature:
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        },
+        secondFseAuth,
+      );
+      console.error("❌ FAILED: Unassigned FSE was able to execute customer sign-off!");
+    } catch (err: any) {
+      console.log(`✓ SUCCESS: Unassigned FSE customer sign-off blocked with 403: ${err.message}`);
+    }
+
+    // C. Assigned FSE customer sign-off -> MUST SUCCEED
     const customerSigned = await fsrService.customerSignOff(
       fsrId,
       {
@@ -356,6 +435,39 @@ const runTest = async () => {
       `✓ Customer Sign-Off: ${customerSigned.fsr.customerContactName} (${customerSigned.fsr.customerSignature})`,
     );
 
+    // D. Salesperson attempting FSE sign-off -> MUST FAIL 403
+    try {
+      await fsrService.fseSignOff(
+        fsrId,
+        {
+          fseName: salesUser.fullName,
+          fseSignature:
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        },
+        salesAuth,
+      );
+      console.error("❌ FAILED: Salesperson was able to execute FSE sign-off!");
+    } catch (err: any) {
+      console.log(`✓ SUCCESS: Salesperson FSE sign-off blocked with 403: ${err.message}`);
+    }
+
+    // E. Unassigned FSE attempting FSE sign-off -> MUST FAIL 403
+    try {
+      await fsrService.fseSignOff(
+        fsrId,
+        {
+          fseName: secondFseUser.fullName,
+          fseSignature:
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        },
+        secondFseAuth,
+      );
+      console.error("❌ FAILED: Unassigned FSE was able to execute FSE sign-off!");
+    } catch (err: any) {
+      console.log(`✓ SUCCESS: Unassigned FSE FSE sign-off blocked with 403: ${err.message}`);
+    }
+
+    // F. Assigned FSE sign-off -> MUST SUCCEED
     const fseSigned = await fsrService.fseSignOff(
       fsrId,
       {
@@ -421,16 +533,37 @@ const runTest = async () => {
     );
 
     // ==========================================
-    // TEST 8: COMPLETE & CLOSE WORKFLOW
+    // TEST 8: COMPLETE & CLOSE WORKFLOW WITH AUTHORIZATION
     // ==========================================
     console.log("--- TEST 8: Completing & Closing FSR ---");
-    // Complete FSR (IN_PROGRESS -> COMPLETED)
-    const completedFsr = await fsrService.completeFsr(fsrId, adminAuth);
-    console.log(`✓ FSR Completed: Status = ${completedFsr.fsr.status}`);
 
-    // FSE cannot close -> MUST FAIL 403
+    // A. Salesperson attempting to complete FSR -> MUST FAIL 403
     try {
-      await fsrService.closeFsr(fsrId, fseAuth);
+      await fsrService.completeFsr(fsrId, salesAuth);
+      console.error("❌ FAILED: Salesperson was able to complete FSR!");
+    } catch (err: any) {
+      console.log(`✓ SUCCESS: Salesperson completion attempt blocked with 403: ${err.message}`);
+    }
+
+    // B. Former FSE (reassigned in TEST 7 to secondFseUser) attempting to complete -> MUST FAIL 403
+    try {
+      await fsrService.completeFsr(fsrId, fseAuth);
+      console.error("❌ FAILED: Unassigned engineer was able to complete FSR!");
+    } catch (err: any) {
+      console.log(`✓ SUCCESS: Unassigned engineer completion attempt blocked with 403: ${err.message}`);
+    }
+
+    // C. Assigned FSE (secondFseUser) completes FSR (IN_PROGRESS -> COMPLETED) -> MUST SUCCEED
+    const completedFsr = await fsrService.completeFsr(fsrId, secondFseAuth);
+    console.log(`✓ FSR Completed by assigned FSE: Status = ${completedFsr.fsr.status}`);
+
+    // D. Duplicate completion call -> MUST BE IDEMPOTENT AND SAFE
+    const idempotentFsr = await fsrService.completeFsr(fsrId, secondFseAuth);
+    console.log(`✓ Duplicate completion handled safely: Status = ${idempotentFsr.fsr.status}`);
+
+    // E. FSE cannot close -> MUST FAIL 403
+    try {
+      await fsrService.closeFsr(fsrId, secondFseAuth);
       console.error("❌ FAILED: FSE was able to close FSR!");
     } catch (err: any) {
       console.log(
@@ -438,9 +571,17 @@ const runTest = async () => {
       );
     }
 
-    // Admin closes (COMPLETED -> CLOSED)
+    // F. Admin closes (COMPLETED -> CLOSED) -> MUST SUCCEED
     const closedFsr = await fsrService.closeFsr(fsrId, adminAuth);
-    console.log(`✓ FSR Closed: Status = ${closedFsr.fsr.status}\n`);
+    console.log(`✓ FSR Closed by Admin: Status = ${closedFsr.fsr.status}`);
+
+    // G. Attempting to complete already CLOSED FSR -> MUST FAIL 400
+    try {
+      await fsrService.completeFsr(fsrId, adminAuth);
+      console.error("❌ FAILED: Complete allowed on CLOSED FSR!");
+    } catch (err: any) {
+      console.log(`✓ SUCCESS: Complete on CLOSED FSR blocked with 400: ${err.message}\n`);
+    }
 
     // ==========================================
     // TEST 9: ACTIVITY LOG AUDIT TRAIL

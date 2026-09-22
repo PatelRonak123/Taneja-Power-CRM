@@ -105,6 +105,7 @@ router.get('/:id/pdf', validateRequest(getFsrByIdSchema), fsrController.getPdf);
 // 11. Single FSR Read, Update & Delete
 router.get('/:id', validateRequest(getFsrByIdSchema), fsrController.getById);
 router.put('/:id', validateRequest(updateFsrSchema), fsrController.update);
+router.patch('/:id', validateRequest(updateFsrSchema), fsrController.update);
 router.delete(
   '/:id',
   requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
