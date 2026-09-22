@@ -1,121 +1,14 @@
 import { eq, ilike, or, and, desc, sql } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import { leads, leadActivityLogs, NewLeadEntity } from '../../../database/schema/leads.js';
+import { customers } from '../../../database/schema/customers.js';
+import { JwtPayload } from '../../../common/auth/jwt.js';
+import { AppError } from '../../../common/errors/AppError.js';
 import crypto from 'crypto';
 
-const INITIAL_SEED_LEADS = [
-  {
-    id: 'lead-4',
-    leadCode: 'LEAD-104',
-    customerName: 'Ananya Verma',
-    companyName: 'L&T Electrical',
-    email: 'ananya.v@lntelectrical.com',
-    phone: '+91 97411 88203',
-    address: 'Gate 5, Powai Campus, Mumbai, Maharashtra',
-    productInterested: 'Industrial Switchgear Panel',
-    expectedValue: '18500',
-    assignedExecutive: 'Nilesh Mehta',
-    priority: 'Medium',
-    status: 'New',
-    source: 'Exhibition',
-  },
-  {
-    id: 'lead-2',
-    leadCode: 'LEAD-102',
-    customerName: 'Aditya Roy',
-    companyName: 'Finolex Cables',
-    email: 'aditya.roy@finolex.com',
-    phone: '+91 98230 11492',
-    address: 'Plot 45, Pimpri Industrial Zone, Pune, Maharashtra',
-    productInterested: 'Winding Temperature Indicator (WTI)',
-    expectedValue: '6500',
-    assignedExecutive: 'Amit Patel',
-    priority: 'Low',
-    status: 'Meeting Scheduled',
-    source: 'Web',
-  },
-  {
-    id: 'lead-1',
-    leadCode: 'LEAD-101',
-    customerName: 'Rajesh Sharma',
-    companyName: 'Siemens Energy',
-    email: 'r.sharma@siemens-energy.com',
-    phone: '+91 91102 54311',
-    address: 'B-12 Technopark, Whitefield, Bengaluru, Karnataka',
-    productInterested: '100 KVA Power Transformer',
-    expectedValue: '45000',
-    assignedExecutive: 'Rahul Shah (Admin)',
-    priority: 'High',
-    status: 'Proposal Sent',
-    source: 'Referral',
-  },
-  {
-    id: 'lead-3',
-    leadCode: 'LEAD-103',
-    customerName: 'Divya Dutta',
-    companyName: 'CG Power',
-    email: 'divya.dutta@cgpower.in',
-    phone: '+91 96963 38224',
-    address: '231, MIDC Industrial Area, Phase 1, Pune, Maharashtra',
-    productInterested: 'Magnetic Oil Level Gauge (MOG)',
-    expectedValue: '9000',
-    assignedExecutive: 'Nilesh Mehta',
-    priority: 'Low',
-    status: 'Approved',
-    source: 'Web',
-    linkedClientId: 'CL-8092',
-  },
-  {
-    id: 'deal-101',
-    leadCode: 'DEAL-101',
-    customerName: 'Arjun Rampal',
-    companyName: 'ABB India',
-    email: 'arjun.r@abb.com',
-    phone: '+91 98110 22334',
-    address: 'Peenya Industrial Area, Bengaluru',
-    productInterested: 'Vacuum Circuit Breaker (VCB)',
-    expectedValue: '6630000',
-    assignedExecutive: 'Nilesh Mehta',
-    priority: 'Low',
-    status: 'Negotiation',
-    source: 'Web',
-  },
-  {
-    id: 'deal-102',
-    leadCode: 'DEAL-102',
-    customerName: 'Rajesh Rao',
-    companyName: 'Reliance Industries',
-    email: 'rajesh.rao@ril.com',
-    phone: '+91 99001 55443',
-    address: 'Jamnagar Refinery Complex, Gujarat',
-    productInterested: '500 KVA Power Transformer',
-    expectedValue: '7820000',
-    assignedExecutive: 'Amit Patel',
-    priority: 'High',
-    status: 'Approved',
-    source: 'Direct',
-  },
-  {
-    id: 'deal-103',
-    leadCode: 'DEAL-103',
-    customerName: 'Siddharth Malhotra',
-    companyName: 'Divis Laboratories',
-    email: 'siddharth@divislabs.com',
-    phone: '+91 97000 88776',
-    address: 'Cyberabad, Hyderabad, Telangana',
-    productInterested: 'Automatic Transfer Switch 400A',
-    expectedValue: '8830000',
-    assignedExecutive: 'Rahul Shah (Admin)',
-    priority: 'Low',
-    status: 'Completed',
-    source: 'Referral',
-  },
-];
-
 export class LeadRepository {
-  private async autoSeedIfEmpty() {
+  private async ensureSchema() {
     try {
-      // 1. Convert PostgreSQL column type for "id" to varchar(255) if previously created as uuid
       await db.execute(sql`
         DO $$ 
         BEGIN 
@@ -129,37 +22,38 @@ export class LeadRepository {
             ALTER TABLE lead_activity_logs ALTER COLUMN lead_id TYPE varchar(255);
             ALTER TABLE lead_activity_logs ADD CONSTRAINT lead_activity_logs_lead_id_leads_id_fk FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE;
           END IF;
+
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'leads' AND column_name = 'assigned_employee_id'
+          ) THEN
+            ALTER TABLE leads ADD COLUMN assigned_employee_id varchar(255);
+          END IF;
         END $$;
       `);
-
-      // 2. Auto-seed initial leads if table is empty
-      const existing = await db.select().from(leads).limit(1);
-      if (existing.length === 0) {
-        for (const item of INITIAL_SEED_LEADS) {
-          await db.insert(leads).values({
-            ...item,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }).onConflictDoNothing();
-
-          await db.insert(leadActivityLogs).values({
-            id: `act-${item.id}-init`,
-            leadId: item.id,
-            title: 'Lead Initialized in System',
-            date: new Date().toISOString().split('T')[0],
-            type: 'System',
-          }).onConflictDoNothing();
-        }
-      }
     } catch (err) {
-      console.warn('Lead autoSeedIfEmpty warning:', err);
+      console.warn('Lead ensureSchema warning:', err);
     }
   }
 
-  async findAll(filters: { search?: string; status?: string; priority?: string; assignee?: string }) {
-    await this.autoSeedIfEmpty();
+  async findAll(
+    filters: { search?: string; status?: string; priority?: string; assignee?: string },
+    user?: JwtPayload
+  ) {
+    await this.ensureSchema();
 
     const conditions = [];
+
+    // Server-side Ownership Scoping for Sales Employees (USER / SALES)
+    const isSalesRole = user && user.role !== 'ADMIN' && user.role !== 'MANAGER';
+    if (isSalesRole && user) {
+      conditions.push(
+        or(
+          eq(leads.assignedEmployeeId, user.userId),
+          ilike(leads.assignedExecutive, `%${user.userId}%`)
+        )
+      );
+    }
 
     if (filters.search) {
       conditions.push(
@@ -180,7 +74,7 @@ export class LeadRepository {
       conditions.push(eq(leads.priority, filters.priority));
     }
 
-    if (filters.assignee && filters.assignee !== 'ALL') {
+    if (!isSalesRole && filters.assignee && filters.assignee !== 'ALL') {
       conditions.push(eq(leads.assignedExecutive, filters.assignee));
     }
 
@@ -192,7 +86,6 @@ export class LeadRepository {
       .where(whereClause)
       .orderBy(desc(leads.createdAt));
 
-    // Fetch activity logs for each lead
     const result = await Promise.all(
       leadRecords.map(async (lead) => {
         const logs = await db
@@ -212,6 +105,7 @@ export class LeadRepository {
           productInterested: lead.productInterested || '',
           expectedValue: Number(lead.expectedValue) || 0,
           assignedExecutive: lead.assignedExecutive || 'Unassigned',
+          assignedEmployeeId: lead.assignedEmployeeId || undefined,
           priority: lead.priority,
           status: lead.status,
           source: lead.source,
@@ -229,10 +123,21 @@ export class LeadRepository {
     return result;
   }
 
-  async findById(id: string) {
-    await this.autoSeedIfEmpty();
+  async findById(id: string, user?: JwtPayload) {
+    await this.ensureSchema();
     const [leadRecord] = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
     if (!leadRecord) return null;
+
+    // Ownership check for Sales role
+    const isSalesRole = user && user.role !== 'ADMIN' && user.role !== 'MANAGER';
+    if (isSalesRole && user) {
+      const isOwner =
+        leadRecord.assignedEmployeeId === user.userId ||
+        (leadRecord.assignedExecutive && leadRecord.assignedExecutive.includes(user.userId));
+      if (!isOwner) {
+        return null;
+      }
+    }
 
     const logs = await db
       .select()
@@ -251,6 +156,7 @@ export class LeadRepository {
       productInterested: leadRecord.productInterested || '',
       expectedValue: Number(leadRecord.expectedValue) || 0,
       assignedExecutive: leadRecord.assignedExecutive || 'Unassigned',
+      assignedEmployeeId: leadRecord.assignedEmployeeId || undefined,
       priority: leadRecord.priority,
       status: leadRecord.status,
       source: leadRecord.source,
@@ -264,9 +170,121 @@ export class LeadRepository {
     };
   }
 
-  async create(data: NewLeadEntity) {
+  private async ensureCustomerForLead(data: {
+    customerName: string;
+    companyName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    linkedClientId?: string | null;
+  }): Promise<string | undefined> {
+    try {
+      // 1. If linkedClientId is passed, verify customer exists
+      if (data.linkedClientId && data.linkedClientId.trim() !== '') {
+        const [existing] = await db
+          .select()
+          .from(customers)
+          .where(eq(customers.id, data.linkedClientId.trim()))
+          .limit(1);
+        if (existing) {
+          await db
+            .update(customers)
+            .set({
+              name: data.customerName || existing.name,
+              companyName: data.companyName || existing.companyName,
+              phone: data.phone || existing.phone,
+              email: data.email || existing.email,
+              address: data.address || existing.address,
+              updatedAt: new Date(),
+            })
+            .where(eq(customers.id, existing.id));
+          return existing.id;
+        }
+      }
+
+      // 2. Try matching by email, phone, or name & companyName
+      const matchConditions = [];
+      if (data.email && data.email.trim() !== '') {
+        matchConditions.push(eq(customers.email, data.email.trim()));
+      }
+      if (data.phone && data.phone.trim() !== '') {
+        matchConditions.push(eq(customers.phone, data.phone.trim()));
+      }
+      if (data.customerName && data.customerName.trim() !== '') {
+        if (data.companyName && data.companyName.trim() !== '') {
+          matchConditions.push(
+            and(
+              ilike(customers.name, data.customerName.trim()),
+              ilike(customers.companyName, data.companyName.trim())
+            )
+          );
+        } else {
+          matchConditions.push(ilike(customers.name, data.customerName.trim()));
+        }
+      }
+
+      if (matchConditions.length > 0) {
+        const [found] = await db
+          .select()
+          .from(customers)
+          .where(or(...matchConditions))
+          .limit(1);
+
+        if (found) {
+          await db
+            .update(customers)
+            .set({
+              name: data.customerName || found.name,
+              companyName: data.companyName || found.companyName,
+              phone: data.phone || found.phone,
+              email: data.email || found.email,
+              address: data.address || found.address,
+              updatedAt: new Date(),
+            })
+            .where(eq(customers.id, found.id));
+          return found.id;
+        }
+      }
+
+      // 3. If no matching customer found, create a new Customer entry in customers table
+      if (data.customerName && data.customerName.trim() !== '') {
+        const [newCustomer] = await db
+          .insert(customers)
+          .values({
+            name: data.customerName.trim(),
+            companyName: data.companyName ? data.companyName.trim() : data.customerName.trim(),
+            email: data.email ? data.email.trim() : null,
+            phone: data.phone ? data.phone.trim() : null,
+            address: data.address ? data.address.trim() : null,
+            status: 'ACTIVE',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning();
+
+        return newCustomer.id;
+      }
+    } catch (err) {
+      console.warn('ensureCustomerForLead warning:', err);
+    }
+    return data.linkedClientId || undefined;
+  }
+
+  async create(data: NewLeadEntity, user?: JwtPayload) {
     const newId = data.id || `lead-${crypto.randomUUID()}`;
     const newCode = data.leadCode || `lead-${Math.floor(100 + Math.random() * 900)}`;
+
+    const isSalesRole = user && user.role !== 'ADMIN' && user.role !== 'MANAGER';
+    const assignedEmployeeId = isSalesRole && user ? user.userId : data.assignedEmployeeId;
+
+    const linkedClientId = await this.ensureCustomerForLead({
+      customerName: data.customerName,
+      companyName: data.companyName,
+      email: data.email,
+      phone: data.phone,
+      address: data.address,
+      linkedClientId: data.linkedClientId,
+    });
 
     const [created] = await db
       .insert(leads)
@@ -274,12 +292,13 @@ export class LeadRepository {
         ...data,
         id: newId,
         leadCode: newCode,
+        assignedEmployeeId,
+        linkedClientId: linkedClientId || data.linkedClientId,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       .returning();
 
-    // Add default creation activity log
     await db.insert(leadActivityLogs).values({
       id: `act-${created.id}-${Date.now()}`,
       leadId: created.id,
@@ -288,55 +307,80 @@ export class LeadRepository {
       type: 'System',
     });
 
-    return this.findById(created.id);
+    return this.findById(created.id, user);
   }
 
-  async update(id: string, data: Partial<NewLeadEntity>) {
-    await this.autoSeedIfEmpty();
+  async update(id: string, data: Partial<NewLeadEntity>, user?: JwtPayload) {
+    await this.ensureSchema();
+    const existingLead = await this.findById(id, user);
+
+    const isSalesRole = user && user.role !== 'ADMIN' && user.role !== 'MANAGER';
+    if (isSalesRole && !existingLead) {
+      throw AppError.forbidden('Access denied: You can only update leads assigned to you');
+    }
+
+    const payload = { ...data };
+    if (isSalesRole) {
+      delete payload.assignedEmployeeId;
+      delete payload.assignedExecutive;
+    }
+
+    const linkedClientId = await this.ensureCustomerForLead({
+      customerName: payload.customerName || existingLead?.customerName || '',
+      companyName: payload.companyName || existingLead?.companyName,
+      email: payload.email || existingLead?.email,
+      phone: payload.phone || existingLead?.phone,
+      address: payload.address || existingLead?.address,
+      linkedClientId: payload.linkedClientId || existingLead?.linkedClientId,
+    });
+
     const existing = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
 
     if (existing.length === 0) {
-      // Upsert: Create lead record if missing
-      const newCode = data.leadCode || `lead-${Math.floor(100 + Math.random() * 900)}`;
+      const newCode = payload.leadCode || `lead-${Math.floor(100 + Math.random() * 900)}`;
       await db.insert(leads).values({
         id,
         leadCode: newCode,
-        customerName: data.customerName || 'New Client',
-        companyName: data.companyName || 'Company',
-        email: data.email || '',
-        phone: data.phone || '',
-        address: data.address || '',
-        productInterested: data.productInterested || 'Equipment',
-        expectedValue: data.expectedValue || '0',
-        assignedExecutive: data.assignedExecutive || 'Nilesh Mehta',
-        priority: data.priority || 'Medium',
-        status: data.status || 'New',
-        source: data.source || 'Web',
-        linkedClientId: data.linkedClientId,
+        customerName: payload.customerName || 'New Client',
+        companyName: payload.companyName || 'Company',
+        email: payload.email || '',
+        phone: payload.phone || '',
+        address: payload.address || '',
+        productInterested: payload.productInterested || 'Equipment',
+        expectedValue: payload.expectedValue || '0',
+        assignedExecutive: payload.assignedExecutive || 'Unassigned',
+        assignedEmployeeId: user?.userId,
+        priority: payload.priority || 'Medium',
+        status: payload.status || 'New',
+        source: payload.source || 'Web',
+        linkedClientId: linkedClientId || payload.linkedClientId,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
     } else {
       await db
         .update(leads)
-        .set({ ...data, updatedAt: new Date() })
+        .set({
+          ...payload,
+          linkedClientId: linkedClientId || payload.linkedClientId,
+          updatedAt: new Date(),
+        })
         .where(eq(leads.id, id));
     }
 
-    // Log update activity
     await db.insert(leadActivityLogs).values({
       id: `act-${id}-${Date.now()}`,
       leadId: id,
-      title: `Lead status updated to ${data.status || 'modified'}`,
+      title: `Lead status updated to ${payload.status || 'modified'}`,
       date: new Date().toISOString().split('T')[0],
       type: 'System',
     });
 
-    return this.findById(id);
+    return this.findById(id, user);
   }
 
-  async getPipelineData() {
-    const allLeads = await this.findAll({});
+  async getPipelineData(user?: JwtPayload) {
+    const allLeads = await this.findAll({}, user);
 
     const STAGES = [
       { id: 'NEW LEADS', title: 'NEW LEADS', statusKeys: ['NEW', 'NEW LEADS'] },
@@ -369,8 +413,27 @@ export class LeadRepository {
     });
   }
 
-  async delete(id: string) {
+  async delete(id: string, user?: JwtPayload) {
+    const isSalesRole = user && user.role !== 'ADMIN' && user.role !== 'MANAGER';
+    if (isSalesRole) {
+      throw AppError.forbidden('You do not have permission to delete lead records');
+    }
     await db.delete(leads).where(eq(leads.id, id));
     return true;
+  }
+
+  async addActivityLog(id: string, activity: { title: string; type?: string }, user?: JwtPayload) {
+    const lead = await this.findById(id, user);
+    if (!lead) {
+      throw AppError.forbidden('Access denied: Cannot add activity to this lead');
+    }
+    await db.insert(leadActivityLogs).values({
+      id: `act-${id}-${Date.now()}`,
+      leadId: id,
+      title: activity.title,
+      date: new Date().toISOString().split('T')[0],
+      type: activity.type || 'User',
+    });
+    return this.findById(id, user);
   }
 }

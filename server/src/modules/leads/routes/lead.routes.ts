@@ -22,5 +22,6 @@ router.post('/', validateRequest(createLeadSchema), controller.create);
 router.get('/:id', validateRequest(getLeadByIdSchema), controller.getById);
 router.put('/:id', validateRequest(updateLeadSchema), controller.update);
 router.delete('/:id', validateRequest(deleteLeadSchema), controller.delete);
+router.post('/:id/activity', controller.addActivity);
 
 export default router;

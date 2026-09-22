@@ -5,13 +5,13 @@
 
 ## 1. Executive Summary & Vision
 
-**Taneja Power CRM** is an enterprise-grade platform combining Customer Relationship Management (CRM), an authoritative Commercial & Technical Quotation Engine, Multi-Facility Field Workforce Telemetry, and Heavy Equipment Service Operations.
+**Taneja Power CRM** is an enterprise-grade platform combining Customer Relationship Management (CRM), an authoritative Commercial & Technical Quotation Engine, Multi-Facility Field Workforce Telemetry, Heavy Equipment Field Service Operations, Annual Maintenance Contracts (AMC), and WhatsApp Customer Engagement.
 
 The system is tailored for industrial heavy engineering, power generation, substations, and energy equipment manufacturing. It unifies:
 
-- **Enterprise Web Portal (`client/`)**: Modern React 19 web application for Executives, Sales Engineers, and Operations Managers to create quotations, manage revisions, trigger approval workflows, stream PDFs, dispatch field engineers, and monitor telemetry.
-- **RESTful API & Calculation Engine (`server/`)**: Robust Express TypeScript backend with Drizzle ORM, authoritative multi-tier GST tax engines, sequential numbering services, and vector PDF generation pipelines.
-- **Field Workforce Mobile App (`sales-app/`)**: Native mobile application for field engineers and sales representatives to execute dispatches, capture GPS attendance, and view facility destination specs.
+- **Enterprise Web Portal (`client/`)**: Modern React 19 web application for Executives, Sales Engineers, Operations Managers, and Field Supervisors to create quotations, manage AMC revisions, trigger multi-tier approval workflows, stream vector PDFs, dispatch field engineers, track service reports, and monitor telemetry.
+- **RESTful API & Calculation Engine (`server/`)**: Robust Express TypeScript backend with Drizzle ORM, PostgreSQL database, authoritative multi-tier GST tax engines, sequential numbering services, vector PDF generation pipelines, and WhatsApp integration gateway.
+- **Field Workforce Mobile App (`sales-app/`)**: Native mobile application built with React Native and Expo Router for field engineers and sales representatives to execute service dispatches, capture GPS attendance, manage customer visits, and complete field engineering reports.
 
 ---
 
@@ -20,20 +20,21 @@ The system is tailored for industrial heavy engineering, power generation, subst
 ```mermaid
 graph TD
     UserWeb["Admin & Sales Web Portal (React 19 + TypeScript + Vite)"] --> API["Node.js / Express TypeScript Server"]
-    UserMobile["Field Engineers Mobile App (React Native / Expo)"] --> API
+    UserMobile["Field Engineers Mobile App (React Native + Expo Router)"] --> API
     API --> DB[("PostgreSQL Database (via Drizzle ORM)")]
     API --> PDFKit["PDFKit Vector Document Engine"]
     API --> Geocode["Google Places + Nominatim / Photon Geocoder"]
-    API --> WhatsApp["WhatsApp Notification Gateway"]
+    API --> WhatsApp["WhatsApp Notification Gateway API"]
 ```
 
 ### Core Technologies
-- **Web Frontend**: React 19, TypeScript, Vite, Tailwind CSS, Lucide Icons, TanStack Query (React Query v5), Zustand, React Router v6.
+- **Web Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, Lucide Icons, TanStack Query (React Query v5), Zustand, React Router v6.
 - **Backend Server**: Node.js, Express.js, TypeScript, Drizzle ORM, PostgreSQL (`pg`), Zod validation schemas.
 - **Document Engine**: PDFKit with dynamic page buffering, multi-page layout engine, and vector graphic formatting.
 - **Geocoding & Maps**: Multi-tier pipeline combining Google Places API with OpenStreetMap Nominatim and Komoot Photon fallback engines.
-- **Mobile Sales App**: React Native, Expo, TypeScript, React Navigation, Geolocation API.
-- **Authentication**: JWT-based session tokens with role-based access control (`ADMIN`, `MANAGER`, `SALES`, `ENGINEER`).
+- **Mobile Sales App**: React Native, Expo (SDK 52), Expo Router v4, TypeScript, Geolocation API.
+- **Messaging Gateway**: WhatsApp API gateway for automated notification dispatch and proposal link delivery.
+- **Authentication**: JWT access tokens + HTTP-only Refresh Token rotation with Role-Based Access Control (`ADMIN`, `MANAGER`, `SALES`, `ENGINEER`).
 
 ---
 
@@ -49,6 +50,7 @@ sequenceDiagram
     participant API as Backend Server
     participant DB as PostgreSQL Database
     participant PDF as PDFKit Engine
+    participant WA as WhatsApp Gateway
 
     Note over Sales, Web: 1. Quotation Drafting
     Sales->>Web: Create Quotation (Select Customer, Destination Site & Line Items)
@@ -65,12 +67,14 @@ sequenceDiagram
     Web->>API: POST /api/v1/quotations/:id/revisions/1/approve
     API->>DB: Record Approval Audit Log (Approver ID & Timestamp)
 
-    Note over Sales, Cust: 3. PDF Dispatch & Print
-    Sales->>Web: Preview PDF / Download
+    Note over Sales, Cust: 3. PDF & WhatsApp Dispatch
+    Sales->>Web: Preview PDF / Send WhatsApp Notification
     Web->>API: GET /api/v1/quotations/:id/pdf
     API->>PDF: Generate A4 Vector Document with Authoritative Snapshot
     PDF-->>Web: Stream PDF Binary
-    Web->>Cust: Issue Official PDF Proposal to Customer
+    Web->>API: POST /api/v1/whatsapp/send-quote
+    API->>WA: Send Official Quotation Link to Customer Phone
+    WA-->>Cust: Issue Official PDF Proposal & Alert to Customer
 ```
 
 ---
@@ -134,43 +138,96 @@ sequenceDiagram
 
 ---
 
+### 4.6. Annual Maintenance Contracts (AMC)
+- **Contract Lifecycle**: Draft, Active, Expiring, Renewed, Cancelled contracts tracking.
+- **Service Schedule Management**: Automatic generation of routine maintenance visits (Quarterly, Semi-Annual, Annual).
+- **Asset Coverage Catalog**: Specific equipment serial numbers, generator ratings, and transformer capacities covered under contract.
+- **Expiration Alerts**: Automated dashboard reminders for contracts nearing renewal dates.
+
+---
+
+### 4.7. Field Service Engineering Operations
+- **On-Site Service Job Management**: Breakdown service requests, preventive maintenance visits, and installation commissioning dispatches.
+- **Field Engineering Reports**: Digital job cards capturing fault diagnosis, replaced spares, technician observations, and customer sign-off.
+- **Mobile Integration**: Service engineers access assigned field service orders directly on the mobile app (`sales-app`).
+
+---
+
+### 4.8. WhatsApp Notification Gateway
+- **Automated Messaging**: Dispatch quotation preview links, approval alerts, and appointment reminders directly to customer phone numbers.
+- **Delivery Status Logs**: Server-side tracking of message delivery status and dispatch logs.
+
+---
+
+### 4.9. Enterprise Authentication & Security
+- **JWT & Session Security**: Short-lived access tokens coupled with secure refresh token rotation (`refreshTokens` database table).
+- **Role-Based Authorization**: Strict route guards enforcing `ADMIN`, `MANAGER`, `SALES`, and `ENGINEER` permissions on both frontend and backend API.
+- **Customizable Auth UI**: High-contrast modern interface with brand showcase panel and quick role access toggles.
+
+---
+
 ## 5. Directory Structure & Key Code References
 
 ```
 Taneja-Power-CRM/
-├── client/                               # Admin & Sales Web Portal (React 19 + TS)
+├── client/                               # Enterprise Web Portal (React 19 + TS + Vite)
 │   ├── public/logo.png                   # Official Company Logo Asset
 │   └── src/
 │       ├── app/                          # API Client, Router, Config
 │       ├── components/                   # Shared UI Components (Header, Sidebar, Modals)
 │       └── features/
-│           ├── quotations/               # Complete Quotation Subsystem
-│           │   ├── components/           # QuotationForm, Table, RevisionViewer, PDFModal, PrintDoc
-│           │   ├── pages/                # ListPage, CreatePage, EditPage, DetailPage
-│           │   ├── services/             # quotationService.ts (API client)
-│           │   └── types/                # quotation.types.ts (Domain models)
-│           ├── customers/                # Customer Directory & DestinationModal.tsx
+│           ├── admin/                    # Admin Dashboard & User Operations
+│           ├── amc-contracts/            # AMC Management & Service Visit Schedules
+│           ├── attendance/               # Employee GPS Attendance & Shift Logs
+│           ├── auth/                     # Authentication, Login Page & Brand Panel
+│           ├── customers/                # Customer Directory & Destination Modals
+│           ├── employee/                 # Employee Views & Shift Controls
+│           ├── field-service/            # Field Service Job Cards & Reports
+│           ├── leads/                    # Sales Opportunities & Kanban Pipeline
 │           ├── products/                 # Product Catalog & Price Master
-│           ├── tasks/                    # Field Work Orders & Live Tracking
-│           ├── attendance/               # Attendance & GPS Logs
-│           └── leads/                    # Sales Pipeline & Kanban
-├── server/                               # Backend REST API Server (Node.js + TS)
-│   ├── drizzle/                          # Drizzle SQL Migrations
+│           ├── profile/                  # User Profile & Security Settings
+│           ├── quotations/               # Complete Commercial & Technical Quotation Engine
+│           ├── tasks/                    # Work Order Dispatches & Live Telemetry Tracking
+│           └── whatsapp/                 # WhatsApp Notification Dispatch Gateway
+├── server/                               # Backend REST API Server (Node.js + TS + Express)
+│   ├── drizzle/                          # Drizzle SQL Migrations & Snapshots
 │   └── src/
 │       ├── database/
-│       │   ├── schema/                   # Drizzle Schemas (quotations.ts, customers.ts, etc.)
+│       │   ├── schema/                   # Drizzle ORM Database Schemas
+│       │   │   ├── amc-contracts.ts      # AMC Contracts & Service Schedules
+│       │   │   ├── attendance.ts         # Attendance & GPS Coordinates
+│       │   │   ├── customers.ts          # Customers & Destinations
+│       │   │   ├── field-service.ts      # Service Orders & Spares Logs
+│       │   │   ├── leads.ts              # Sales Deals Pipeline
+│       │   │   ├── products.ts           # Product Master Catalog
+│       │   │   ├── quotations.ts         # Quotations, Revisions & Line Items
+│       │   │   ├── refreshTokens.ts      # Auth Refresh Tokens
+│       │   │   ├── tasks.ts              # Work Orders & Dispatch Tasks
+│       │   │   └── users.ts              # Users & Role Authorization
 │       │   └── test-quotation-pdf.ts     # Automated PDF Unit & Integration Test Suite
 │       └── modules/
-│           ├── quotations/               # Quotation Backend Module
-│           │   ├── controllers/          # quotation.controller.ts
-│           │   ├── routes/               # quotation.routes.ts
-│           │   ├── services/             # calculation, number, pdf, and quotation services
-│           │   └── validators/           # quotation.validator.ts (Zod schemas)
-│           ├── customers/                # Customer & Destination Services
-│           ├── products/                 # Product Catalog API
+│           ├── amc-contracts/            # AMC Business Logic & Routes
+│           ├── attendance/               # Attendance & GPS Logs Controller
+│           ├── auth/                     # JWT Authentication & Role Guards
+│           ├── customers/                # Customer & Facility Destination Services
+│           ├── employees/                # Employee Management API
+│           ├── field-service/            # Field Engineering Service Module
 │           ├── geocoding/                # Multi-Provider Geocoding Orchestrator
-│           └── tasks/                    # Field Workforce Dispatch Module
-└── sales-app/                            # Mobile Sales & Field Engineer App (Expo)
+│           ├── leads/                    # Leads & Sales Pipeline API
+│           ├── products/                 # Product Catalog API
+│           ├── quotations/               # Commercial Quotation Module & PDF Engine
+│           ├── tasks/                    # Work Order & Telemetry Dispatch Services
+│           └── whatsapp/                 # WhatsApp Gateway Integration Module
+└── sales-app/                            # Field Engineer & Sales Representative Mobile App (Expo)
+    ├── app/                              # Expo Router v4 File-based Route Handlers
+    │   ├── (app)/                        # Authenticated App Tab Routes
+    │   │   ├── (tabs)/                   # Home, Customer, Service & Task Tabs
+    │   │   ├── attendance/               # Mobile GPS Attendance Clock
+    │   │   ├── customers/                # Customer Site Details & Map View
+    │   │   ├── field-service/            # On-site Engineering Job Cards
+    │   │   └── tasks/                    # Assigned Dispatches & Route Telemetry
+    │   └── (auth)/                       # Mobile Authentication Screens
+    └── src/                              # Shared Mobile Services, API Clients, Theme & Hooks
 ```
 
 ---

@@ -45,4 +45,14 @@ export const leadsApi = {
       throw error;
     }
   },
+
+  addLeadActivity: async (id: string, activity: { title: string; type?: string; author?: string }): Promise<any> => {
+    try {
+      const response = await apiClient.post<any, any>(`/leads/${id}/activity`, activity);
+      return response?.data || response;
+    } catch (error) {
+      console.warn('Backend add lead activity endpoint fallback:', error);
+      return null;
+    }
+  },
 };

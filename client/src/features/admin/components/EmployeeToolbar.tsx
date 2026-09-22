@@ -62,7 +62,7 @@ export const EmployeeToolbar: React.FC<EmployeeToolbarProps> = ({
             <option value="ALL">All Roles</option>
             <option value="ADMIN">ADMIN</option>
             <option value="MANAGER">MANAGER</option>
-            <option value="USER">USER</option>
+            <option value="USER">USER (Sales Exec / Rep)</option>
           </select>
         </div>
 

@@ -10,7 +10,7 @@ export const LoginBrandPanel: React.FC = () => {
 
       {/* Brand Header */}
       <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-blue-600/15 border border-blue-500/20 p-2.5 flex items-center justify-center shadow-lg shadow-blue-900/30">
+        <div className="w-12 h- rounded- bg-blue-600/15 border border-blue-500/20  flex items-center justify-center shadow-lg shadow-blue-900/30">
           <img
             src="/logo.png"
             alt="Taneja Power Logo"

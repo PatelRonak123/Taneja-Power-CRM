@@ -22,20 +22,15 @@ export const AppRouter: React.FC = () => {
         navigate(defaultHomePath);
       } else if (
         (currentPath === '/admin/dashboard' ||
+          currentPath === '/admin' ||
           currentPath === '/employees' ||
           currentPath === '/admin/employees' ||
-          currentPath === '/customers' ||
-          currentPath === '/admin/customers' ||
-          currentPath === '/leads' ||
-          currentPath === '/admin/leads' ||
-          currentPath === '/pipeline' ||
-          currentPath === '/admin/pipeline' ||
-          currentPath === '/tasks' ||
-          currentPath === '/admin/tasks' ||
           currentPath === '/admin/whatsapp' ||
           currentPath === '/whatsapp' ||
           currentPath === '/reports' ||
-          currentPath === '/admin/reports') &&
+          currentPath === '/admin/reports' ||
+          currentPath === '/analytics' ||
+          currentPath === '/settings') &&
         user?.role !== 'ADMIN'
       ) {
         navigate('/employee/dashboard');

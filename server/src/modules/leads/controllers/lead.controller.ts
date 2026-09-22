@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { LeadService } from '../services/lead.service.js';
 import { sendResponse } from '../../../common/utils/responseEnvelope.js';
+import { AppError } from '../../../common/errors/AppError.js';
+import { hasPermission } from '../../../common/auth/permissions.js';
 
 export class LeadController {
   private service = new LeadService();
@@ -14,7 +16,10 @@ export class LeadController {
         assignee?: string;
       };
 
-      const leadsList = await this.service.listLeads({ search, status, priority, assignee });
+      const leadsList = await this.service.listLeads(
+        { search, status, priority, assignee },
+        req.user
+      );
       sendResponse(res, 200, leadsList, 'Leads retrieved successfully');
     } catch (error) {
       next(error);
@@ -24,7 +29,7 @@ export class LeadController {
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;
-      const lead = await this.service.getLeadById(id);
+      const lead = await this.service.getLeadById(id, req.user);
       sendResponse(res, 200, lead, 'Lead details retrieved successfully');
     } catch (error) {
       next(error);
@@ -33,7 +38,7 @@ export class LeadController {
 
   create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const newLead = await this.service.createLead(req.body);
+      const newLead = await this.service.createLead(req.body, req.user);
       sendResponse(res, 201, newLead, 'Lead created successfully');
     } catch (error) {
       next(error);
@@ -43,16 +48,16 @@ export class LeadController {
   update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;
-      const updatedLead = await this.service.updateLead(id, req.body);
+      const updatedLead = await this.service.updateLead(id, req.body, req.user);
       sendResponse(res, 200, updatedLead, 'Lead updated successfully');
     } catch (error) {
       next(error);
     }
   };
 
-  getPipeline = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getPipeline = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const pipelineData = await this.service.getPipeline();
+      const pipelineData = await this.service.getPipeline(req.user);
       sendResponse(res, 200, pipelineData, 'Pipeline data retrieved successfully');
     } catch (error) {
       next(error);
@@ -62,8 +67,21 @@ export class LeadController {
   delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;
-      await this.service.deleteLead(id);
+      if (!req.user || !hasPermission(req.user.role, 'leads:delete')) {
+        throw AppError.forbidden('You do not have permission to delete lead records');
+      }
+      await this.service.deleteLead(id, req.user);
       sendResponse(res, 200, { success: true }, 'Lead deleted successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  addActivity = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const activity = await this.service.addActivity(id, req.body, req.user);
+      sendResponse(res, 201, activity, 'Activity added successfully');
     } catch (error) {
       next(error);
     }

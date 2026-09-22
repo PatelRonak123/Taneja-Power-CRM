@@ -36,17 +36,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
     }
   };
 
-  const fillDemo = (role: 'admin' | 'employee') => {
-    if (role === 'admin') {
-      setEmail('admin@tanejapower.com');
-      setPassword('Admin@123456');
-    } else {
-      setEmail('employee@tanejapower.com');
-      setPassword('Employee@123456');
-    }
-    setError(null);
-  };
-
   const disabled = isSubmitting || isLoading;
 
   return (
@@ -131,33 +120,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
             <span>Sign In to System</span>
           )}
         </button>
-
-        {/* Quick Demo Credentials Access */}
-        <div className="p-4 bg-slate-950/70 border border-slate-800/80 rounded-2xl flex flex-col gap-3 mt-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quick Demo Access</span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors cursor-pointer active:scale-95"
-                onClick={() => fillDemo('admin')}
-              >
-                Admin
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors cursor-pointer active:scale-95"
-                onClick={() => fillDemo('employee')}
-              >
-                User
-              </button>
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-xs font-mono text-slate-400 bg-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-800">
-            <span>admin@tanejapower.com</span>
-            <span className="font-semibold text-slate-200">Admin@123456</span>
-          </div>
-        </div>
       </form>
     </div>
   );

@@ -7,18 +7,48 @@ import {
   Pencil,
   Trash2,
   ArrowUpDown,
+  Download,
+  TrendingUp,
+  DollarSign,
+  CheckCircle2,
+  AlertCircle,
+  UserCheck,
 } from 'lucide-react';
 import { Lead } from '../types/lead';
-import { initialLeads } from '../data/initialLeads';
 import { LeadDrawer } from '../components/LeadDrawer';
 import { leadsApi } from '../api/leadsApi';
+import { useAuthStore } from '../../../stores/authStore';
+import { employeeService } from '../../admin/services/employeeService';
+import { Employee } from '../../admin/types/employee.types';
 
 export const LeadManagementPage: React.FC = () => {
-  const [leads, setLeads] = useState<Lead[]>(initialLeads);
+  const { user } = useAuthStore();
+  const isAdminOrManager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedPriority, setSelectedPriority] = useState<string>('ALL');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('ALL');
+  const [viewScope, setViewScope] = useState<'ALL' | 'MY'>('ALL');
+
+  useEffect(() => {
+    const loadEmployees = async () => {
+      try {
+        const res = await employeeService.getEmployees();
+        const empList = Array.isArray(res) ? res : (res as any)?.data || [];
+        if (Array.isArray(empList) && empList.length > 0) {
+          setEmployees(empList);
+        }
+      } catch (err) {
+        console.warn('Failed to load employee list:', err);
+      }
+    };
+    if (isAdminOrManager) {
+      loadEmployees();
+    }
+  }, [isAdminOrManager]);
 
   // Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -64,9 +94,73 @@ export const LeadManagementPage: React.FC = () => {
       const matchesAssignee =
         selectedAssignee === 'ALL' || lead.assignedExecutive === selectedAssignee;
 
-      return matchesSearch && matchesStatus && matchesPriority && matchesAssignee;
+      const matchesScope =
+        viewScope === 'ALL' ||
+        (user?.fullName &&
+          lead.assignedExecutive?.toLowerCase().includes(user.fullName.toLowerCase()));
+
+      return matchesSearch && matchesStatus && matchesPriority && matchesAssignee && matchesScope;
     });
-  }, [leads, searchQuery, selectedStatus, selectedPriority, selectedAssignee]);
+  }, [leads, searchQuery, selectedStatus, selectedPriority, selectedAssignee, viewScope, user]);
+
+  // Key Stats Calculations
+  const stats = useMemo(() => {
+    const totalCount = leads.length;
+    const totalPipelineValue = leads.reduce((sum, l) => sum + (l.expectedValue || 0), 0);
+    const wonLeads = leads.filter((l) =>
+      ['APPROVED', 'COMPLETED', 'APPROVED/PO'].includes((l.status || '').toUpperCase())
+    );
+    const wonValue = wonLeads.reduce((sum, l) => sum + (l.expectedValue || 0), 0);
+    const winRate = totalCount > 0 ? Math.round((wonLeads.length / totalCount) * 100) : 0;
+    const urgentCount = leads.filter((l) =>
+      ['HIGH', 'URGENT'].includes((l.priority || '').toUpperCase())
+    ).length;
+
+    return { totalCount, totalPipelineValue, wonValue, winRate, urgentCount };
+  }, [leads]);
+
+  // CSV Export helper
+  const handleExportCsv = () => {
+    if (filteredLeads.length === 0) return;
+    const headers = [
+      'ID',
+      'Customer Name',
+      'Company Name',
+      'Email',
+      'Phone',
+      'Product Interested',
+      'Expected Value (INR)',
+      'Assigned Executive',
+      'Priority',
+      'Status',
+      'Source',
+    ];
+
+    const rows = filteredLeads.map((l) => [
+      l.id,
+      `"${(l.customerName || '').replace(/"/g, '""')}"`,
+      `"${(l.companyName || '').replace(/"/g, '""')}"`,
+      l.email || '',
+      l.phone || '',
+      `"${(l.productInterested || '').replace(/"/g, '""')}"`,
+      l.expectedValue || 0,
+      `"${(l.assignedExecutive || '').replace(/"/g, '""')}"`,
+      l.priority,
+      l.status,
+      l.source || '',
+    ]);
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Drawer Action Triggers
   const handleOpenView = (lead: Lead) => {
@@ -88,6 +182,11 @@ export const LeadManagementPage: React.FC = () => {
   };
 
   const handleDeleteLead = async (id: string, name: string) => {
+    if (!isAdminOrManager) {
+      alert('Access Restricted: Only Managers or Admins can delete lead records.');
+      return;
+    }
+
     if (window.confirm(`Are you sure you want to delete lead for "${name}"?`)) {
       try {
         await leadsApi.deleteLead(id);
@@ -164,7 +263,7 @@ export const LeadManagementPage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-16 select-none">
-      
+
       {/* Top Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
@@ -172,25 +271,127 @@ export const LeadManagementPage: React.FC = () => {
             <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
               LEADS PIPELINE
             </span>
+            {user && (
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">
+                User: {user.fullName} ({user.role})
+              </span>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
             Lead Management
           </h1>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
-        >
-          <Plus size={18} />
-          <span>Add New Lead</span>
-        </button>
+
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={filteredLeads.length === 0}
+            className="px-3.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200/90 text-slate-700 font-bold text-xs sm:text-sm rounded-xl shadow-2xs hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            title="Download CSV report of current leads list"
+          >
+            <Download size={16} />
+            <span>Export CSV</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Plus size={18} />
+            <span>Add New Lead</span>
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Stats Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col gap-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Total Leads</span>
+            <Building2 size={16} className="text-blue-500" />
+          </div>
+          <span className="text-xl font-bold text-slate-900">{stats.totalCount}</span>
+          <span className="text-[11px] text-slate-400 font-medium">In CRM Database</span>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col gap-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Pipeline Value</span>
+            <DollarSign size={16} className="text-emerald-500" />
+          </div>
+          <span className="text-xl font-bold text-slate-900">
+            ₹{(stats.totalPipelineValue / 100000).toFixed(1)}L
+          </span>
+          <span className="text-[11px] text-slate-400 font-medium">Expected revenue</span>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col gap-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Won Revenue</span>
+            <CheckCircle2 size={16} className="text-purple-500" />
+          </div>
+          <span className="text-xl font-bold text-emerald-600">
+            ₹{(stats.wonValue / 100000).toFixed(1)}L
+          </span>
+          <span className="text-[11px] text-slate-400 font-medium">Approved / Closed</span>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col gap-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Win Rate</span>
+            <TrendingUp size={16} className="text-amber-500" />
+          </div>
+          <span className="text-xl font-bold text-slate-900">{stats.winRate}%</span>
+          <span className="text-[11px] text-slate-400 font-medium">Conversion ratio</span>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col gap-1 col-span-2 sm:col-span-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider">High Priority</span>
+            <AlertCircle size={16} className="text-rose-500" />
+          </div>
+          <span className="text-xl font-bold text-rose-600">{stats.urgentCount}</span>
+          <span className="text-[11px] text-slate-400 font-medium">Urgent / High deals</span>
+        </div>
       </div>
 
       {/* Filter Toolbar Box */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-wrap items-center gap-3">
+        {/* View Scope Tabs ("All Leads" vs "My Leads") */}
+        {isAdminOrManager ? (
+          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/80 shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewScope('ALL')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewScope === 'ALL'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800'
+                }`}
+            >
+              All Leads
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewScope('MY')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${viewScope === 'MY'
+                ? 'bg-white text-blue-600 shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800'
+                }`}
+            >
+              <UserCheck size={13} />
+              <span>My Leads</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-bold shrink-0">
+            <UserCheck size={14} className="mr-1.5" />
+            <span>My Leads</span>
+          </div>
+        )}
+
         {/* Search Field */}
-        <div className="relative flex-1 min-w-[240px]">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
             type="text"
@@ -233,17 +434,29 @@ export const LeadManagementPage: React.FC = () => {
           <option value="URGENT">Urgent</option>
         </select>
 
-        {/* Assignee Filter */}
-        <select
-          className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
-          value={selectedAssignee}
-          onChange={(e) => setSelectedAssignee(e.target.value)}
-        >
-          <option value="ALL">All Assignees</option>
-          <option value="Nilesh Mehta">Nilesh Mehta</option>
-          <option value="Amit Patel">Amit Patel</option>
-          <option value="Rahul Shah (Admin)">Rahul Shah (Admin)</option>
-        </select>
+        {/* Assignee Filter (Only for Admin/Manager) */}
+        {isAdminOrManager && (
+          <select
+            className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+            value={selectedAssignee}
+            onChange={(e) => setSelectedAssignee(e.target.value)}
+          >
+            <option value="ALL">All Assignees</option>
+            {employees.length > 0 ? (
+              employees.map((emp) => (
+                <option key={emp.id} value={emp.fullName}>
+                  {emp.fullName}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="Nilesh Mehta">Nilesh Mehta</option>
+                <option value="Amit Patel">Amit Patel</option>
+                <option value="Rahul Shah (Admin)">Rahul Shah (Admin)</option>
+              </>
+            )}
+          </select>
+        )}
       </div>
 
       {/* Leads Table Container */}
@@ -353,14 +566,16 @@ export const LeadManagementPage: React.FC = () => {
                         >
                           <Pencil size={16} />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteLead(lead.id, lead.customerName)}
-                          title="Delete Lead"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer border border-transparent hover:border-rose-200"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {isAdminOrManager && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteLead(lead.id, lead.customerName)}
+                            title="Delete Lead"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer border border-transparent hover:border-rose-200"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
