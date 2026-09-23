@@ -12,6 +12,8 @@ interface ProductTableProps {
   onEdit: (product: Product) => void;
   onDelete: (id: string) => void;
   onDeployFirst?: () => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export const ProductTable: React.FC<ProductTableProps> = ({
@@ -19,6 +21,8 @@ export const ProductTable: React.FC<ProductTableProps> = ({
   onEdit,
   onDelete,
   onDeployFirst,
+  canEdit = true,
+  canDelete = true,
 }) => {
   if (products.length === 0) {
     return (
@@ -108,24 +112,28 @@ export const ProductTable: React.FC<ProductTableProps> = ({
 
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                        onClick={() => onEdit(product)}
-                      >
-                        <Pencil size={13} />
-                        <span>Edit</span>
-                      </button>
-                      <button
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors cursor-pointer"
-                        onClick={() => {
-                          if (confirm(`Are you sure you want to delete ${product.name}?`)) {
-                            onDelete(product.id);
-                          }
-                        }}
-                      >
-                        <Trash2 size={13} />
-                        <span>Delete</span>
-                      </button>
+                      {canEdit && (
+                        <button
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                          onClick={() => onEdit(product)}
+                        >
+                          <Pencil size={13} />
+                          <span>Edit</span>
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors cursor-pointer"
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete ${product.name}?`)) {
+                              onDelete(product.id);
+                            }
+                          }}
+                        >
+                          <Trash2 size={13} />
+                          <span>Delete</span>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

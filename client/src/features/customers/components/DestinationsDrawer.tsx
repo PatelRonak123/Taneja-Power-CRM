@@ -22,6 +22,7 @@ interface DestinationsDrawerProps {
   onEditDestination: (destination: CustomerDestination) => void;
   onDeleteDestination: (destination: CustomerDestination) => void;
   deletingDestinationId: string | null;
+  isAdmin?: boolean;
 }
 
 export const DestinationsDrawer: React.FC<DestinationsDrawerProps> = ({
@@ -33,6 +34,7 @@ export const DestinationsDrawer: React.FC<DestinationsDrawerProps> = ({
   onEditDestination,
   onDeleteDestination,
   deletingDestinationId,
+  isAdmin = false,
 }) => {
   if (!customer) return null;
 
@@ -76,13 +78,15 @@ export const DestinationsDrawer: React.FC<DestinationsDrawerProps> = ({
               </span>
             </div>
 
-            <button
-              onClick={onAddDestination}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-            >
-              <Plus size={14} />
-              <span>Add Facility / Site</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={onAddDestination}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                <Plus size={14} />
+                <span>Add Facility / Site</span>
+              </button>
+            )}
           </div>
 
           {/* Destinations List Body */}
@@ -160,23 +164,25 @@ export const DestinationsDrawer: React.FC<DestinationsDrawerProps> = ({
                       )}
                     </div>
 
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => onEditDestination(dest)}
-                        className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer"
-                        title="Edit Site"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        onClick={() => onDeleteDestination(dest)}
-                        disabled={deletingDestinationId === dest.id}
-                        className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50/50 transition-all cursor-pointer disabled:opacity-35"
-                        title="Delete Site"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                    {isAdmin && (
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => onEditDestination(dest)}
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer"
+                          title="Edit Site"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => onDeleteDestination(dest)}
+                          disabled={deletingDestinationId === dest.id}
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50/50 transition-all cursor-pointer disabled:opacity-35"
+                          title="Delete Site"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

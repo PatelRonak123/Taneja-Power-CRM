@@ -39,6 +39,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user } = useAuthStore();
   const currentPath = useCurrentPath();
   const isAdmin = user?.role === 'ADMIN';
+  const isManager = user?.role === 'MANAGER';
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const renderContent = () => {
@@ -62,28 +63,29 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return <PipelinePage />;
     }
 
-    // Field Service Routes
-    if (currentPath === '/field-service') {
-      return <FsrDashboardPage />;
-    }
+    // Field Service Routes (Isolated from Sales Office)
+    const designation = (user?.designation || '').toLowerCase();
+    const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('sales');
 
-    if (currentPath === '/field-service/reports') {
-      return <FsrListPage />;
-    }
-
-    if (currentPath === '/field-service/my-visits') {
-      return <MyVisitsPage />;
-    }
-
-    if (currentPath === '/field-service/new') {
-      return <CreateFsrPage />;
-    }
-
-    if (currentPath.startsWith('/field-service/') && currentPath.endsWith('/edit')) {
-      return <EditFsrPage />;
-    }
-
-    if (currentPath.startsWith('/field-service/')) {
+    if (currentPath.startsWith('/field-service')) {
+      if (isSalesOffice) {
+        return <EmployeeDashboardPage />;
+      }
+      if (currentPath === '/field-service') {
+        return <FsrDashboardPage />;
+      }
+      if (currentPath === '/field-service/reports') {
+        return <FsrListPage />;
+      }
+      if (currentPath === '/field-service/my-visits') {
+        return <MyVisitsPage />;
+      }
+      if (currentPath === '/field-service/new') {
+        return <CreateFsrPage />;
+      }
+      if (currentPath.endsWith('/edit')) {
+        return <EditFsrPage />;
+      }
       return <FsrDetailPage />;
     }
 
@@ -115,11 +117,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return <TaskManagementPage />;
     }
 
-    if ((currentPath === '/attendance' || currentPath === '/admin/attendance') && isAdmin) {
+    if ((currentPath === '/attendance' || currentPath === '/admin/attendance') && (isAdmin || isManager)) {
       return <AttendanceManagementPage />;
     }
 
-    if (currentPath === '/employee/attendance' || (currentPath === '/attendance' && !isAdmin)) {
+    if (currentPath === '/employee/attendance' || (currentPath === '/attendance' && !isAdmin && !isManager)) {
       return <EmployeeAttendancePage />;
     }
 
@@ -139,7 +141,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return <ProfilePage />;
     }
 
-    if (currentPath === '/products') {
+    if (currentPath === '/products' || currentPath === '/equipment') {
       return <ProductsPage />;
     }
 

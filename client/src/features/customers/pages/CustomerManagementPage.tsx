@@ -19,8 +19,11 @@ import { CustomerTable } from '../components/CustomerTable';
 import { CustomerModal } from '../components/CustomerModal';
 import { DestinationsDrawer } from '../components/DestinationsDrawer';
 import { DestinationModal } from '../components/DestinationModal';
+import { useAuthStore } from '../../../stores/authStore';
 
 export const CustomerManagementPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'ADMIN';
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -585,6 +588,7 @@ export const CustomerManagementPage: React.FC = () => {
         onEditCustomer={handleOpenEditCustomer}
         onDeleteCustomer={handleDeleteCustomer}
         deletingCustomerId={deletingCustomerId}
+        isAdmin={isAdmin}
       />
 
       {/* Customer Create / Edit Modal */}
@@ -611,6 +615,7 @@ export const CustomerManagementPage: React.FC = () => {
         onEditDestination={handleOpenEditDestination}
         onDeleteDestination={handleDeleteDestination}
         deletingDestinationId={deletingDestinationId}
+        isAdmin={isAdmin}
       />
 
       {/* Destination Create / Edit Modal */}

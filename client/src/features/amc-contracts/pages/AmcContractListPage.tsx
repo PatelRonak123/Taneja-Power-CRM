@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { amcContractApi, AmcContract } from '../api/amcContractApi';
+import { quotationService } from '../../quotations/services/quotationService';
 import { navigate } from '../../../app/router/navigation';
 import {
   ShieldCheck,
@@ -15,12 +16,62 @@ import {
   ChevronRight,
   Building2,
   FileCheck,
+  Plus,
+  X,
+  Loader2,
 } from 'lucide-react';
 
 export const AmcContractListPage: React.FC = () => {
   const [contracts, setContracts] = useState<AmcContract[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Create Contract from Quotation Modal State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [approvedQuotations, setApprovedQuotations] = useState<any[]>([]);
+  const [loadingQuotations, setLoadingQuotations] = useState(false);
+  const [selectedQuotationId, setSelectedQuotationId] = useState('');
+  const [creatingContract, setCreatingContract] = useState(false);
+
+  const handleOpenCreateModal = async () => {
+    setIsCreateModalOpen(true);
+    setSelectedQuotationId('');
+    try {
+      setLoadingQuotations(true);
+      const res = await quotationService.getQuotations({
+        quotationType: 'AMC',
+        status: 'APPROVED',
+        limit: 50,
+      });
+      const items = res.data || [];
+      setApprovedQuotations(items);
+      if (items.length > 0) {
+        setSelectedQuotationId(items[0].id);
+      }
+    } catch {
+      setApprovedQuotations([]);
+    } finally {
+      setLoadingQuotations(false);
+    }
+  };
+
+  const handleCreateFromQuotation = async () => {
+    if (!selectedQuotationId) return;
+    try {
+      setCreatingContract(true);
+      const res = await amcContractApi.createFromQuotation(selectedQuotationId);
+      setIsCreateModalOpen(false);
+      if (res.data?.id) {
+        navigate(`/amc-contracts/${res.data.id}`);
+      } else {
+        fetchContracts();
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Failed to create AMC Contract.');
+    } finally {
+      setCreatingContract(false);
+    }
+  };
 
   // Filters
   const [search, setSearch] = useState('');
@@ -145,14 +196,24 @@ export const AmcContractListPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => fetchContracts()}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer self-start md:self-auto"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          Refresh Contracts
-        </button>
+        <div className="flex items-center gap-2.5 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => fetchContracts()}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenCreateModal}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+          >
+            <Plus size={14} />
+            Create AMC Contract
+          </button>
+        </div>
       </div>
 
       {/* Metrics Bar */}
@@ -387,6 +448,115 @@ export const AmcContractListPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Create AMC Contract Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-scale-in">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <ShieldCheck size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Create AMC Contract</h3>
+                  <p className="text-xs text-slate-500">Convert an approved AMC proposal into an active contract</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {loadingQuotations ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500">
+                  <Loader2 size={24} className="animate-spin text-blue-600" />
+                  <span className="text-xs font-semibold">Loading approved AMC quotations...</span>
+                </div>
+              ) : approvedQuotations.length === 0 ? (
+                <div className="py-8 text-center flex flex-col items-center justify-center gap-2">
+                  <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <AlertTriangle size={24} />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900">No Approved AMC Quotations</h4>
+                  <p className="text-xs text-slate-500 max-w-xs">
+                    To create an AMC Contract, an AMC Quotation must first be created and approved in Quotations & Proposals.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Select Approved AMC Quotation
+                  </label>
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {approvedQuotations.map((q) => (
+                      <div
+                        key={q.id}
+                        onClick={() => setSelectedQuotationId(q.id)}
+                        className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                          selectedQuotationId === q.id
+                            ? 'border-blue-600 bg-blue-50/60 shadow-xs'
+                            : 'border-slate-200 hover:border-slate-300 bg-slate-50/50'
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-900">{q.quotationNumber}</span>
+                            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                              APPROVED
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 font-medium truncate mt-0.5">
+                            {q.customer?.name || q.customer?.companyName || 'Customer'}
+                          </p>
+                          {q.currentRevision?.grandTotal && (
+                            <span className="text-[11px] font-bold text-slate-700 mt-1 block">
+                              ₹{Number(q.currentRevision.grandTotal).toLocaleString('en-IN')}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="radio"
+                          name="selectedQuotation"
+                          checked={selectedQuotationId === q.id}
+                          onChange={() => setSelectedQuotationId(q.id)}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              {approvedQuotations.length > 0 && (
+                <button
+                  type="button"
+                  disabled={!selectedQuotationId || creatingContract}
+                  onClick={handleCreateFromQuotation}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-2"
+                >
+                  {creatingContract ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                  <span>Generate Contract</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -335,6 +335,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
 
+    if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+      throw AppError.forbidden('You are not authorized to update this quotation');
+    }
+
     // Allow updating quotation details directly
     if (
       quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.DRAFT &&
@@ -667,6 +671,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
 
+    if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+      throw AppError.forbidden('You are not authorized to create revisions for this quotation');
+    }
+
     const currentRevision = quotation.currentRevision;
     if (!currentRevision) {
       throw AppError.internal('Active quotation revision not found');
@@ -995,6 +1003,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
 
+    if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+      throw AppError.forbidden('You can only submit your own quotations for approval');
+    }
+
     if (
       quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.DRAFT &&
       quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.REJECTED
@@ -1220,6 +1232,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
 
+    if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+      throw AppError.forbidden('You can only withdraw your own quotations');
+    }
+
     if (quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.PENDING_APPROVAL) {
       throw AppError.badRequest(
         `Cannot withdraw quotation in "${quotation.status}" status. Only PENDING_APPROVAL quotations can be withdrawn.`
@@ -1277,9 +1293,12 @@ export class QuotationService {
   /**
    * Get single quotation with full details
    */
-  async getQuotationById(id: string) {
+  async getQuotationById(id: string, authUser?: JwtPayload) {
     const quotation = await this.quotationRepo.findById(id);
     if (!quotation) {
+      throw AppError.notFound('Quotation not found');
+    }
+    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
       throw AppError.notFound('Quotation not found');
     }
     return quotation;
@@ -1288,7 +1307,12 @@ export class QuotationService {
   /**
    * List quotations with pagination and filters
    */
-  async listQuotations(options: QuotationFilterOptions) {
+  async listQuotations(options: QuotationFilterOptions, authUser?: JwtPayload) {
+    // If the authenticated user is a normal sales employee (USER role), strictly scope to their assigned quotations
+    if (authUser?.role === APP_CONSTANTS.ROLES.USER) {
+      options.salespersonId = authUser.userId;
+    }
+
     const page = Number(options.page) || 1;
     const limit = Number(options.limit) || 10;
 
@@ -1314,9 +1338,12 @@ export class QuotationService {
   /**
    * Get full revision history for a quotation
    */
-  async getRevisionHistory(id: string) {
+  async getRevisionHistory(id: string, authUser?: JwtPayload) {
     const quotation = await this.quotationRepo.findById(id);
     if (!quotation) {
+      throw AppError.notFound('Quotation not found');
+    }
+    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
       throw AppError.notFound('Quotation not found');
     }
 
@@ -1326,9 +1353,12 @@ export class QuotationService {
   /**
    * Get specific revision and its line items
    */
-  async getSpecificRevision(id: string, revisionNumber: number) {
+  async getSpecificRevision(id: string, revisionNumber: number, authUser?: JwtPayload) {
     const quotation = await this.quotationRepo.findById(id);
     if (!quotation) {
+      throw AppError.notFound('Quotation not found');
+    }
+    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
       throw AppError.notFound('Quotation not found');
     }
 
@@ -1343,9 +1373,12 @@ export class QuotationService {
   /**
    * Get full approval audit trail for a quotation
    */
-  async getApprovalHistory(id: string) {
+  async getApprovalHistory(id: string, authUser?: JwtPayload) {
     const quotation = await this.quotationRepo.findById(id);
     if (!quotation) {
+      throw AppError.notFound('Quotation not found');
+    }
+    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
       throw AppError.notFound('Quotation not found');
     }
 
@@ -1355,9 +1388,12 @@ export class QuotationService {
   /**
    * Get full activity log history for a quotation
    */
-  async getActivityHistory(id: string) {
+  async getActivityHistory(id: string, authUser?: JwtPayload) {
     const quotation = await this.quotationRepo.findById(id);
     if (!quotation) {
+      throw AppError.notFound('Quotation not found');
+    }
+    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
       throw AppError.notFound('Quotation not found');
     }
 
@@ -1367,9 +1403,12 @@ export class QuotationService {
   /**
    * Generate authoritative PDF buffer for active quotation revision or specific historical revision
    */
-  async generatePdf(id: string, revisionNumber?: number): Promise<{ buffer: Buffer; filename: string }> {
+  async generatePdf(id: string, revisionNumber?: number, authUser?: JwtPayload): Promise<{ buffer: Buffer; filename: string }> {
     const quotation = await this.quotationRepo.findById(id);
     if (!quotation) {
+      throw AppError.notFound('Quotation not found');
+    }
+    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
       throw AppError.notFound('Quotation not found');
     }
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AmcContractController } from '../controllers/amc-contract.controller.js';
-import { authenticate } from '../../../common/middleware/auth.middleware.js';
+import { authenticate, requireRoles } from '../../../common/middleware/auth.middleware.js';
+import { APP_CONSTANTS } from '../../../config/constants.js';
 
 const router = Router();
 const controller = new AmcContractController();
@@ -11,15 +12,28 @@ router.use(authenticate);
 router.get('/', controller.getContracts);
 router.post('/from-quotation/:quotationId', controller.createFromQuotation);
 router.get('/:id', controller.getContractById);
-router.post('/:id/activate', controller.activateContract);
-router.post('/:id/terminate', controller.terminateContract);
+router.put('/:id', controller.updateContract);
+router.post(
+  '/:id/activate',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  controller.activateContract
+);
+router.post(
+  '/:id/terminate',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  controller.terminateContract
+);
 router.post('/:id/service-requests', controller.createBreakdownRequest);
 router.post('/:id/service-requests/:requestId/escalate', controller.escalateBreakdownRequest);
 router.get('/:id/service-requests/:requestId', controller.getBreakdownRequestById);
 router.post('/schedule/:visitId/create-task', controller.createTaskForVisit);
 
 // Phase 7: Renewal & History
-router.post('/:id/renew', controller.renewContract);
+router.post(
+  '/:id/renew',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  controller.renewContract
+);
 router.get('/:id/history', controller.getContractHistory);
 
 // Phase 5 Service Execution & Report Routes

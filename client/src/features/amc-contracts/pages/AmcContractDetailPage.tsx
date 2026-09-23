@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { amcContractApi, AmcContract, AmcServiceRequest } from '../api/amcContractApi';
 import { navigate, useCurrentPath } from '../../../app/router/navigation';
+import { useAuthStore } from '../../../stores/authStore';
 import { AmcServiceReportModal } from '../components/AmcServiceReportModal';
 import {
   Building2,
@@ -24,9 +25,12 @@ import {
   RotateCcw,
   Link,
   Ban,
+  FileEdit,
 } from 'lucide-react';
 
 export const AmcContractDetailPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const isManagerOrAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const currentPath = useCurrentPath();
   // Extract contract ID from route e.g. /amc-contracts/:id
   const contractId = currentPath.split('/')[2];
@@ -35,6 +39,61 @@ export const AmcContractDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Edit Contract Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editEndUser, setEditEndUser] = useState('');
+  const [editBranch, setEditBranch] = useState('');
+  const [editZone, setEditZone] = useState('');
+  const [editFrequency, setEditFrequency] = useState('');
+  const [editScheduledVisits, setEditScheduledVisits] = useState('');
+  const [editBreakdownType, setEditBreakdownType] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editSpecialClauses, setEditSpecialClauses] = useState('');
+  const [editPaymentTerms, setEditPaymentTerms] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+
+  const handleOpenEditModal = () => {
+    if (!contract) return;
+    setEditEndUser(contract.endUser || '');
+    setEditBranch(contract.branch || '');
+    setEditZone(contract.zone || '');
+    setEditFrequency(contract.serviceFrequency || 'Quarterly');
+    setEditScheduledVisits(String(contract.scheduledVisits || 4));
+    setEditBreakdownType(contract.breakdownVisitType || 'UNLIMITED');
+    setEditStartDate(contract.contractStartDate ? contract.contractStartDate.slice(0, 10) : '');
+    setEditEndDate(contract.contractEndDate ? contract.contractEndDate.slice(0, 10) : '');
+    setEditSpecialClauses(contract.specialClauses || '');
+    setEditPaymentTerms(contract.amcPaymentTerms || '');
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contract) return;
+    try {
+      setEditLoading(true);
+      await amcContractApi.updateContract(contract.id, {
+        endUser: editEndUser.trim() || undefined,
+        branch: editBranch.trim() || undefined,
+        zone: editZone.trim() || undefined,
+        serviceFrequency: editFrequency,
+        scheduledVisits: Number(editScheduledVisits) || 4,
+        breakdownVisitType: editBreakdownType,
+        contractStartDate: editStartDate ? new Date(editStartDate).toISOString() : undefined,
+        contractEndDate: editEndDate ? new Date(editEndDate).toISOString() : undefined,
+        specialClauses: editSpecialClauses.trim() || undefined,
+        amcPaymentTerms: editPaymentTerms.trim() || undefined,
+      });
+      setIsEditModalOpen(false);
+      await fetchContractDetail();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to update contract details.');
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   // Service Report Modal
   const [activeReportVisitId, setActiveReportVisitId] = useState<string | null>(null);
@@ -306,7 +365,19 @@ export const AmcContractDetailPage: React.FC = () => {
         </button>
 
         <div className="flex items-center gap-2">
-          {contract.status === 'PENDING_ACTIVATION' && (
+          {contract.status !== 'TERMINATED' && contract.status !== 'CANCELLED' && (
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={handleOpenEditModal}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+            >
+              <FileEdit size={14} />
+              Edit Contract
+            </button>
+          )}
+
+          {isManagerOrAdmin && contract.status === 'PENDING_ACTIVATION' && (
             <button
               type="button"
               disabled={actionLoading}
@@ -318,7 +389,7 @@ export const AmcContractDetailPage: React.FC = () => {
             </button>
           )}
 
-          {(contract.status === 'EXPIRING_SOON' || contract.status === 'EXPIRED') && (
+          {isManagerOrAdmin && (contract.status === 'EXPIRING_SOON' || contract.status === 'EXPIRED') && (
             <button
               type="button"
               disabled={actionLoading}
@@ -341,14 +412,16 @@ export const AmcContractDetailPage: React.FC = () => {
                 Report Breakdown Request
               </button>
 
-              <button
-                type="button"
-                onClick={() => setIsTerminateModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                <Ban size={14} />
-                Terminate
-              </button>
+              {isManagerOrAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setIsTerminateModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  <Ban size={14} />
+                  Terminate
+                </button>
+              )}
             </>
           )}
         </div>
@@ -1394,6 +1467,171 @@ export const AmcContractDetailPage: React.FC = () => {
                 Create Renewal Contract
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Contract Operational Details Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-scale-in my-8">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <FileEdit size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Edit Contract Details</h3>
+                  <p className="text-xs text-slate-500">Update operational metadata, clauses, and service parameters</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">End User</label>
+                  <input
+                    type="text"
+                    value={editEndUser}
+                    onChange={(e) => setEditEndUser(e.target.value)}
+                    placeholder="e.g. Plant 2 / Site In-charge"
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Branch</label>
+                  <input
+                    type="text"
+                    value={editBranch}
+                    onChange={(e) => setEditBranch(e.target.value)}
+                    placeholder="e.g. NCR / Delhi"
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Zone</label>
+                  <input
+                    type="text"
+                    value={editZone}
+                    onChange={(e) => setEditZone(e.target.value)}
+                    placeholder="e.g. North Zone"
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Service Frequency</label>
+                  <select
+                    value={editFrequency}
+                    onChange={(e) => setEditFrequency(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  >
+                    <option value="Monthly">Monthly</option>
+                    <option value="Bi-Monthly">Bi-Monthly</option>
+                    <option value="Quarterly">Quarterly</option>
+                    <option value="Half-Yearly">Half-Yearly</option>
+                    <option value="Yearly">Yearly</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Scheduled Visits</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={24}
+                    value={editScheduledVisits}
+                    onChange={(e) => setEditScheduledVisits(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Contract Start Date</label>
+                  <input
+                    type="date"
+                    value={editStartDate}
+                    onChange={(e) => setEditStartDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Contract End Date</label>
+                  <input
+                    type="date"
+                    value={editEndDate}
+                    onChange={(e) => setEditEndDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Breakdown Visit Type</label>
+                <input
+                  type="text"
+                  value={editBreakdownType}
+                  onChange={(e) => setEditBreakdownType(e.target.value)}
+                  placeholder="e.g. UNLIMITED or 2 PER YEAR"
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Special Clauses</label>
+                <textarea
+                  rows={3}
+                  value={editSpecialClauses}
+                  onChange={(e) => setEditSpecialClauses(e.target.value)}
+                  placeholder="Specific client agreement conditions, response time SLAs, etc."
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Payment Terms</label>
+                <textarea
+                  rows={2}
+                  value={editPaymentTerms}
+                  onChange={(e) => setEditPaymentTerms(e.target.value)}
+                  placeholder="e.g. 50% Advance, balance quarterly in arrears"
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-2"
+                >
+                  {editLoading ? <RefreshCw size={14} className="animate-spin" /> : <FileEdit size={14} />}
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

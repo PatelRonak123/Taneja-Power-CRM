@@ -17,6 +17,7 @@ interface TaskToolbarProps {
   setDateFilter: (date: string) => void;
   employees: { id: string; fullName: string }[];
   customers: Customer[];
+  showEmployeeFilter?: boolean;
   onSearchSubmit: (e: React.FormEvent) => void;
   onClearFilters: () => void;
   onRefresh: () => void;
@@ -38,6 +39,7 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
   setDateFilter,
   employees,
   customers,
+  showEmployeeFilter = true,
   onSearchSubmit,
   onClearFilters,
   onRefresh,
@@ -47,7 +49,7 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
     searchQuery.trim() !== '' ||
     statusFilter !== 'ALL' ||
     priorityFilter !== 'ALL' ||
-    employeeFilter !== 'ALL' ||
+    (showEmployeeFilter && employeeFilter !== 'ALL') ||
     customerFilter !== 'ALL' ||
     dateFilter !== '';
 
@@ -154,21 +156,23 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
           </select>
         </div>
 
-        {/* Employee Filter */}
-        <div className="px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 max-w-45">
-          <select
-            value={employeeFilter}
-            onChange={(e) => setEmployeeFilter(e.target.value)}
-            className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer w-full truncate pr-1"
-          >
-            <option value="ALL">All Employees</option>
-            {employees.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.fullName}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Employee Filter (Management Only) */}
+        {showEmployeeFilter && (
+          <div className="px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 max-w-45">
+            <select
+              value={employeeFilter}
+              onChange={(e) => setEmployeeFilter(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer w-full truncate pr-1"
+            >
+              <option value="ALL">All Employees</option>
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.fullName}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Date Filter */}
         <input

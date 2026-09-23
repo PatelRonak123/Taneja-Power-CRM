@@ -13,6 +13,8 @@ import {
   Edit2,
   XCircle,
   ClipboardList,
+  Play,
+  CheckCircle2,
 } from 'lucide-react';
 import { TaskItem, TaskPriority, TaskStatus } from '../types/task.types';
 
@@ -21,6 +23,9 @@ interface TaskDetailModalProps {
   onClose: () => void;
   onEdit: (task: TaskItem) => void;
   onCancel: (task: TaskItem) => void;
+  onStartTask?: (task: TaskItem) => void;
+  onCompleteTask?: (task: TaskItem) => void;
+  isManagement?: boolean;
 }
 
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
@@ -28,6 +33,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   onClose,
   onEdit,
   onCancel,
+  onStartTask,
+  onCompleteTask,
+  isManagement = true,
 }) => {
   if (!task) return null;
 
@@ -357,7 +365,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         {/* Modal Footer */}
         <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div className="flex items-center gap-2">
-            {!isFinalized && (
+            {!isFinalized && isManagement && (
               <>
                 <button
                   type="button"
@@ -382,6 +390,38 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   <XCircle size={14} />
                   <span>Cancel Task</span>
                 </button>
+              </>
+            )}
+
+            {!isFinalized && !isManagement && (
+              <>
+                {(task.status === 'CREATED' || task.status === 'ASSIGNED') && onStartTask && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onStartTask(task);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  >
+                    <Play size={14} />
+                    <span>Start Task</span>
+                  </button>
+                )}
+
+                {task.status === 'IN_PROGRESS' && onCompleteTask && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onCompleteTask(task);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  >
+                    <CheckCircle2 size={14} />
+                    <span>Complete Task</span>
+                  </button>
+                )}
               </>
             )}
           </div>

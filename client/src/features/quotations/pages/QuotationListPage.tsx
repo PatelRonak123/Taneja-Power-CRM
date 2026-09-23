@@ -19,7 +19,12 @@ import {
   ChevronRight,
 } from 'lucide-react';
 
+import { useAuthStore } from '../../../stores/authStore';
+
 export const QuotationListPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const isServiceOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && (user?.designation || '').toLowerCase().includes('service');
+
   const [quotations, setQuotations] = useState<QuotationListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +32,7 @@ export const QuotationListPage: React.FC = () => {
   // Filter States
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState(isServiceOffice ? 'SERVICE' : '');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -75,14 +80,16 @@ export const QuotationListPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
               <FileSpreadsheet size={13} />
-              COMMERCIAL DEALS
+              {isServiceOffice ? 'SERVICE QUOTATIONS' : 'COMMERCIAL DEALS'}
             </span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            Quotation & Estimations Management
+            {isServiceOffice ? 'Service Quotations Directory' : 'Quotation & Estimations Management'}
           </h1>
           <p className="text-sm text-slate-500">
-            Create multi-tier product, technical, and AMC proposals with live GST calculations, formal revisions, and approval lifecycles.
+            {isServiceOffice
+              ? 'View commercial service proposals, technical estimations, and AMC contract quotations.'
+              : 'Create multi-tier product, technical, and AMC proposals with live GST calculations, formal revisions, and approval lifecycles.'}
           </p>
         </div>
 
@@ -95,14 +102,16 @@ export const QuotationListPage: React.FC = () => {
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button
-            type="button"
-            onClick={() => navigate('/quotations/new')}
-            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/30 flex items-center gap-2 transition-all cursor-pointer"
-          >
-            <Plus size={16} />
-            <span>Create Quotation</span>
-          </button>
+          {!isServiceOffice && (
+            <button
+              type="button"
+              onClick={() => navigate('/quotations/new')}
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/30 flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <Plus size={16} />
+              <span>Create Quotation</span>
+            </button>
+          )}
         </div>
       </div>
 

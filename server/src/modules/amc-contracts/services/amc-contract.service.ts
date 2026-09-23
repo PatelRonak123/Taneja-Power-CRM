@@ -296,6 +296,64 @@ export class AmcContractService {
   }
 
   /**
+   * Update operational details of an AMC contract.
+   */
+  public async updateContract(
+    contractId: string,
+    data: {
+      endUser?: string;
+      branch?: string;
+      zone?: string;
+      specialClauses?: string;
+      amcPaymentTerms?: string;
+      serviceFrequency?: string;
+      scheduledVisits?: number;
+      breakdownVisitType?: string;
+      contractStartDate?: Date | string;
+      contractEndDate?: Date | string;
+      totalAmount?: string;
+      paymentStatus?: string;
+    },
+    updatedById?: string
+  ): Promise<AmcContractEntity> {
+    const [contract] = await db
+      .select()
+      .from(amcContracts)
+      .where(eq(amcContracts.id, contractId))
+      .limit(1);
+
+    if (!contract) {
+      throw new Error(`AMC Contract ${contractId} not found.`);
+    }
+
+    const updateFields: any = {
+      updatedById: updatedById || null,
+      updatedAt: new Date(),
+    };
+
+    if (data.endUser !== undefined) updateFields.endUser = data.endUser;
+    if (data.branch !== undefined) updateFields.branch = data.branch;
+    if (data.zone !== undefined) updateFields.zone = data.zone;
+    if (data.specialClauses !== undefined) updateFields.specialClauses = data.specialClauses;
+    if (data.amcPaymentTerms !== undefined) updateFields.amcPaymentTerms = data.amcPaymentTerms;
+    if (data.serviceFrequency !== undefined) updateFields.serviceFrequency = data.serviceFrequency;
+    if (data.scheduledVisits !== undefined) updateFields.scheduledVisits = Number(data.scheduledVisits);
+    if (data.breakdownVisitType !== undefined) updateFields.breakdownVisitType = data.breakdownVisitType;
+    if (data.contractStartDate !== undefined) updateFields.contractStartDate = new Date(data.contractStartDate);
+    if (data.contractEndDate !== undefined) updateFields.contractEndDate = new Date(data.contractEndDate);
+    if (data.totalAmount !== undefined) updateFields.totalAmount = String(data.totalAmount);
+    if (data.paymentStatus !== undefined) updateFields.paymentStatus = data.paymentStatus;
+
+    const [updated] = await db
+      .update(amcContracts)
+      .set(updateFields)
+      .where(eq(amcContracts.id, contractId))
+      .returning();
+
+    return updated;
+  }
+
+  /**
    * Terminate an AMC contract.
    * - Only ACTIVE or EXPIRING_SOON contracts may be terminated.
    * - Cancels all future SCHEDULED service visits (per AMC document termination rules).
