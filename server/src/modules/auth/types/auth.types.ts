@@ -1,10 +1,11 @@
-import { UserRole } from '../../../config/constants.js';
+import { UserRole, WorkType } from '../../../config/constants.js';
 
 export interface AuthenticatedUser {
   id: string;
   email: string;
   fullName: string;
   role: UserRole;
+  workType: WorkType;
   designation?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;

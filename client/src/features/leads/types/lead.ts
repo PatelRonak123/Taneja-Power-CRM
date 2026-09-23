@@ -36,6 +36,8 @@ export interface Lead {
   expectedValue: number;
   assignedExecutive: string;
   assignedEmployeeId?: string;
+  createdBy?: string;
+  createdById?: string;
   priority: LeadPriority;
   status: LeadStatus;
   source: LeadSource;

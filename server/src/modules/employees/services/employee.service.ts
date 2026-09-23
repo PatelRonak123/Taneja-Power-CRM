@@ -1,14 +1,16 @@
 import { EmployeeRepository, EmployeeFilterOptions, EmployeeMetricsDto } from '../repositories/employee.repository.js';
-import { CreateEmployeeInput, UpdateEmployeeInput } from '../validators/employee.validator.js';
+import { CreateEmployeeInput, UpdateEmployeeInput, isValidDesignationForWorkType } from '../validators/employee.validator.js';
 import { hashPassword } from '../../../common/auth/password.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { UserEntity, NewUserEntity } from '../../../database/schema/users.js';
+import { APP_CONSTANTS } from '../../../config/constants.js';
 
 export interface EmployeeResponseDto {
   id: string;
   email: string;
   fullName: string;
   role: string;
+  workType: string;
   phone?: string | null;
   designation?: string | null;
   status: string;
@@ -26,9 +28,10 @@ export class EmployeeService {
       email: user.email,
       fullName: user.fullName,
       role: user.role,
+      workType: user.workType || APP_CONSTANTS.WORK_TYPES.OFFICE,
       phone: user.phone,
       designation: user.designation,
-      status: user.status || 'ACTIVE',
+      status: user.status || APP_CONSTANTS.STATUS.ACTIVE,
       avatarUrl: user.avatarUrl,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -78,9 +81,10 @@ export class EmployeeService {
       passwordHash,
       fullName: input.fullName,
       role: input.role,
+      workType: input.workType || APP_CONSTANTS.WORK_TYPES.OFFICE,
       phone: input.phone || null,
       designation: input.designation || null,
-      status: input.status || 'ACTIVE',
+      status: input.status || APP_CONSTANTS.STATUS.ACTIVE,
       avatarUrl: input.avatarUrl || null,
     });
 
@@ -93,8 +97,19 @@ export class EmployeeService {
       throw AppError.notFound('Employee not found');
     }
 
+    const effectiveWorkType = input.workType ?? existing.workType ?? APP_CONSTANTS.WORK_TYPES.OFFICE;
+    const effectiveDesignation = input.designation !== undefined ? input.designation : existing.designation;
+    const effectiveRole = input.role ?? existing.role;
+
+    if (!isValidDesignationForWorkType(effectiveWorkType, effectiveDesignation, effectiveRole)) {
+      throw AppError.badRequest(
+        `Invalid designation "${effectiveDesignation}" for workType "${effectiveWorkType}". Valid combinations for OFFICE: ${APP_CONSTANTS.DESIGNATIONS.OFFICE.join(', ')}. Valid combinations for FIELD: ${APP_CONSTANTS.DESIGNATIONS.FIELD.join(', ')}.`
+      );
+    }
+
     const updateData: Partial<NewUserEntity> = {};
     if (input.fullName !== undefined) updateData.fullName = input.fullName;
+    if (input.workType !== undefined) updateData.workType = input.workType;
     if (input.phone !== undefined) updateData.phone = input.phone || null;
     if (input.designation !== undefined) updateData.designation = input.designation || null;
     if (input.role !== undefined) updateData.role = input.role;

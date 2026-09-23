@@ -14,8 +14,10 @@ import {
   Plus,
   CheckCircle2,
   AlertCircle,
+  Building,
+  Smartphone,
 } from 'lucide-react';
-import { EmployeeRole, EmployeeStatus } from '../types/employee.types';
+import { EmployeeRole, EmployeeStatus, WorkType } from '../types/employee.types';
 
 interface EmployeeModalProps {
   modalMode: 'create' | 'edit' | null;
@@ -26,6 +28,7 @@ interface EmployeeModalProps {
     email: string;
     password?: string;
     role: EmployeeRole;
+    workType: WorkType;
     phone: string;
     designation: string;
     status: EmployeeStatus;
@@ -33,6 +36,7 @@ interface EmployeeModalProps {
   onInputChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => void;
+  onWorkTypeChange: (newWorkType: WorkType) => void;
   formSubmitting: boolean;
   formError: string | null;
   showPassword: boolean;
@@ -45,6 +49,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   onSubmit,
   formData,
   onInputChange,
+  onWorkTypeChange,
   formSubmitting,
   formError,
   showPassword,
@@ -74,7 +79,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                   {modalMode === 'create' ? 'Register New Staff Member' : 'Edit Employee Profile'}
                 </h2>
                 <p className="text-xs text-slate-500">
-                  {modalMode === 'create' ? 'Fill out the information below to add an employee.' : 'Update the employee credentials and access roles.'}
+                  {modalMode === 'create' ? 'Fill out the information below to add an employee.' : 'Update the employee credentials, work type, and roles.'}
                 </p>
               </div>
             </div>
@@ -95,6 +100,54 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                   <span>{formError}</span>
                 </div>
               )}
+
+              {/* Work Type Selection */}
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Work Type (Application Access) *</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onWorkTypeChange('OFFICE')}
+                    className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      formData.workType === 'OFFICE'
+                        ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20 text-blue-900'
+                        : 'bg-slate-50/80 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-lg ${formData.workType === 'OFFICE' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                      <Building size={16} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        Office
+                        {formData.workType === 'OFFICE' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">Web CRM Portal access</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onWorkTypeChange('FIELD')}
+                    className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      formData.workType === 'FIELD'
+                        ? 'bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-900'
+                        : 'bg-slate-50/80 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-lg ${formData.workType === 'FIELD' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                      <Smartphone size={16} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        Field
+                        {formData.workType === 'FIELD' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">Field Mobile App access</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Full Name */}
@@ -166,7 +219,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                     onChange={onInputChange}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
                   >
-                    <option value="USER">USER (Sales Executive / Sales Representative)</option>
+                    <option value="USER">USER (Standard Employee)</option>
                     <option value="MANAGER">MANAGER (Operations & Inventory)</option>
                     <option value="ADMIN">ADMIN (Full Control & User Management)</option>
                   </select>
@@ -186,19 +239,41 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                   </select>
                 </div>
 
-                {/* Job Designation */}
+                {/* Dependent Job Designation Selector */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-slate-700">Job Designation</label>
+                  <label className="text-xs font-semibold text-slate-700">
+                    Designation ({formData.workType === 'OFFICE' ? 'Office Department' : 'Field Role'}) *
+                  </label>
                   <div className="relative flex items-center">
                     <Briefcase size={16} className="absolute left-3.5 text-slate-400 pointer-events-none" />
-                    <input
-                      type="text"
+                    <select
                       name="designation"
-                      placeholder="e.g. Lead Electrical Field Engineer"
                       value={formData.designation}
                       onChange={onInputChange}
-                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    />
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+                      required
+                    >
+                      <option value="" disabled>Select valid designation</option>
+                      {formData.workType === 'OFFICE' ? (
+                        <>
+                          <option value="Sales Office">Sales Office</option>
+                          <option value="HR Office">HR Office</option>
+                          <option value="Accountant Office">Accountant Office</option>
+                          <option value="Service Office">Service Office</option>
+                          {(formData.role === 'ADMIN' || formData.role === 'MANAGER') && (
+                            <>
+                              <option value="Head of Operations">Head of Operations</option>
+                              <option value="Inventory & Operations Manager">Inventory & Operations Manager</option>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <option value="Sales">Sales</option>
+                          <option value="Service">Service</option>
+                        </>
+                      )}
+                    </select>
                   </div>
                 </div>
 

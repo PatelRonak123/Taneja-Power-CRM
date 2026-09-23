@@ -150,11 +150,11 @@ export const QuotationDetailPage: React.FC = () => {
 
   const activeRev = quotation.currentRevision;
   const isManagerOrAdmin = user?.role === 'ADMIN' || (user as any)?.role === 'SALES_MANAGER' || (user as any)?.role === 'SUPER_ADMIN';
-  const canEdit = quotation.status === 'DRAFT' || quotation.status === 'PENDING_APPROVAL' || quotation.status === 'REJECTED';
-  const canSubmitApproval = quotation.status === 'DRAFT' || quotation.status === 'REJECTED';
-  const canWithdrawApproval = quotation.status === 'PENDING_APPROVAL';
+  const canEdit = quotation.status === 'DRAFT';
+  const canSubmitApproval = quotation.status === 'DRAFT' || (quotation.status === 'REJECTED' && !isManagerOrAdmin);
+  const canWithdrawApproval = quotation.status === 'PENDING_APPROVAL' && !isManagerOrAdmin;
   const canApproveOrReject = quotation.status === 'PENDING_APPROVAL' && isManagerOrAdmin;
-  const canCreateRevision = ['APPROVED', 'SENT', 'REJECTED', 'EXPIRED', 'ACCEPTED'].includes(quotation.status);
+  const canCreateRevision = ['APPROVED', 'SENT', 'EXPIRED', 'ACCEPTED'].includes(quotation.status) || (quotation.status === 'REJECTED' && !isManagerOrAdmin);
 
   // Check if Intra-State (CGST + SGST) vs Inter-State (IGST)
   const isIntraState = Number(activeRev?.cgstAmount || 0) > 0 || Number(activeRev?.sgstAmount || 0) > 0;
@@ -173,7 +173,12 @@ export const QuotationDetailPage: React.FC = () => {
     await quotationService.createRevision(quotation.id, { revisionReason: reason });
     queryClient.invalidateQueries({ queryKey: ['quotation', quotation.id] });
     queryClient.invalidateQueries({ queryKey: ['quotations'] });
+    navigate(`/quotations/${quotation.id}/edit`);
   };
+
+  // Extract latest rejection comment if status is REJECTED
+  const latestRejection = quotation.approvals?.find((a) => a.action === 'REJECTED');
+  const rejectionComment = latestRejection?.comments || (quotation as any).rejectionReason;
 
   return (
     <div className="space-y-6">
@@ -196,10 +201,18 @@ export const QuotationDetailPage: React.FC = () => {
               </span>
               <QuotationStatusBadge status={quotation.status} size="md" />
               <QuotationTypeBadge type={quotation.quotationType} size="md" />
+
+              {quotation.status === 'REJECTED' && rejectionComment && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-200 rounded-lg text-xs font-semibold text-rose-700 max-w-md truncate" title={`Rejection Reason: ${rejectionComment}`}>
+                  <span className="font-bold text-rose-800">Reason:</span> "{rejectionComment}"
+                </span>
+              )}
             </div>
             <p className="mt-1 text-sm text-gray-500">
               Created on {formatDate(quotation.createdAt)} • Valid until {formatDate(activeRev?.validUntil)}
             </p>
+
+
           </div>
 
           {/* Action Buttons */}

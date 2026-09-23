@@ -11,8 +11,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  Building,
+  Smartphone,
 } from 'lucide-react';
-import { Employee, EmployeeRole, EmployeeStatus } from '../types/employee.types';
+import { Employee, EmployeeRole, EmployeeStatus, WorkType } from '../types/employee.types';
 
 interface EmployeeTableProps {
   employees: Employee[];
@@ -99,6 +101,23 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
     );
   };
 
+  const getWorkTypeBadge = (workType: WorkType) => {
+    if (workType === 'FIELD') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
+          <Smartphone size={11} />
+          FIELD
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-sky-50 text-sky-700 border border-sky-200/70">
+        <Building size={11} />
+        OFFICE
+      </span>
+    );
+  };
+
   return (
     <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden flex flex-col">
       {loading ? (
@@ -134,6 +153,7 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   <th className="py-3.5 px-6 min-w-55">Employee</th>
+                  <th className="py-3.5 px-4 min-w-28">Work Type</th>
                   <th className="py-3.5 px-4 min-w-45">Contact Details</th>
                   <th className="py-3.5 px-4 min-w-37.5">Designation</th>
                   <th className="py-3.5 px-4 min-w-30">System Role</th>
@@ -176,6 +196,11 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
                             </span>
                           </div>
                         </div>
+                      </td>
+
+                      {/* Work Type */}
+                      <td className="py-3.5 px-4">
+                        {getWorkTypeBadge(emp.workType)}
                       </td>
 
                       {/* Contact Details */}

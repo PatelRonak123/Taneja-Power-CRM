@@ -311,7 +311,7 @@ export const QuotationListPage: React.FC = () => {
                         >
                           <Eye size={16} />
                         </button>
-                        {(q.status === 'DRAFT' || q.status === 'PENDING_APPROVAL') && (
+                        {q.status === 'DRAFT' && (
                           <button
                             type="button"
                             onClick={() => navigate(`/quotations/${q.id}/edit`)}

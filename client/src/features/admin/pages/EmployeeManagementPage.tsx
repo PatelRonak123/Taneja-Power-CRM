@@ -6,7 +6,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { employeeService } from '../services/employeeService';
-import { Employee, EmployeeRole, EmployeeStatus, EmployeeMetrics } from '../types/employee.types';
+import { Employee, EmployeeRole, EmployeeStatus, EmployeeMetrics, WorkType } from '../types/employee.types';
 import { EmployeeMetricsCards } from '../components/EmployeeMetricsCards';
 import { EmployeeToolbar } from '../components/EmployeeToolbar';
 import { EmployeeTable } from '../components/EmployeeTable';
@@ -22,6 +22,7 @@ export const EmployeeManagementPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [workTypeFilter, setWorkTypeFilter] = useState<string>('ALL');
   const [page, setPage] = useState<number>(1);
   const [limit] = useState<number>(10);
   const [totalPages, setTotalPages] = useState<number>(1);
@@ -50,6 +51,7 @@ export const EmployeeManagementPage: React.FC = () => {
     email: string;
     password?: string;
     role: EmployeeRole;
+    workType: WorkType;
     phone: string;
     designation: string;
     status: EmployeeStatus;
@@ -58,8 +60,9 @@ export const EmployeeManagementPage: React.FC = () => {
     email: '',
     password: '',
     role: 'USER',
+    workType: 'OFFICE',
     phone: '',
-    designation: '',
+    designation: 'Sales Office',
     status: 'ACTIVE',
   });
 
@@ -75,6 +78,7 @@ export const EmployeeManagementPage: React.FC = () => {
         search: searchQuery.trim() || undefined,
         role: roleFilter !== 'ALL' ? (roleFilter as EmployeeRole) : undefined,
         status: statusFilter !== 'ALL' ? (statusFilter as EmployeeStatus) : undefined,
+        workType: workTypeFilter !== 'ALL' ? workTypeFilter : undefined,
         page: targetPage,
         limit,
       });
@@ -102,7 +106,7 @@ export const EmployeeManagementPage: React.FC = () => {
   useEffect(() => {
     setPage(1);
     fetchEmployees(1);
-  }, [roleFilter, statusFilter]);
+  }, [roleFilter, statusFilter, workTypeFilter]);
 
   // Search Submit
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -122,8 +126,9 @@ export const EmployeeManagementPage: React.FC = () => {
       email: '',
       password: '',
       role: 'USER',
+      workType: 'OFFICE',
       phone: '',
-      designation: '',
+      designation: 'Sales Office',
       status: 'ACTIVE',
     });
   };
@@ -133,12 +138,29 @@ export const EmployeeManagementPage: React.FC = () => {
     setModalMode('edit');
     setEditingEmployeeId(emp.id);
     setFormError(null);
+
+    let initialDesignation = emp.designation;
+    if (emp.workType === 'FIELD') {
+      if (
+        emp.designation?.toLowerCase().includes('service') ||
+        emp.designation?.toLowerCase().includes('technician') ||
+        emp.designation?.toLowerCase().includes('engineer')
+      ) {
+        initialDesignation = 'Service';
+      } else {
+        initialDesignation = 'Sales';
+      }
+    } else {
+      initialDesignation = emp.designation || 'Sales Office';
+    }
+
     setFormData({
       fullName: emp.fullName || '',
       email: emp.email || '',
       role: emp.role || 'USER',
+      workType: emp.workType || 'OFFICE',
       phone: emp.phone || '',
-      designation: emp.designation || '',
+      designation: initialDesignation,
       status: emp.status || 'ACTIVE',
     });
   };
@@ -149,6 +171,19 @@ export const EmployeeManagementPage: React.FC = () => {
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (formError) setFormError(null);
+  };
+
+  // Work Type Switching with Auto-reconciliation of Designation
+  const handleWorkTypeChange = (newWorkType: WorkType) => {
+    setFormData((prev) => {
+      const defaultDesig = newWorkType === 'OFFICE' ? 'Sales Office' : 'Sales';
+      return {
+        ...prev,
+        workType: newWorkType,
+        designation: defaultDesig,
+      };
+    });
     if (formError) setFormError(null);
   };
 
@@ -182,6 +217,7 @@ export const EmployeeManagementPage: React.FC = () => {
           email: formData.email.trim(),
           password: formData.password!,
           role: formData.role,
+          workType: formData.workType,
           phone: formData.phone.trim() || undefined,
           designation: formData.designation.trim() || undefined,
           status: formData.status,
@@ -197,6 +233,7 @@ export const EmployeeManagementPage: React.FC = () => {
         const response = await employeeService.updateEmployee(editingEmployeeId, {
           fullName: formData.fullName.trim(),
           role: formData.role,
+          workType: formData.workType,
           phone: formData.phone.trim() || undefined,
           designation: formData.designation.trim() || undefined,
           status: formData.status,
@@ -230,14 +267,17 @@ export const EmployeeManagementPage: React.FC = () => {
 
     setStatusTogglingId(emp.id);
     try {
-      const response = await employeeService.updateEmployee(emp.id, { status: newStatus });
+      const response = await employeeService.updateEmployee(emp.id, {
+        status: newStatus,
+      });
+
       if (response.success) {
-        setSuccessMessage(`Employee status updated to ${newStatus}.`);
+        setSuccessMessage(`Employee "${emp.fullName}" ${actionName}d successfully.`);
         fetchEmployees(page);
         setTimeout(() => setSuccessMessage(null), 4000);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to update employee status.');
+      setError(err?.message || `Failed to ${actionName} employee.`);
     } finally {
       setStatusTogglingId(null);
     }
@@ -247,7 +287,7 @@ export const EmployeeManagementPage: React.FC = () => {
   const handleDeleteEmployee = async (emp: Employee) => {
     if (
       !window.confirm(
-        `Are you sure you want to permanently remove employee "${emp.fullName}" (${emp.email})? This action cannot be undone.`
+        `Are you sure you want to permanently remove employee "${emp.fullName}"? This action cannot be undone.`
       )
     ) {
       return;
@@ -262,31 +302,26 @@ export const EmployeeManagementPage: React.FC = () => {
         setTimeout(() => setSuccessMessage(null), 4000);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete employee.');
+      setError(err?.message || 'Failed to remove employee record.');
     } finally {
       setDeletingEmployeeId(null);
     }
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-12 animate-fade-in">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 md:p-7 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div className="flex flex-col gap-2 max-w-3xl">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200/60">
-              <Users size={12} className="text-blue-600" /> Admin Staff Portal
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200">
-              {totalCount} Total Registered
-            </span>
+    <div className="space-y-6">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0 shadow-xs">
+            <Users size={24} />
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Employee Directory & Staff Management
-          </h1>
-          <p className="text-sm text-slate-500 leading-relaxed">
-            Register personnel, configure departmental designations, allocate RBAC system permissions (Admin, Manager, User), and supervise staff active credentials.
-          </p>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Staff Management</h1>
+            <p className="text-xs font-medium text-slate-500 mt-0.5">
+              Manage office and field personnel, configure designations, and administer credentials.
+            </p>
+          </div>
         </div>
 
         <button
@@ -325,6 +360,8 @@ export const EmployeeManagementPage: React.FC = () => {
         setRoleFilter={setRoleFilter}
         statusFilter={statusFilter}
         setStatusFilter={setStatusFilter}
+        workTypeFilter={workTypeFilter}
+        setWorkTypeFilter={setWorkTypeFilter}
         onSearchSubmit={handleSearchSubmit}
         onClearSearch={() => {
           setSearchQuery('');
@@ -365,6 +402,7 @@ export const EmployeeManagementPage: React.FC = () => {
         onSubmit={handleSubmit}
         formData={formData}
         onInputChange={handleInputChange}
+        onWorkTypeChange={handleWorkTypeChange}
         formSubmitting={formSubmitting}
         formError={formError}
         showPassword={showPassword}

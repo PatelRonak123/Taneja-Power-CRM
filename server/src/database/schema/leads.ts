@@ -12,6 +12,8 @@ export const leads = pgTable('leads', {
   expectedValue: numeric('expected_value', { precision: 12, scale: 2 }).default('0'),
   assignedExecutive: varchar('assigned_executive', { length: 255 }),
   assignedEmployeeId: varchar('assigned_employee_id', { length: 255 }),
+  createdBy: varchar('created_by', { length: 255 }),
+  createdById: varchar('created_by_id', { length: 255 }),
   priority: varchar('priority', { length: 50 }).default('Medium').notNull(),
   status: varchar('status', { length: 50 }).default('New').notNull(),
   source: varchar('source', { length: 50 }).default('Web').notNull(),

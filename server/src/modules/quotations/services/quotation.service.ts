@@ -335,13 +335,15 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
 
-    // Only DRAFT and PENDING_APPROVAL quotations can be edited directly
+    // Allow updating quotation details directly
     if (
       quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.DRAFT &&
-      quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.PENDING_APPROVAL
+      quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.PENDING_APPROVAL &&
+      quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.REJECTED &&
+      quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.APPROVED
     ) {
       throw AppError.badRequest(
-        `Quotations in "${quotation.status}" status cannot be edited directly. Please create a formal revision instead.`
+        `Quotations in "${quotation.status}" status cannot be edited directly.`
       );
     }
 
@@ -993,9 +995,12 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
 
-    if (quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.DRAFT) {
+    if (
+      quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.DRAFT &&
+      quotation.status !== APP_CONSTANTS.QUOTATION_STATUSES.REJECTED
+    ) {
       throw AppError.badRequest(
-        `Cannot submit quotation in status "${quotation.status}". Only DRAFT quotations can be submitted for approval.`
+        `Cannot submit quotation in status "${quotation.status}". Only DRAFT or REJECTED quotations can be submitted for approval.`
       );
     }
 

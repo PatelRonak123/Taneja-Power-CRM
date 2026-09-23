@@ -5,6 +5,7 @@ export interface User {
   email: string;
   fullName: string;
   role: UserRole;
+  workType?: 'OFFICE' | 'FIELD';
   phone?: string | null;
   designation?: string | null;
   status: 'ACTIVE' | 'INACTIVE';

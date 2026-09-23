@@ -54,6 +54,7 @@ export class AuthService {
       passwordHash,
       fullName: input.fullName,
       role: input.role || 'USER',
+      workType: input.workType || 'OFFICE',
       phone: input.phone || null,
       designation: input.designation || null,
     });

@@ -113,6 +113,13 @@
       "when": 1789970242188,
       "tag": "0015_pink_changeling",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790060000000,
+      "tag": "0016_add_work_type_to_users",
+      "breakpoints": true
     }
   ]
 }

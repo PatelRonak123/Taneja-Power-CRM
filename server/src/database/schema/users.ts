@@ -8,6 +8,7 @@ export const users = pgTable('users', {
   role: varchar('role', { length: 50 }).notNull().default('USER'),
   phone: varchar('phone', { length: 50 }),
   designation: varchar('designation', { length: 100 }),
+  workType: varchar('work_type', { length: 50 }).notNull().default('OFFICE'),
   status: varchar('status', { length: 50 }).notNull().default('ACTIVE'),
   avatarUrl: text('avatar_url'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

@@ -479,7 +479,7 @@ export const LeadManagementPage: React.FC = () => {
                     <ArrowUpDown size={13} />
                   </div>
                 </th>
-                <th className="py-4 px-6">ASSIGNED TO</th>
+                <th className="py-4 px-6">{isAdminOrManager ? 'ASSIGNED TO' : 'ASSIGNED BY'}</th>
                 <th className="py-4 px-6">PRIORITY</th>
                 <th className="py-4 px-6">STATUS</th>
                 <th className="py-4 px-6 text-right">ACTIONS</th>
@@ -520,9 +520,16 @@ export const LeadManagementPage: React.FC = () => {
                       ₹{lead.expectedValue.toLocaleString('en-IN')}
                     </td>
 
-                    {/* ASSIGNED TO */}
+                    {/* ASSIGNED TO / ASSIGNED BY */}
                     <td className="py-4 px-6 font-medium text-slate-700">
-                      {lead.assignedExecutive}
+                      {isAdminOrManager ? (
+                        lead.assignedExecutive || 'Unassigned'
+                      ) : (
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-slate-900">{lead.createdBy || 'System Admin'}</span>
+                          <span className="text-[11px] text-slate-400">Assigned to: {lead.assignedExecutive}</span>
+                        </div>
+                      )}
                     </td>
 
                     {/* PRIORITY */}

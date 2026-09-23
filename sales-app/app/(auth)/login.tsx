@@ -24,7 +24,7 @@ export default function LoginScreen() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, logout, setError, isLoading, error, clearError } = useAuthStore();
 
   const validateForm = (): boolean => {
     let isValid = true;
@@ -57,10 +57,20 @@ export default function LoginScreen() {
     if (!validateForm()) return;
 
     try {
-      await login({
+      const authenticatedUser = await login({
         email: email.trim().toLowerCase(),
         password,
       });
+
+      if (
+        authenticatedUser?.workType === 'OFFICE' &&
+        authenticatedUser?.role !== 'ADMIN' &&
+        authenticatedUser?.role !== 'MANAGER'
+      ) {
+        await logout();
+        setError('Access restricted: Office employees must use the Web CRM portal. Access to the Field Mobile App is restricted to FIELD staff.');
+        return;
+      }
       // On success, RootLayout's NavigationGuard automatically redirects to (app)
     } catch {
       // Error is stored in auth store and presented via ErrorMessage banner
