@@ -5,6 +5,7 @@ export interface UserResponseDto {
   email: string;
   fullName: string;
   role: string;
+  workType: string;
   designation?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;

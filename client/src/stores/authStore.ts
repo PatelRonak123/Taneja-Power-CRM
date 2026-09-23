@@ -6,6 +6,7 @@ export interface User {
   email: string;
   fullName: string;
   role: 'ADMIN' | 'MANAGER' | 'USER';
+  workType?: 'OFFICE' | 'FIELD';
   designation?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;

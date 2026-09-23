@@ -104,13 +104,19 @@ export class FieldServiceService {
         .where(eq(users.id, authUser.userId))
         .limit(1);
 
+      const workType = currentUser?.workType || APP_CONSTANTS.WORK_TYPES.OFFICE;
       const designation = (currentUser?.designation || '').toLowerCase();
       const salesKeywords = ['sales', 'representative', 'executive', 'business dev', 'account manager', 'account exec', 'bd'];
       const engineeringKeywords = ['engineer', 'tech', 'service', 'fse', 'electrician', 'technician'];
-      const isEngineer = engineeringKeywords.some((k) => designation.includes(k));
-      const isSales = !isEngineer && salesKeywords.some((k) => designation.includes(k));
+      const isEngineer =
+        workType === APP_CONSTANTS.WORK_TYPES.FIELD &&
+        (designation === 'service' || engineeringKeywords.some((k) => designation.includes(k)));
+      const isSales =
+        designation.includes('sales') ||
+        salesKeywords.some((k) => designation.includes(k)) ||
+        (workType === APP_CONSTANTS.WORK_TYPES.OFFICE && !isEngineer);
 
-      if (isSales) {
+      if (isSales || !isEngineer) {
         throw AppError.forbidden('Sales representatives cannot create Field Service Reports');
       }
 
@@ -350,8 +356,10 @@ export class FieldServiceService {
       .where(eq(users.id, authUser.userId))
       .limit(1);
 
+    const workType = currentUser?.workType || APP_CONSTANTS.WORK_TYPES.OFFICE;
     const designation = (currentUser?.designation || '').toLowerCase();
     const isExcluded =
+      workType === APP_CONSTANTS.WORK_TYPES.OFFICE ||
       designation.includes('accountant') ||
       designation.includes('accounting') ||
       designation.includes('finance') ||
@@ -361,8 +369,10 @@ export class FieldServiceService {
     const engineeringKeywords = ['engineer', 'tech', 'service', 'fse', 'electrician', 'technician'];
     const salesKeywords = ['sales', 'representative', 'executive', 'business dev', 'account manager', 'account exec', 'bd'];
 
-    const isEngineer = engineeringKeywords.some((k) => designation.includes(k));
-    const isSales = !isExcluded && !isEngineer && salesKeywords.some((k) => designation.includes(k));
+    const isEngineer =
+      workType === APP_CONSTANTS.WORK_TYPES.FIELD &&
+      (designation === 'service' || engineeringKeywords.some((k) => designation.includes(k)));
+    const isSales = !isExcluded && !isEngineer && (designation === 'sales' || salesKeywords.some((k) => designation.includes(k)));
     const isCompletedOrClosed =
       details.fsr.status === APP_CONSTANTS.FSR_STATUSES.COMPLETED ||
       details.fsr.status === APP_CONSTANTS.FSR_STATUSES.CLOSED;
@@ -400,9 +410,12 @@ export class FieldServiceService {
         .where(eq(users.id, authUser.userId))
         .limit(1);
 
+      const workType = currentUser?.workType || APP_CONSTANTS.WORK_TYPES.OFFICE;
       const designation = (currentUser?.designation || '').toLowerCase();
       const engineeringKeywords = ['engineer', 'tech', 'service', 'fse', 'electrician', 'technician'];
-      const isEngineer = engineeringKeywords.some((k) => designation.includes(k));
+      const isEngineer =
+        workType === APP_CONSTANTS.WORK_TYPES.FIELD &&
+        (designation === 'service' || engineeringKeywords.some((k) => designation.includes(k)));
 
       // Field Service Engineers are strictly scoped to their assigned visits
       if (isEngineer) {

@@ -19,9 +19,10 @@ export const isAdminOrManager = (user?: User | null): boolean => {
 };
 
 /**
- * Service designations recognized by the system.
+ * Service designations recognized by the system for field service operations.
  */
 const SERVICE_DESIGNATION_KEYWORDS = [
+  'service',
   'field service engineer',
   'service engineer',
   'technician',
@@ -30,6 +31,7 @@ const SERVICE_DESIGNATION_KEYWORDS = [
   'service tech',
   'fse',
   'electrician',
+  'solar technician',
 ];
 
 /**
@@ -47,21 +49,34 @@ const SALES_DESIGNATION_KEYWORDS = [
 
 /**
  * Check if user is a designated Field Service Engineer / Technician.
+ * Strict rules:
+ * 1. Office users (e.g. Service Office, HR Office) are NEVER FSEs.
+ * 2. Field users with Service designation (or legacy engineer titles) ARE FSEs.
  */
 export const isFSE = (user?: User | null): boolean => {
   if (!user) return false;
   if (isAdminOrManager(user)) return true;
 
+  // Office employees are never field engineers
+  if (user.workType === 'OFFICE') {
+    return false;
+  }
+
   const designation = (user.designation || '').toLowerCase().trim();
   if (!designation) return false;
 
+  // Exclude office designations if unclassified
+  if (designation.includes('office')) {
+    return false;
+  }
+
   // Check if explicitly matching service keywords
-  if (SERVICE_DESIGNATION_KEYWORDS.some((kw) => designation.includes(kw))) {
+  if (SERVICE_DESIGNATION_KEYWORDS.some((kw) => designation === kw || designation.includes(kw))) {
     return true;
   }
 
   // If user is sales, definitely not FSE
-  if (SALES_DESIGNATION_KEYWORDS.some((kw) => designation.includes(kw))) {
+  if (SALES_DESIGNATION_KEYWORDS.some((kw) => designation === kw || designation.includes(kw))) {
     return false;
   }
 
@@ -77,17 +92,23 @@ export const isSalesperson = (user?: User | null): boolean => {
   if (isFSE(user)) return false;
 
   const designation = (user.designation || '').toLowerCase().trim();
-  return SALES_DESIGNATION_KEYWORDS.some((kw) => designation.includes(kw));
+  if (designation.includes('office')) {
+    return false;
+  }
+
+  return SALES_DESIGNATION_KEYWORDS.some((kw) => designation === kw || designation.includes(kw));
 };
 
 /**
  * Determine if user can see the Field Service tab in the mobile navigation.
- * ADMIN, MANAGER, FSE, Technician -> YES
+ * ADMIN, MANAGER, Field Service Engineer / Technician -> YES
  * Sales USER -> NO
+ * Office USER -> NO
  */
 export const canAccessFSR = (user?: User | null): boolean => {
   if (!user) return false;
   if (isAdminOrManager(user)) return true;
+  if (user.workType === 'OFFICE') return false;
   return isFSE(user);
 };
 
@@ -97,6 +118,7 @@ export const canAccessFSR = (user?: User | null): boolean => {
 export const canCreateFSR = (user?: User | null): boolean => {
   if (!user) return false;
   if (isAdminOrManager(user)) return true;
+  if (user.workType === 'OFFICE') return false;
   return isFSE(user);
 };
 
@@ -106,6 +128,7 @@ export const canCreateFSR = (user?: User | null): boolean => {
 export const canViewFSR = (user?: User | null, fsr?: FsrPermissionTarget): boolean => {
   if (!user) return false;
   if (isAdminOrManager(user)) return true;
+  if (user.workType === 'OFFICE') return false;
   if (!fsr) return isFSE(user);
 
   // FSE can view if assigned to them or if it's already active/completed
@@ -127,6 +150,7 @@ export const canViewFSR = (user?: User | null, fsr?: FsrPermissionTarget): boole
  */
 export const canEditFSR = (user?: User | null, fsr?: FsrPermissionTarget): boolean => {
   if (!user || !fsr) return false;
+  if (user.workType === 'OFFICE' && !isAdminOrManager(user)) return false;
   if (fsr.status === 'CLOSED' || fsr.status === 'CANCELLED') return false;
   if (isAdminOrManager(user)) return true;
   if (isSalesperson(user)) return false;
@@ -139,6 +163,7 @@ export const canEditFSR = (user?: User | null, fsr?: FsrPermissionTarget): boole
  */
 export const canStartFSR = (user?: User | null, fsr?: FsrPermissionTarget): boolean => {
   if (!user || !fsr) return false;
+  if (user.workType === 'OFFICE' && !isAdminOrManager(user)) return false;
   if (fsr.status !== 'DRAFT') return false;
   if (isAdminOrManager(user)) return true;
   if (isSalesperson(user)) return false;
@@ -151,6 +176,7 @@ export const canStartFSR = (user?: User | null, fsr?: FsrPermissionTarget): bool
  */
 export const canCompleteFSR = (user?: User | null, fsr?: FsrPermissionTarget): boolean => {
   if (!user || !fsr) return false;
+  if (user.workType === 'OFFICE' && !isAdminOrManager(user)) return false;
   if (fsr.status !== 'IN_PROGRESS') return false;
   if (isAdminOrManager(user)) return true;
   if (isSalesperson(user)) return false;
@@ -163,6 +189,7 @@ export const canCompleteFSR = (user?: User | null, fsr?: FsrPermissionTarget): b
  */
 export const canSignOffFSR = (user?: User | null, fsr?: FsrPermissionTarget): boolean => {
   if (!user || !fsr) return false;
+  if (user.workType === 'OFFICE' && !isAdminOrManager(user)) return false;
   if (fsr.status === 'CLOSED' || fsr.status === 'CANCELLED') return false;
   if (isAdminOrManager(user)) return true;
   if (isSalesperson(user)) return false;
@@ -176,6 +203,7 @@ export const canSignOffFSR = (user?: User | null, fsr?: FsrPermissionTarget): bo
 export const canDownloadFSR = (user?: User | null, fsr?: FsrPermissionTarget): boolean => {
   if (!user || !fsr) return false;
   if (isAdminOrManager(user)) return true;
+  if (user.workType === 'OFFICE') return false;
   if (isSalesperson(user)) {
     return fsr.status === 'COMPLETED' || fsr.status === 'CLOSED';
   }
@@ -197,4 +225,3 @@ export const canEditFieldService = canEditFSR;
 export const canStartFieldService = canStartFSR;
 export const canCompleteFieldService = canCompleteFSR;
 export const canAssignFieldService = canAssignFSR;
-

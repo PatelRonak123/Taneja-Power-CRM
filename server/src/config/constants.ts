@@ -12,6 +12,36 @@ export const APP_CONSTANTS = {
     ACTIVE: 'ACTIVE',
     INACTIVE: 'INACTIVE',
   } as const,
+  WORK_TYPES: {
+    OFFICE: 'OFFICE',
+    FIELD: 'FIELD',
+  } as const,
+  DESIGNATIONS: {
+    OFFICE: [
+      'Sales Office',
+      'HR Office',
+      'Accountant Office',
+      'Service Office',
+    ] as const,
+    FIELD: [
+      'Sales',
+      'Service',
+    ] as const,
+    LEGACY_FIELD_SERVICE: [
+      'Field Service Engineer',
+      'Service Engineer',
+      'Solar Technician',
+      'Technician',
+      'Field Service Technician',
+      'Field Engineer',
+      'Senior Field Service Engineer',
+      'Junior Engineer',
+    ] as const,
+    LEGACY_FIELD_SALES: [
+      'Sales Representative',
+      'Sales Executive',
+    ] as const,
+  } as const,
   HTTP_STATUS: {
     OK: 200,
     CREATED: 201,
@@ -128,6 +158,9 @@ export const APP_CONSTANTS = {
 
 export type UserRole = (typeof APP_CONSTANTS.ROLES)[keyof typeof APP_CONSTANTS.ROLES];
 export type UserStatus = (typeof APP_CONSTANTS.STATUS)[keyof typeof APP_CONSTANTS.STATUS];
+export type WorkType = (typeof APP_CONSTANTS.WORK_TYPES)[keyof typeof APP_CONSTANTS.WORK_TYPES];
+export type OfficeDesignation = (typeof APP_CONSTANTS.DESIGNATIONS.OFFICE)[number];
+export type FieldDesignation = (typeof APP_CONSTANTS.DESIGNATIONS.FIELD)[number];
 export type QuotationType = (typeof APP_CONSTANTS.QUOTATION_TYPES)[keyof typeof APP_CONSTANTS.QUOTATION_TYPES];
 export type QuotationStatus = (typeof APP_CONSTANTS.QUOTATION_STATUSES)[keyof typeof APP_CONSTANTS.QUOTATION_STATUSES];
 export type QuotationApprovalAction = (typeof APP_CONSTANTS.QUOTATION_APPROVAL_ACTIONS)[keyof typeof APP_CONSTANTS.QUOTATION_APPROVAL_ACTIONS];

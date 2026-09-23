@@ -8,6 +8,8 @@ interface EmployeeToolbarProps {
   setRoleFilter: (role: string) => void;
   statusFilter: string;
   setStatusFilter: (status: string) => void;
+  workTypeFilter: string;
+  setWorkTypeFilter: (workType: string) => void;
   onSearchSubmit: (e: React.FormEvent) => void;
   onClearSearch: () => void;
   onRefresh: () => void;
@@ -21,6 +23,8 @@ export const EmployeeToolbar: React.FC<EmployeeToolbarProps> = ({
   setRoleFilter,
   statusFilter,
   setStatusFilter,
+  workTypeFilter,
+  setWorkTypeFilter,
   onSearchSubmit,
   onClearSearch,
   onRefresh,
@@ -51,8 +55,23 @@ export const EmployeeToolbar: React.FC<EmployeeToolbarProps> = ({
 
       {/* Filter and Refresh Controls */}
       <div className="flex flex-wrap items-center gap-2">
+        {/* Work Type Filter */}
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500">
           <Filter size={12} className="text-slate-400" />
+          <span className="text-[11px] uppercase tracking-wider text-slate-400">Type:</span>
+          <select
+            value={workTypeFilter}
+            onChange={(e) => setWorkTypeFilter(e.target.value)}
+            className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1"
+          >
+            <option value="ALL">All Types</option>
+            <option value="OFFICE">Office</option>
+            <option value="FIELD">Field</option>
+          </select>
+        </div>
+
+        {/* Role Filter */}
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500">
           <span className="text-[11px] uppercase tracking-wider text-slate-400">Role:</span>
           <select
             value={roleFilter}
@@ -62,10 +81,11 @@ export const EmployeeToolbar: React.FC<EmployeeToolbarProps> = ({
             <option value="ALL">All Roles</option>
             <option value="ADMIN">ADMIN</option>
             <option value="MANAGER">MANAGER</option>
-            <option value="USER">USER (Sales Exec / Rep)</option>
+            <option value="USER">USER</option>
           </select>
         </div>
 
+        {/* Status Filter */}
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500">
           <span className="text-[11px] uppercase tracking-wider text-slate-400">Status:</span>
           <select
@@ -92,4 +112,3 @@ export const EmployeeToolbar: React.FC<EmployeeToolbarProps> = ({
     </div>
   );
 };
-

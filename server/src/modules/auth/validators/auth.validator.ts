@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { APP_CONSTANTS } from '../../../config/constants.js';
 
 export const registerSchema = z.object({
   body: z.object({
@@ -6,6 +7,7 @@ export const registerSchema = z.object({
     password: z.string().min(6, 'Password must be at least 6 characters long'),
     fullName: z.string().min(2, 'Full name must be at least 2 characters long'),
     role: z.string().optional(),
+    workType: z.enum([APP_CONSTANTS.WORK_TYPES.OFFICE, APP_CONSTANTS.WORK_TYPES.FIELD]).optional().default(APP_CONSTANTS.WORK_TYPES.OFFICE),
     phone: z.string().optional(),
     designation: z.string().optional(),
   }),

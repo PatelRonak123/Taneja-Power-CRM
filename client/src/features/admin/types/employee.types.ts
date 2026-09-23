@@ -1,11 +1,13 @@
 export type EmployeeRole = 'ADMIN' | 'MANAGER' | 'USER';
 export type EmployeeStatus = 'ACTIVE' | 'INACTIVE';
+export type WorkType = 'OFFICE' | 'FIELD';
 
 export interface Employee {
   id: string;
   email: string;
   fullName: string;
   role: EmployeeRole;
+  workType: WorkType;
   phone?: string | null;
   designation?: string | null;
   status: EmployeeStatus;
@@ -18,6 +20,7 @@ export interface EmployeeQueryParams {
   search?: string;
   role?: string;
   status?: string;
+  workType?: string;
   page?: number;
   limit?: number;
 }
@@ -27,6 +30,7 @@ export interface CreateEmployeePayload {
   email: string;
   password: string;
   role: EmployeeRole;
+  workType: WorkType;
   phone?: string;
   designation?: string;
   status?: EmployeeStatus;
@@ -36,6 +40,7 @@ export interface CreateEmployeePayload {
 export interface UpdateEmployeePayload {
   fullName?: string;
   role?: EmployeeRole;
+  workType?: WorkType;
   phone?: string;
   designation?: string;
   status?: EmployeeStatus;
@@ -49,4 +54,6 @@ export interface EmployeeMetrics {
   users: number;
   active: number;
   inactive: number;
+  office?: number;
+  field?: number;
 }

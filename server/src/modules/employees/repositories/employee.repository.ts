@@ -6,6 +6,7 @@ export interface EmployeeFilterOptions {
   search?: string;
   role?: string;
   status?: string;
+  workType?: string;
   page?: number;
   limit?: number;
 }
@@ -17,6 +18,8 @@ export interface EmployeeMetricsDto {
   users: number;
   active: number;
   inactive: number;
+  office: number;
+  field: number;
 }
 
 export class EmployeeRepository {
@@ -33,6 +36,10 @@ export class EmployeeRepository {
 
     if (options.status && options.status.trim() !== '' && options.status.trim() !== 'ALL') {
       conditions.push(eq(users.status, options.status.trim()));
+    }
+
+    if (options.workType && options.workType.trim() !== '' && options.workType.trim() !== 'ALL') {
+      conditions.push(eq(users.workType, options.workType.trim()));
     }
 
     if (options.search && options.search.trim() !== '') {
@@ -102,6 +109,8 @@ export class EmployeeRepository {
     const [userRes] = await db.select({ value: count() }).from(users).where(eq(users.role, 'USER'));
     const [activeRes] = await db.select({ value: count() }).from(users).where(eq(users.status, 'ACTIVE'));
     const [inactiveRes] = await db.select({ value: count() }).from(users).where(eq(users.status, 'INACTIVE'));
+    const [officeRes] = await db.select({ value: count() }).from(users).where(eq(users.workType, 'OFFICE'));
+    const [fieldRes] = await db.select({ value: count() }).from(users).where(eq(users.workType, 'FIELD'));
 
     return {
       total: Number(totalRes?.value || 0),
@@ -110,6 +119,8 @@ export class EmployeeRepository {
       users: Number(userRes?.value || 0),
       active: Number(activeRes?.value || 0),
       inactive: Number(inactiveRes?.value || 0),
+      office: Number(officeRes?.value || 0),
+      field: Number(fieldRes?.value || 0),
     };
   }
 }
