@@ -10,8 +10,13 @@ import { Modal } from '@/components/ui/Modal';
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
 import { ErrorAlert } from '@/components/feedback/ErrorAlert';
 import { Product } from '../types/product.types';
+import { useAuthStore } from '@/stores/authStore';
 
 export const ProductsPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const isManagerOrAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const isAdmin = user?.role === 'ADMIN';
+
   const {
     searchQuery,
     selectedCategory,
@@ -63,6 +68,7 @@ export const ProductsPage: React.FC = () => {
         totalValuation={totalValuation}
         activeCount={activeCount}
         onAddProduct={handleOpenAddModal}
+        canCreate={isManagerOrAdmin}
       />
 
       {/* Advanced Filters & View Switcher */}
@@ -92,14 +98,18 @@ export const ProductsPage: React.FC = () => {
           products={products}
           onEdit={handleOpenEditModal}
           onDelete={deleteProduct}
-          onDeployFirst={handleOpenAddModal}
+          onDeployFirst={isManagerOrAdmin ? handleOpenAddModal : undefined}
+          canEdit={isManagerOrAdmin}
+          canDelete={isAdmin}
         />
       ) : (
         <ProductGrid
           products={products}
           onEdit={handleOpenEditModal}
           onDelete={deleteProduct}
-          onDeployFirst={handleOpenAddModal}
+          onDeployFirst={isManagerOrAdmin ? handleOpenAddModal : undefined}
+          canEdit={isManagerOrAdmin}
+          canDelete={isAdmin}
         />
       )}
 

@@ -9,6 +9,7 @@ import {
 import { taskService } from '../services/taskService';
 import { customerService } from '../../customers/services/customerService';
 import { employeeService } from '../../admin/services/employeeService';
+import { useAuthStore } from '../../../stores/authStore';
 import {
   TaskItem,
   TaskPriority,
@@ -26,6 +27,9 @@ import { TaskCancelModal } from '../components/TaskCancelModal';
 import { LiveRouteTrackingDrawer } from '../components/LiveRouteTrackingDrawer';
 
 export const TaskManagementPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const isManagement = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +100,7 @@ export const TaskManagementPage: React.FC = () => {
   // Task Cancel Modal State
   const [selectedTaskForCancel, setSelectedTaskForCancel] = useState<TaskItem | null>(null);
 
-  // Load Reference Data (Active Customers & Employees)
+  // Load Reference Data (Active Customers for all; Employees ONLY for Admin/Manager)
   useEffect(() => {
     customerService
       .getCustomers({ status: 'ACTIVE', limit: 100 })
@@ -107,31 +111,38 @@ export const TaskManagementPage: React.FC = () => {
       })
       .catch(() => {});
 
-    employeeService
-      .getEmployees({ status: 'ACTIVE', limit: 100 })
-      .then((res) => {
-        if (res.success && Array.isArray(res.data)) {
-          setEmployeesList(res.data);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    // For USER: never execute employeeService.getEmployees() (avoids 403)
+    if (isManagement) {
+      employeeService
+        .getEmployees({ status: 'ACTIVE', limit: 100 })
+        .then((res) => {
+          if (res.success && Array.isArray(res.data)) {
+            setEmployeesList(res.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isManagement]);
 
   // Fetch Tasks with filters & pagination
   const fetchTasks = async (targetPage: number = page) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await taskService.getTasks({
+      const queryParams = {
         search: searchQuery.trim() || undefined,
         status: statusFilter !== 'ALL' ? statusFilter : undefined,
         priority: priorityFilter !== 'ALL' ? priorityFilter : undefined,
-        assignedTo: employeeFilter !== 'ALL' ? employeeFilter : undefined,
+        assignedTo: isManagement && employeeFilter !== 'ALL' ? employeeFilter : undefined,
         customerId: customerFilter !== 'ALL' ? customerFilter : undefined,
         scheduledDate: dateFilter.trim() || undefined,
         page: targetPage,
         limit,
-      });
+      };
+
+      const response = isManagement
+        ? await taskService.getTasks(queryParams)
+        : await taskService.getMyTasks(queryParams);
 
       if (response.success && Array.isArray(response.data)) {
         setTasks(response.data);
@@ -305,13 +316,41 @@ export const TaskManagementPage: React.FC = () => {
     }
   };
 
-  // Confirm Task Cancellation
+  // Confirm Task Cancellation (Management)
   const handleConfirmCancelTask = async (taskId: string, cancellationReason: string) => {
     const response = await taskService.cancelTask(taskId, { cancellationReason });
     if (response.success) {
       setSuccessMessage(`Task cancelled successfully.`);
       fetchTasks(page);
       setTimeout(() => setSuccessMessage(null), 4000);
+    }
+  };
+
+  // Start Task (Assigned Employee / User)
+  const handleStartTask = async (task: TaskItem) => {
+    try {
+      const response = await taskService.startTask(task.id);
+      if (response.success) {
+        setSuccessMessage('Task started successfully. Work order status updated to In Progress.');
+        fetchTasks(page);
+        setTimeout(() => setSuccessMessage(null), 4000);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to start task.');
+    }
+  };
+
+  // Complete Task (Assigned Employee / User)
+  const handleCompleteTask = async (task: TaskItem) => {
+    try {
+      const response = await taskService.completeTask(task.id);
+      if (response.success) {
+        setSuccessMessage('Task marked as completed successfully.');
+        fetchTasks(page);
+        setTimeout(() => setSuccessMessage(null), 4000);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to complete task.');
     }
   };
 
@@ -322,42 +361,47 @@ export const TaskManagementPage: React.FC = () => {
         <div className="flex flex-col gap-2 max-w-3xl">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 border border-orange-200/60">
-              <ClipboardList size={12} className="text-orange-600" /> Field Work Order Dispatch
+              <ClipboardList size={12} className="text-orange-600" />{' '}
+              {isManagement ? 'Field Work Order Dispatch' : 'My Assigned Tasks'}
             </span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200">
               {totalCount} Total Orders
             </span>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Field Task & Dispatch Management
+            {isManagement ? 'Field Task & Dispatch Management' : 'My Tasks & Work Orders'}
           </h1>
           <p className="text-sm text-slate-500 leading-relaxed">
-            Schedule customer service visits, dispatch technicians to customer destination sites, and monitor real-time work order fulfillment with SLA tracking.
+            {isManagement
+              ? 'Schedule customer service visits, dispatch technicians to customer destination sites, and monitor real-time work order fulfillment with SLA tracking.'
+              : 'Review your scheduled customer visits, complete assigned work orders, and track task resolution progress.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedTaskIdForTracking(null);
-              setIsTrackingDrawerOpen(true);
-            }}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded-xl font-bold text-xs transition-all active:scale-[0.98] cursor-pointer shadow-2xs"
-          >
-            <Radio size={15} className="animate-pulse text-orange-600" />
-            <span>Live Route Dispatch ({metrics.inProgress} Active)</span>
-          </button>
+        {isManagement && (
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedTaskIdForTracking(null);
+                setIsTrackingDrawerOpen(true);
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded-xl font-bold text-xs transition-all active:scale-[0.98] cursor-pointer shadow-2xs"
+            >
+              <Radio size={15} className="animate-pulse text-orange-600" />
+              <span>Live Route Dispatch ({metrics.inProgress} Active)</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={handleOpenCreateTask}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-900/20 hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer"
-          >
-            <Plus size={16} />
-            <span>Create Field Task</span>
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={handleOpenCreateTask}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-900/20 hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer"
+            >
+              <Plus size={16} />
+              <span>Create Field Task</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Alert Notifications */}
@@ -394,6 +438,7 @@ export const TaskManagementPage: React.FC = () => {
         setDateFilter={setDateFilter}
         employees={employeesList}
         customers={customersList}
+        showEmployeeFilter={isManagement}
         onSearchSubmit={handleSearchSubmit}
         onClearFilters={handleClearFilters}
         onRefresh={() => fetchTasks(page)}
@@ -411,6 +456,7 @@ export const TaskManagementPage: React.FC = () => {
         limit={limit}
         totalPages={totalPages}
         totalCount={totalCount}
+        isManagement={isManagement}
         onPageChange={(p) => {
           setPage(p);
           fetchTasks(p);
@@ -425,7 +471,7 @@ export const TaskManagementPage: React.FC = () => {
         }}
       />
 
-      {/* Task Create / Edit Modal */}
+      {/* Task Create / Edit Modal (Only management can open) */}
       <TaskModal
         modalMode={taskModalMode}
         onClose={() => setTaskModalMode(null)}
@@ -442,6 +488,7 @@ export const TaskManagementPage: React.FC = () => {
       {/* Task Detail Modal */}
       <TaskDetailModal
         task={selectedTaskForDetail}
+        isManagement={isManagement}
         onClose={() => setSelectedTaskForDetail(null)}
         onEdit={(task) => {
           setSelectedTaskForDetail(null);
@@ -451,6 +498,8 @@ export const TaskManagementPage: React.FC = () => {
           setSelectedTaskForDetail(null);
           setSelectedTaskForCancel(task);
         }}
+        onStartTask={handleStartTask}
+        onCompleteTask={handleCompleteTask}
       />
 
       {/* Task Cancel Modal */}

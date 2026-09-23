@@ -9,7 +9,7 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  const { login, isAuthenticated, isInitialized, initializeAuth, isLoading } = useAuthStore();
+  const { login, logout, user, isAuthenticated, isInitialized, initializeAuth, isLoading } = useAuthStore();
 
   useEffect(() => {
     if (!isInitialized) {
@@ -18,13 +18,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   }, [isInitialized, initializeAuth]);
 
   useEffect(() => {
-    if (isAuthenticated && onLoginSuccess) {
-      onLoginSuccess();
+    if (isAuthenticated) {
+      if (user?.workType === 'FIELD' && user?.role !== 'ADMIN' && user?.role !== 'MANAGER') {
+        logout();
+      } else if (onLoginSuccess) {
+        onLoginSuccess();
+      }
     }
-  }, [isAuthenticated, onLoginSuccess]);
+  }, [isAuthenticated, user, onLoginSuccess, logout]);
 
   const handleLoginSubmit = async (credentials: { email: string; password: string }) => {
-    await login(credentials);
+    const authenticatedUser = await login(credentials);
+    if (
+      authenticatedUser?.workType === 'FIELD' &&
+      authenticatedUser?.role !== 'ADMIN' &&
+      authenticatedUser?.role !== 'MANAGER'
+    ) {
+      await logout();
+      throw new Error(
+        'Access restricted: Field personnel must use the Taneja Power Mobile Application. Access to the Web CRM portal is restricted to OFFICE staff.'
+      );
+    }
     if (onLoginSuccess) {
       onLoginSuccess();
     }

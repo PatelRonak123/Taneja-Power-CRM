@@ -92,6 +92,25 @@ export class AmcContractController {
   };
 
   /**
+   * PUT /api/v1/amc-contracts/:id
+   * Update contract operational details
+   */
+  public updateContract = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const contract = await this.service.updateContract(id, req.body, userId);
+      res.status(200).json({
+        success: true,
+        message: 'AMC Contract updated successfully.',
+        data: contract,
+      });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message || 'Failed to update AMC Contract.' });
+    }
+  };
+
+  /**
    * POST /api/v1/amc-contracts/:id/terminate
    * Terminate contract — accepts reason, terminationNoticeDate, and terminationDate
    */

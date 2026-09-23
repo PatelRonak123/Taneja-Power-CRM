@@ -52,10 +52,12 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
   useEffect(() => {
     const loadRefData = async () => {
       try {
-        const empRes = await employeeService.getEmployees().catch(() => null);
-        const empList = Array.isArray(empRes) ? empRes : (empRes as any)?.data || [];
-        if (Array.isArray(empList) && empList.length > 0) {
-          setEmployees(empList);
+        if (user?.role === 'ADMIN' || user?.role === 'MANAGER') {
+          const empRes = await employeeService.getEmployees().catch(() => null);
+          const empList = Array.isArray(empRes) ? empRes : (empRes as any)?.data || [];
+          if (Array.isArray(empList) && empList.length > 0) {
+            setEmployees(empList);
+          }
         }
 
         const [custRes, leadsRes] = await Promise.all([

@@ -161,87 +161,177 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
     },
   ];
 
-  const coreNavItems = [
-    ...(!isAdmin
-      ? [
-          {
-            id: 'employee-dashboard',
-            path: '/employee/dashboard',
-            aliasPaths: ['/dashboard'],
-            label: 'Employee Dashboard',
-            icon: Home,
-          },
-          {
-            id: 'employee-customers',
-            path: '/customers',
-            aliasPaths: ['/admin/customers'],
-            label: 'Customers',
-            icon: Building2,
-          },
-          {
-            id: 'employee-leads',
-            path: '/leads',
-            aliasPaths: ['/admin/leads'],
-            label: 'Lead Management',
-            icon: Target,
-          },
-          {
-            id: 'employee-pipeline',
-            path: '/pipeline',
-            aliasPaths: ['/admin/pipeline'],
-            label: 'Deals Pipeline',
-            icon: Layers,
-          },
-          {
-            id: 'employee-quotations',
-            path: '/quotations',
-            aliasPaths: ['/quotations/new'],
-            label: 'Quotations & Proposals',
-            icon: FileSpreadsheet,
-          },
-          {
-            id: 'employee-amc-contracts',
-            path: '/amc-contracts',
-            aliasPaths: [],
-            label: 'AMC Contracts',
-            icon: ShieldCheck,
-          },
-          {
-            id: 'employee-field-service',
-            path: '/field-service',
-            aliasPaths: ['/field-service/reports', '/field-service/my-visits', '/field-service/new'],
-            label: 'Field Service (FSR)',
-            icon: Wrench,
-          },
-        ]
-      : []),
-    { id: 'products', path: '/products', aliasPaths: [], label: 'Equipment & Inventory', icon: Zap },
-    ...(!isAdmin
-      ? [
-          {
-            id: 'employee-tasks',
-            path: '/tasks',
-            aliasPaths: ['/admin/tasks'],
-            label: 'My Tasks',
-            icon: ClipboardList,
-          },
-          {
-            id: 'employee-attendance',
-            path: '/employee/attendance',
-            aliasPaths: ['/attendance'],
-            label: 'My Attendance',
-            icon: CalendarCheck,
-          },
-        ]
-      : []),
-    ...(isAdmin
-      ? [
-          { id: 'analytics', path: '/analytics', aliasPaths: [], label: 'Energy Telemetry', icon: BarChart3 },
-          { id: 'settings', path: '/settings', aliasPaths: [], label: 'System Configuration', icon: Settings },
-        ]
-      : []),
-    { id: 'profile', path: '/profile', aliasPaths: [], label: 'My Profile', icon: User },
-  ];
+  const designation = (user?.designation || '').toLowerCase();
+  const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('sales');
+  const isServiceOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('service');
+
+  const coreNavItems = isAdmin
+    ? [
+        { id: 'products', path: '/products', aliasPaths: ['/equipment'], label: 'Equipment & Inventory', icon: Zap },
+        { id: 'analytics', path: '/analytics', aliasPaths: [], label: 'Energy Telemetry', icon: BarChart3 },
+        { id: 'settings', path: '/settings', aliasPaths: [], label: 'System Configuration', icon: Settings },
+        { id: 'profile', path: '/profile', aliasPaths: [], label: 'My Profile', icon: User },
+      ]
+    : isServiceOffice
+    ? [
+        {
+          id: 'employee-dashboard',
+          path: '/employee/dashboard',
+          aliasPaths: ['/dashboard'],
+          label: 'Service Dashboard',
+          icon: Home,
+        },
+        {
+          id: 'employee-customers',
+          path: '/customers',
+          aliasPaths: ['/admin/customers'],
+          label: 'Customers',
+          icon: Building2,
+        },
+        {
+          id: 'employee-quotations',
+          path: '/quotations',
+          aliasPaths: ['/quotations/new'],
+          label: 'Service Quotations',
+          icon: FileSpreadsheet,
+        },
+        {
+          id: 'employee-amc-contracts',
+          path: '/amc-contracts',
+          aliasPaths: [],
+          label: 'AMC Contracts',
+          icon: ShieldCheck,
+        },
+        {
+          id: 'employee-field-service',
+          path: '/field-service',
+          aliasPaths: ['/field-service/reports', '/field-service/my-visits', '/field-service/new'],
+          label: 'Field Service (FSR)',
+          icon: Wrench,
+        },
+        {
+          id: 'employee-tasks',
+          path: '/tasks',
+          aliasPaths: ['/admin/tasks'],
+          label: 'My Tasks',
+          icon: ClipboardList,
+        },
+        {
+          id: 'employee-attendance',
+          path: '/employee/attendance',
+          aliasPaths: ['/attendance'],
+          label: 'My Attendance',
+          icon: CalendarCheck,
+        },
+        { id: 'profile', path: '/profile', aliasPaths: [], label: 'My Profile', icon: User },
+      ]
+    : isSalesOffice
+    ? [
+        {
+          id: 'employee-dashboard',
+          path: '/employee/dashboard',
+          aliasPaths: ['/dashboard'],
+          label: 'Sales Dashboard',
+          icon: Home,
+        },
+        {
+          id: 'employee-customers',
+          path: '/customers',
+          aliasPaths: ['/admin/customers'],
+          label: 'Customers',
+          icon: Building2,
+        },
+        {
+          id: 'employee-leads',
+          path: '/leads',
+          aliasPaths: ['/admin/leads'],
+          label: 'Lead Management',
+          icon: Target,
+        },
+        {
+          id: 'employee-pipeline',
+          path: '/pipeline',
+          aliasPaths: ['/admin/pipeline'],
+          label: 'Deals Pipeline',
+          icon: Layers,
+        },
+        {
+          id: 'employee-quotations',
+          path: '/quotations',
+          aliasPaths: ['/quotations/new'],
+          label: 'Quotations & Proposals',
+          icon: FileSpreadsheet,
+        },
+        {
+          id: 'employee-tasks',
+          path: '/tasks',
+          aliasPaths: ['/admin/tasks'],
+          label: 'My Tasks',
+          icon: ClipboardList,
+        },
+        {
+          id: 'employee-amc-contracts',
+          path: '/amc-contracts',
+          aliasPaths: [],
+          label: 'AMC Contracts',
+          icon: ShieldCheck,
+        },
+        { id: 'products', path: '/products', aliasPaths: ['/equipment'], label: 'Equipment & Inventory', icon: Zap },
+        {
+          id: 'employee-attendance',
+          path: '/employee/attendance',
+          aliasPaths: ['/attendance'],
+          label: 'My Attendance',
+          icon: CalendarCheck,
+        },
+        { id: 'profile', path: '/profile', aliasPaths: [], label: 'My Profile', icon: User },
+      ]
+    : [
+        {
+          id: 'employee-dashboard',
+          path: '/employee/dashboard',
+          aliasPaths: ['/dashboard'],
+          label: 'Employee Dashboard',
+          icon: Home,
+        },
+        {
+          id: 'employee-customers',
+          path: '/customers',
+          aliasPaths: ['/admin/customers'],
+          label: 'Customers',
+          icon: Building2,
+        },
+        {
+          id: 'employee-quotations',
+          path: '/quotations',
+          aliasPaths: ['/quotations/new'],
+          label: 'Quotations & Proposals',
+          icon: FileSpreadsheet,
+        },
+        {
+          id: 'employee-tasks',
+          path: '/tasks',
+          aliasPaths: ['/admin/tasks'],
+          label: 'My Tasks',
+          icon: ClipboardList,
+        },
+        {
+          id: 'employee-amc-contracts',
+          path: '/amc-contracts',
+          aliasPaths: [],
+          label: 'AMC Contracts',
+          icon: ShieldCheck,
+        },
+        { id: 'products', path: '/products', aliasPaths: ['/equipment'], label: 'Equipment & Inventory', icon: Zap },
+        {
+          id: 'employee-attendance',
+          path: '/employee/attendance',
+          aliasPaths: ['/attendance'],
+          label: 'My Attendance',
+          icon: CalendarCheck,
+        },
+        { id: 'profile', path: '/profile', aliasPaths: [], label: 'My Profile', icon: User },
+      ];
 
   const isItemActive = (path: string, aliasPaths: string[] = []) => {
     return currentPath === path || aliasPaths.includes(currentPath);

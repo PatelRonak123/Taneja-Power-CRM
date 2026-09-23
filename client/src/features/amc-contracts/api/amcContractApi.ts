@@ -191,6 +191,13 @@ export const amcContractApi = {
     return (await apiClient.get(`/amc-contracts/${id}`)) as any;
   },
 
+  updateContract: async (
+    id: string,
+    data: Partial<AmcContract>
+  ): Promise<{ success: boolean; data: AmcContract }> => {
+    return (await apiClient.put(`/amc-contracts/${id}`, data)) as any;
+  },
+
   activateContract: async (id: string): Promise<{ success: boolean; data: AmcContract }> => {
     return (await apiClient.post(`/amc-contracts/${id}/activate`)) as any;
   },

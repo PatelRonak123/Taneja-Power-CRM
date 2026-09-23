@@ -1,12 +1,18 @@
 import React from 'react';
 import { User } from 'lucide-react';
 import { navigate } from '../../../app/router/navigation';
+import { useAuthStore } from '../../../stores/authStore';
 
 interface EmployeeWelcomeBannerProps {
   fullName?: string;
 }
 
 export const EmployeeWelcomeBanner: React.FC<EmployeeWelcomeBannerProps> = ({ fullName }) => {
+  const { user } = useAuthStore();
+  const designation = (user?.designation || '').toLowerCase();
+  const isSalesOffice = user?.workType === 'OFFICE' && designation.includes('sales');
+  const isServiceOffice = user?.workType === 'OFFICE' && designation.includes('service');
+
   const userInitials = fullName
     ? fullName
         .split(' ')
@@ -25,14 +31,23 @@ export const EmployeeWelcomeBanner: React.FC<EmployeeWelcomeBannerProps> = ({ fu
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> OPERATIONAL SESSION ACTIVE
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />{' '}
+              {isServiceOffice
+                ? 'SERVICE OFFICE ACTIVE'
+                : isSalesOffice
+                ? 'SALES OFFICE ACTIVE'
+                : 'OPERATIONAL SESSION ACTIVE'}
             </span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             Welcome back, {fullName || 'Employee'}!
           </h1>
           <p className="text-sm text-slate-500 max-w-2xl">
-            Taneja Power Operations & Equipment Management Portal. Monitoring grid assets, stock inventory, and telemetry diagnostics.
+            {isServiceOffice
+              ? 'Taneja Power Service Workspace. Monitor field service reports, active AMC contracts, service quotations, and assigned tasks.'
+              : isSalesOffice
+              ? 'Taneja Power Sales Workspace. Manage your customer relationships, leads pipeline, quotations, and daily schedule.'
+              : 'Taneja Power Operations & Equipment Management Portal. Monitoring grid assets, stock inventory, and telemetry diagnostics.'}
           </p>
         </div>
       </div>

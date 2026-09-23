@@ -27,6 +27,7 @@ interface CustomerTableProps {
   totalCount: number;
   onPageChange: (newPage: number) => void;
   onOpenCreate: () => void;
+  isAdmin?: boolean;
 }
 
 export const CustomerTable: React.FC<CustomerTableProps> = ({
@@ -44,6 +45,7 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   totalCount,
   onPageChange,
   onOpenCreate,
+  isAdmin = false,
 }) => {
   return (
     <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden flex flex-col">
@@ -202,15 +204,17 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                             <Edit2 size={13} />
                           </button>
 
-                          <button
-                            type="button"
-                            className="p-1.5 rounded-lg border border-slate-200/80 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 hover:border-rose-200 transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed shadow-2xs"
-                            onClick={() => onDeleteCustomer(cust)}
-                            title="Delete Customer"
-                            disabled={deletingCustomerId === cust.id}
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-lg border border-slate-200/80 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 hover:border-rose-200 transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed shadow-2xs"
+                              onClick={() => onDeleteCustomer(cust)}
+                              title="Delete Customer"
+                              disabled={deletingCustomerId === cust.id}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

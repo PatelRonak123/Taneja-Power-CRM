@@ -31,6 +31,7 @@ interface TaskTableProps {
   onEditTask: (task: TaskItem) => void;
   onCancelTask: (task: TaskItem) => void;
   onTrackTask?: (task: TaskItem) => void;
+  isManagement?: boolean;
 }
 
 export const TaskTable: React.FC<TaskTableProps> = ({
@@ -49,6 +50,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
   onEditTask,
   onCancelTask,
   onTrackTask,
+  isManagement = true,
 }) => {
   const getPriorityBadge = (priority: TaskPriority) => {
     switch (priority) {
@@ -145,13 +147,15 @@ export const TaskTable: React.FC<TaskTableProps> = ({
           <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-center text-slate-400">
             <ClipboardList size={28} />
           </div>
-          <h3 className="text-base font-bold text-slate-900">No Field Tasks Found</h3>
+          <h3 className="text-base font-bold text-slate-900">No {isManagement ? 'Field Tasks' : 'Assigned Tasks'} Found</h3>
           <p className="text-xs text-slate-500 max-w-md">
             {searchQuery || statusFilter !== 'ALL' || priorityFilter !== 'ALL'
-              ? 'No field work orders match your current search or filter criteria.'
-              : 'No field tasks registered yet. Click "Create Field Task" above to dispatch your first task.'}
+              ? 'No work orders match your current search or filter criteria.'
+              : isManagement
+              ? 'No field tasks registered yet. Click "Create Field Task" above to dispatch your first task.'
+              : 'You have no assigned tasks at the moment.'}
           </p>
-          {!searchQuery && statusFilter === 'ALL' && priorityFilter === 'ALL' && (
+          {!searchQuery && statusFilter === 'ALL' && priorityFilter === 'ALL' && isManagement && (
             <button
               onClick={onOpenCreate}
               className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
@@ -279,7 +283,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                             <Eye size={13} />
                           </button>
 
-                          {!isFinalized && (
+                          {!isFinalized && isManagement && (
                             <>
                               <button
                                 type="button"

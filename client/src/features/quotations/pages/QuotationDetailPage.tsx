@@ -149,7 +149,7 @@ export const QuotationDetailPage: React.FC = () => {
   }
 
   const activeRev = quotation.currentRevision;
-  const isManagerOrAdmin = user?.role === 'ADMIN' || (user as any)?.role === 'SALES_MANAGER' || (user as any)?.role === 'SUPER_ADMIN';
+  const isManagerOrAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER' || (user as any)?.role === 'SALES_MANAGER' || (user as any)?.role === 'SUPER_ADMIN';
   const canEdit = quotation.status === 'DRAFT';
   const canSubmitApproval = quotation.status === 'DRAFT' || (quotation.status === 'REJECTED' && !isManagerOrAdmin);
   const canWithdrawApproval = quotation.status === 'PENDING_APPROVAL' && !isManagerOrAdmin;

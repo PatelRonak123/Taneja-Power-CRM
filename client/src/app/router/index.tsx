@@ -18,6 +18,12 @@ export const AppRouter: React.FC = () => {
     if (!isInitialized) return;
 
     if (isAuthenticated) {
+      if (user?.workType === 'FIELD' && user?.role !== 'ADMIN' && user?.role !== 'MANAGER') {
+        useAuthStore.getState().logout();
+        navigate('/login');
+        return;
+      }
+
       if (currentPath === '/login' || currentPath === '/') {
         navigate(defaultHomePath);
       } else if (
@@ -34,9 +40,16 @@ export const AppRouter: React.FC = () => {
         user?.role !== 'ADMIN'
       ) {
         navigate('/employee/dashboard');
+      } else if (
+        currentPath.startsWith('/field-service') &&
+        user?.role === 'USER' &&
+        user?.workType === 'OFFICE' &&
+        (user?.designation || '').toLowerCase().includes('sales')
+      ) {
+        navigate('/employee/dashboard');
       }
     }
-  }, [isInitialized, isAuthenticated, currentPath, user?.role, defaultHomePath]);
+  }, [isInitialized, isAuthenticated, currentPath, user?.role, user?.workType, user?.designation, defaultHomePath]);
 
   // Unauthenticated Login route
   if (currentPath === '/login') {

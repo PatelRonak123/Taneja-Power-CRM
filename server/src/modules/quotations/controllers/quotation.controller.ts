@@ -35,7 +35,7 @@ export class QuotationController {
    */
   list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.quotationService.listQuotations(req.query as any);
+      const result = await this.quotationService.listQuotations(req.query as any, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
@@ -54,7 +54,7 @@ export class QuotationController {
    */
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.quotationService.getQuotationById(req.params.id);
+      const result = await this.quotationService.getQuotationById(req.params.id, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
@@ -204,7 +204,7 @@ export class QuotationController {
    */
   getRevisions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.quotationService.getRevisionHistory(req.params.id);
+      const result = await this.quotationService.getRevisionHistory(req.params.id, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
@@ -223,7 +223,7 @@ export class QuotationController {
   getRevisionByNumber = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const revisionNumber = parseInt(req.params.revisionNumber, 10);
-      const result = await this.quotationService.getSpecificRevision(req.params.id, revisionNumber);
+      const result = await this.quotationService.getSpecificRevision(req.params.id, revisionNumber, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
@@ -241,7 +241,7 @@ export class QuotationController {
    */
   getApprovals = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.quotationService.getApprovalHistory(req.params.id);
+      const result = await this.quotationService.getApprovalHistory(req.params.id, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
@@ -259,7 +259,7 @@ export class QuotationController {
    */
   getActivity = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.quotationService.getActivityHistory(req.params.id);
+      const result = await this.quotationService.getActivityHistory(req.params.id, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
@@ -277,7 +277,7 @@ export class QuotationController {
    */
   getPdf = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { buffer, filename } = await this.quotationService.generatePdf(req.params.id);
+      const { buffer, filename } = await this.quotationService.generatePdf(req.params.id, undefined, req.user);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
       res.setHeader('Content-Length', buffer.length);
@@ -294,7 +294,7 @@ export class QuotationController {
   getRevisionPdf = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const revisionNumber = parseInt(req.params.revisionNumber, 10);
-      const { buffer, filename } = await this.quotationService.generatePdf(req.params.id, revisionNumber);
+      const { buffer, filename } = await this.quotationService.generatePdf(req.params.id, revisionNumber, req.user);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
       res.setHeader('Content-Length', buffer.length);

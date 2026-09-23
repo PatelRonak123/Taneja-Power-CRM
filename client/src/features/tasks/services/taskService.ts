@@ -12,8 +12,20 @@ export const taskService = {
     return apiClient.get('/tasks', { params }) as unknown as Promise<ApiEnvelope<TaskItem[]>>;
   },
 
+  getMyTasks: async (params?: TaskQueryParams): Promise<ApiEnvelope<TaskItem[]>> => {
+    return apiClient.get('/tasks/my-tasks', { params }) as unknown as Promise<ApiEnvelope<TaskItem[]>>;
+  },
+
   getTaskById: async (id: string): Promise<ApiEnvelope<TaskItem>> => {
     return apiClient.get(`/tasks/${id}`) as unknown as Promise<ApiEnvelope<TaskItem>>;
+  },
+
+  startTask: async (id: string, payload?: { latitude?: number | null; longitude?: number | null }): Promise<ApiEnvelope<TaskItem>> => {
+    return apiClient.post(`/tasks/${id}/start`, payload || {}) as unknown as Promise<ApiEnvelope<TaskItem>>;
+  },
+
+  completeTask: async (id: string, payload?: { notes?: string | null; latitude?: number | null; longitude?: number | null }): Promise<ApiEnvelope<TaskItem>> => {
+    return apiClient.post(`/tasks/${id}/complete`, payload || {}) as unknown as Promise<ApiEnvelope<TaskItem>>;
   },
 
   createTask: async (payload: CreateTaskPayload): Promise<ApiEnvelope<TaskItem>> => {

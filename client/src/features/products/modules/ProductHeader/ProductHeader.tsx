@@ -8,6 +8,7 @@ interface ProductHeaderProps {
   totalValuation?: number;
   activeCount?: number;
   onAddProduct: () => void;
+  canCreate?: boolean;
 }
 
 export const ProductHeader: React.FC<ProductHeaderProps> = ({
@@ -16,6 +17,7 @@ export const ProductHeader: React.FC<ProductHeaderProps> = ({
   totalValuation = 0,
   activeCount = 0,
   onAddProduct,
+  canCreate = true,
 }) => {
   const operationalRate = totalCount > 0 ? Math.round((activeCount / totalCount) * 100) : 100;
 
@@ -38,15 +40,17 @@ export const ProductHeader: React.FC<ProductHeaderProps> = ({
           </p>
         </div>
 
-        <div className="shrink-0">
-          <button
-            onClick={onAddProduct}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm shadow-sm hover:shadow transition-all active:scale-[0.98] cursor-pointer"
-          >
-            <Zap size={16} />
-            <span>Deploy New Asset</span>
-          </button>
-        </div>
+        {canCreate && (
+          <div className="shrink-0">
+            <button
+              onClick={onAddProduct}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm shadow-sm hover:shadow transition-all active:scale-[0.98] cursor-pointer"
+            >
+              <Zap size={16} />
+              <span>Deploy New Asset</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* KPI Metrics Dashboard Bar */}
