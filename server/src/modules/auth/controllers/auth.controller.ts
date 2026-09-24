@@ -86,4 +86,35 @@ export class AuthController {
       next(error);
     }
   };
+
+  forgotPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.authService.sendForgotPasswordOtp(req.body.email);
+      sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, result, result.message);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  verifyOtp = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.authService.verifyForgotPasswordOtp(req.body.email, req.body.otp);
+      sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, result, result.message);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.authService.resetPasswordWithOtp(
+        req.body.email,
+        req.body.otp,
+        req.body.newPassword
+      );
+      sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, result, result.message);
+    } catch (error) {
+      next(error);
+    }
+  };
 }

@@ -8,8 +8,11 @@ import { REFRESH_TOKEN_MAX_AGE } from '../../../common/auth/cookie.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { AuthMapper } from '../mappers/auth.mapper.js';
 import { AuthResultDto, UserResponseDto } from '../dto/auth.dto.js';
+import { emailService } from '../../../common/services/email.service.js';
 
 export class AuthService {
+  private static otpStore: Map<string, { code: string; expiresAt: number }> = new Map();
+
   constructor(
     private readonly authRepo: AuthRepository = new AuthRepository(),
     private readonly refreshTokenRepo: RefreshTokenRepository = new RefreshTokenRepository()
@@ -169,5 +172,88 @@ export class AuthService {
     }
 
     return AuthMapper.toUserResponseDto(user);
+  }
+
+  /**
+   * 1. Generate & Send 4-digit OTP code to email for password reset
+   */
+  async sendForgotPasswordOtp(email: string): Promise<{ message: string; devOtp?: string }> {
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await this.authRepo.findByEmail(cleanEmail);
+    if (!user) {
+      throw AppError.notFound('No registered account found with this email address');
+    }
+    if (user.status === 'INACTIVE') {
+      throw AppError.forbidden('Your account has been deactivated. Please contact an administrator.');
+    }
+
+    // Generate random 4-digit numeric OTP code
+    const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+    // Invalidate any old OTP for this email and set the new one
+    AuthService.otpStore.delete(cleanEmail);
+    AuthService.otpStore.set(cleanEmail, { code: otpCode, expiresAt });
+
+    // Send email via emailService
+    await emailService.sendOtpEmail(cleanEmail, otpCode);
+
+    return {
+      message: `A new 4-digit OTP code has been sent to ${cleanEmail}. Valid for 5 minutes.`,
+      devOtp: otpCode,
+    };
+  }
+
+  /**
+   * 2. Verify 4-digit OTP code
+   */
+  async verifyForgotPasswordOtp(email: string, otp: string): Promise<{ success: boolean; message: string }> {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.trim();
+    const stored = AuthService.otpStore.get(cleanEmail);
+
+    if (!stored) {
+      throw AppError.badRequest('OTP code has expired or was not requested for this email address');
+    }
+    if (Date.now() > stored.expiresAt) {
+      AuthService.otpStore.delete(cleanEmail);
+      throw AppError.badRequest('OTP code has expired. Please request a new OTP');
+    }
+    if (stored.code !== cleanOtp) {
+      throw AppError.badRequest('Invalid 4-digit OTP code. Please check your email and try again');
+    }
+
+    return {
+      success: true,
+      message: 'OTP verified successfully',
+    };
+  }
+
+  /**
+   * 3. Reset password after OTP verification
+   */
+  async resetPasswordWithOtp(email: string, otp: string, newPassword: string): Promise<{ message: string }> {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.trim();
+    const stored = AuthService.otpStore.get(cleanEmail);
+
+    if (!stored || stored.code !== cleanOtp || Date.now() > stored.expiresAt) {
+      throw AppError.badRequest('Invalid or expired OTP session. Please restart password reset');
+    }
+
+    const user = await this.authRepo.findByEmail(cleanEmail);
+    if (!user) {
+      throw AppError.notFound('User account not found');
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await this.authRepo.updatePassword(user.id, passwordHash);
+
+    // Revoke OTP after successful reset
+    AuthService.otpStore.delete(cleanEmail);
+
+    return {
+      message: 'Password reset successfully! You can now sign in with your new password.',
+    };
   }
 }

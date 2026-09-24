@@ -17,4 +17,13 @@ export class AuthRepository {
     const result = await db.insert(users).values(user).returning();
     return result[0];
   }
+
+  async updatePassword(id: string, passwordHash: string): Promise<UserEntity> {
+    const result = await db
+      .update(users)
+      .set({ passwordHash, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return result[0];
+  }
 }
