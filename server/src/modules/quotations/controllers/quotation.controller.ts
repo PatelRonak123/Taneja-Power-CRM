@@ -303,4 +303,31 @@ export class QuotationController {
       next(error);
     }
   };
+
+  /**
+   * POST /api/v1/quotations/:id/send-email
+   * Send quotation PDF attachment directly to customer email using Resend
+   */
+  sendEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+
+      const result = await this.quotationService.sendQuotationEmailToCustomer(
+        req.params.id,
+        req.body,
+        req.user
+      );
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        result.message || 'Quotation PDF successfully emailed to customer'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
 }
+

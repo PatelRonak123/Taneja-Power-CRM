@@ -165,4 +165,17 @@ export const quotationService = {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
   },
+
+  /**
+   * Send quotation PDF directly to customer email via Resend
+   */
+  sendQuotationEmail: async (
+    id: string,
+    payload?: { customEmail?: string; customSubject?: string; customNotes?: string }
+  ): Promise<ApiEnvelope<{ message: string; emailId: string; recipientEmail: string }>> => {
+    return apiClient.post(`/quotations/${id}/send-email`, payload) as unknown as Promise<
+      ApiEnvelope<{ message: string; emailId: string; recipientEmail: string }>
+    >;
+  },
 };
+

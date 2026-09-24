@@ -23,7 +23,9 @@ import {
   SubmitQuotationDto,
   ApproveQuotationDto,
   RejectQuotationDto,
+  SendQuotationEmailDto,
 } from '../validators/quotation.validator.js';
+import { emailService } from '../../../common/services/email.service.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { JwtPayload } from '../../../common/auth/jwt.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
@@ -1411,4 +1413,118 @@ export class QuotationService {
 
     return { buffer: pdfBuffer, filename };
   }
+
+  /**
+   * Send quotation PDF attachment via Resend email to the customer
+   */
+  async sendQuotationEmailToCustomer(
+    id: string,
+    options?: SendQuotationEmailDto,
+    authUser?: JwtPayload
+  ) {
+    const quotation = await this.quotationRepo.findById(id);
+    if (!quotation) {
+      throw AppError.notFound('Quotation not found');
+    }
+
+    // Verify quotation approval status (must be approved by admin or in an approved flow state)
+    const allowedStatuses = [
+      APP_CONSTANTS.QUOTATION_STATUSES.APPROVED,
+      APP_CONSTANTS.QUOTATION_STATUSES.SENT,
+      APP_CONSTANTS.QUOTATION_STATUSES.ACCEPTED,
+      'FOLLOW_UP',
+    ];
+
+    if (!allowedStatuses.includes(quotation.status)) {
+      throw AppError.badRequest(
+        `Quotation must be approved by admin before sending to customer. Current status is ${quotation.status}.`
+      );
+    }
+
+    const currentRevision = quotation.currentRevision;
+    if (!currentRevision) {
+      throw AppError.notFound('Active quotation revision details not found');
+    }
+
+    // Determine target recipient email address (from customer record or input override)
+    const targetEmail =
+      options?.customEmail?.trim() ||
+      quotation.customer?.email?.trim() ||
+      currentRevision.customerEmail?.trim();
+
+    if (!targetEmail) {
+      throw AppError.badRequest(
+        'Customer email address is not defined on customer record. Please specify a valid target email address.'
+      );
+    }
+
+    // Generate authoritative PDF buffer
+    const { buffer: pdfBuffer, filename } = await this.generatePdf(id);
+
+    // Format currency total
+    const formattedTotal = new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: currentRevision.currency || 'INR',
+      maximumFractionDigits: 2,
+    }).format(Number(currentRevision.grandTotal) || 0);
+
+    const formattedValidUntil = currentRevision.validUntil
+      ? new Date(currentRevision.validUntil).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+      : undefined;
+
+    const customerName = quotation.customer?.name || currentRevision.customerName || 'Valued Customer';
+
+    // Dispatch email via Resend
+    const resendResult = await emailService.sendQuotationEmail({
+      to: targetEmail,
+      subject: options?.customSubject,
+      quotationNumber: quotation.quotationNumber,
+      customerName,
+      grandTotal: formattedTotal,
+      validUntil: formattedValidUntil,
+      pdfBuffer,
+      filename,
+      customMessage: options?.customNotes,
+    });
+
+    // If quotation status was APPROVED, update status to SENT
+    if (quotation.status === APP_CONSTANTS.QUOTATION_STATUSES.APPROVED) {
+      await db
+        .update(quotations)
+        .set({
+          status: APP_CONSTANTS.QUOTATION_STATUSES.SENT,
+          updatedAt: new Date(),
+        })
+        .where(eq(quotations.id, quotation.id));
+
+      await db
+        .update(quotationRevisions)
+        .set({
+          status: APP_CONSTANTS.QUOTATION_STATUSES.SENT,
+          updatedAt: new Date(),
+        })
+        .where(eq(quotationRevisions.id, currentRevision.id));
+    }
+
+    // Record activity log
+    await db.insert(quotationActivityLogs).values({
+      quotationId: quotation.id,
+      quotationRevisionId: currentRevision.id,
+      userId: authUser?.userId || quotation.createdById,
+      action: 'EMAIL_SENT',
+      title: 'Quotation PDF Emailed to Customer',
+      description: `Quotation PDF Rev ${currentRevision.revisionNumber} sent to ${targetEmail} via Resend. (Msg ID: ${resendResult.id})`,
+    });
+
+    return {
+      message: `Quotation PDF successfully emailed to ${targetEmail}`,
+      emailId: resendResult.id,
+      recipientEmail: targetEmail,
+    };
+  }
 }
+

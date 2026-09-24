@@ -276,12 +276,26 @@ export const getRevisionByNumberSchema = z.object({
   }),
 });
 
+export const sendQuotationEmailSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid quotation ID'),
+  }),
+  body: z
+    .object({
+      customEmail: z.string().email('Invalid target email address').optional().or(z.literal('')),
+      customSubject: z.string().optional(),
+      customNotes: z.string().optional(),
+    })
+    .optional(),
+});
+
 export type CreateQuotationDto = z.input<typeof createQuotationSchema>['body'];
 export type UpdateQuotationDto = z.input<typeof updateQuotationSchema>['body'];
 export type CreateRevisionDto = z.input<typeof createRevisionSchema>['body'];
 export type SubmitQuotationDto = z.input<typeof submitQuotationSchema>['body'];
 export type ApproveQuotationDto = z.input<typeof approveQuotationSchema>['body'];
 export type RejectQuotationDto = z.input<typeof rejectQuotationSchema>['body'];
+export type SendQuotationEmailDto = z.input<typeof sendQuotationEmailSchema>['body'];
 export type ListQuotationsQueryDto = z.input<typeof listQuotationsSchema>['query'];
 
 

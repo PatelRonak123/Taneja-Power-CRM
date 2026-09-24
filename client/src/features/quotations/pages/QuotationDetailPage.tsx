@@ -11,6 +11,7 @@ import { QuotationRevisionViewer } from '../components/QuotationRevisionViewer';
 import { QuotationApprovalHistory } from '../components/QuotationApprovalHistory';
 import { QuotationActivityTimeline } from '../components/QuotationActivityTimeline';
 import { QuotationPdfModal } from '../components/QuotationPdfModal';
+import { SendQuotationEmailModal } from '../components/SendQuotationEmailModal';
 import { QuotationPrintDocument } from '../components/QuotationPrintDocument';
 import { QuotationRevision, QuotationItem } from '../types/quotation.types';
 import { amcContractApi } from '../../amc-contracts/api/amcContractApi';
@@ -19,6 +20,7 @@ import {
   ArrowLeft,
   Edit,
   Send,
+  Mail,
   CheckCircle2,
   XCircle,
   RotateCcw,
@@ -70,6 +72,7 @@ export const QuotationDetailPage: React.FC = () => {
   const [viewingRevisionNumber, setViewingRevisionNumber] = useState<number | null>(null);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [pdfModalRevision, setPdfModalRevision] = useState<QuotationRevision | null>(null);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   const { data: quotationRes, isLoading, error } = useQuery({
     queryKey: ['quotation', quotationId],
@@ -155,6 +158,7 @@ export const QuotationDetailPage: React.FC = () => {
   const canWithdrawApproval = quotation.status === 'PENDING_APPROVAL' && !isManagerOrAdmin;
   const canApproveOrReject = quotation.status === 'PENDING_APPROVAL' && isManagerOrAdmin;
   const canCreateRevision = ['APPROVED', 'SENT', 'EXPIRED', 'ACCEPTED'].includes(quotation.status) || (quotation.status === 'REJECTED' && !isManagerOrAdmin);
+  const canSendEmail = ['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'].includes(quotation.status);
 
   // Check if Intra-State (CGST + SGST) vs Inter-State (IGST)
   const isIntraState = Number(activeRev?.cgstAmount || 0) > 0 || Number(activeRev?.sgstAmount || 0) > 0;
@@ -303,6 +307,17 @@ export const QuotationDetailPage: React.FC = () => {
               >
                 <GitBranch className="w-4 h-4 mr-1.5" />
                 Create Revision (Rev {(activeRev?.revisionNumber ?? quotation.currentRevisionNumber) + 1})
+              </button>
+            )}
+
+            {canSendEmail && (
+              <button
+                onClick={() => setIsEmailModalOpen(true)}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-colors cursor-pointer"
+                title="Send quotation PDF directly to customer email via Resend"
+              >
+                <Mail className="w-4 h-4 mr-1.5" />
+                Send Email to Customer
               </button>
             )}
 
@@ -930,6 +945,20 @@ export const QuotationDetailPage: React.FC = () => {
           onClose={() => {
             setIsPdfModalOpen(false);
             setPdfModalRevision(null);
+          }}
+        />
+      )}
+
+      {/* Send Email to Customer Modal */}
+      {isEmailModalOpen && (
+        <SendQuotationEmailModal
+          isOpen={isEmailModalOpen}
+          quotation={quotation}
+          revision={activeRev}
+          onClose={() => setIsEmailModalOpen(false)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['quotation', quotation.id] });
+            queryClient.invalidateQueries({ queryKey: ['quotations'] });
           }}
         />
       )}
