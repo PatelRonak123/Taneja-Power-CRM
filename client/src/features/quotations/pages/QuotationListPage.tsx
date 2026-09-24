@@ -10,6 +10,7 @@ import {
   Search,
   Eye,
   Edit,
+  Mail,
   Clock,
   CheckCircle2,
   FileEdit,
@@ -320,6 +321,16 @@ export const QuotationListPage: React.FC = () => {
                         >
                           <Eye size={16} />
                         </button>
+                        {['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'].includes(q.status) && (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/quotations/${q.id}`)}
+                            className="p-1.5 rounded-lg text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 transition-colors cursor-pointer"
+                            title="Send Quotation PDF Email to Customer"
+                          >
+                            <Mail size={16} />
+                          </button>
+                        )}
                         {q.status === 'DRAFT' && (
                           <button
                             type="button"

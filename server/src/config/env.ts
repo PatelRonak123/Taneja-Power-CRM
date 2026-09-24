@@ -17,6 +17,8 @@ const envSchema = z.object({
   COOKIE_SECURE: z.preprocess((v) => (v === 'true' || v === true ? true : v === 'false' || v === false ? false : undefined), z.boolean().optional()),
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   GOOGLE_MAPS_API_KEY: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM_EMAIL: z.string().default('Taneja Power Systems <onboarding@resend.dev>'),
 });
 
 const parseEnv = () => {

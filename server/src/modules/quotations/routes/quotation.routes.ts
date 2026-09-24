@@ -13,6 +13,7 @@ import {
   listQuotationsSchema,
   getQuotationByIdSchema,
   getRevisionByNumberSchema,
+  sendQuotationEmailSchema,
 } from '../validators/quotation.validator.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
 
@@ -50,6 +51,9 @@ router.post(
   quotationController.reject
 );
 router.post('/:id/withdraw', validateRequest(withdrawQuotationSchema), quotationController.withdraw);
+
+// 4. Email Dispatching
+router.post('/:id/send-email', validateRequest(sendQuotationEmailSchema), quotationController.sendEmail);
 
 // 4. Audit & History Streams
 router.get('/:id/approvals', validateRequest(getQuotationByIdSchema), quotationController.getApprovals);
