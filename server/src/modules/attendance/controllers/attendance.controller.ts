@@ -194,4 +194,19 @@ export class AttendanceController {
       next(error);
     }
   };
+
+  updateAttendance = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const result = await this.attendanceService.updateAttendance(id, req.body);
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        'Attendance record updated successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
 }

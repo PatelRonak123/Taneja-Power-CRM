@@ -11,6 +11,8 @@ import {
   Zap,
   ShieldCheck,
   Wrench,
+  Users,
+  User,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { navigate } from '../../../app/router/navigation';
@@ -22,6 +24,10 @@ export const EmployeeQuickActions: React.FC = () => {
   const designation = (user?.designation || '').toLowerCase();
   const isSalesOffice = user?.workType === 'OFFICE' && designation.includes('sales');
   const isServiceOffice = user?.workType === 'OFFICE' && designation.includes('service');
+  const isHrOffice =
+    (user?.role === 'USER' || (user as any)?.role === 'HR') &&
+    user?.workType === 'OFFICE' &&
+    (designation.includes('hr') || designation.includes('human resources'));
 
   // Fetch today's attendance state
   const { data: attendanceRes } = useQuery({
@@ -37,6 +43,108 @@ export const EmployeeQuickActions: React.FC = () => {
       : attendanceStatus === 'CHECKED_OUT'
       ? { label: 'Checked Out Today', bg: 'bg-slate-100 text-slate-700 border-slate-300' }
       : { label: 'Not Checked In', bg: 'bg-amber-100 text-amber-800 border-amber-300' };
+
+  if (isHrOffice) {
+    return (
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+              <Users size={18} />
+            </div>
+            <h3 className="text-sm sm:text-base font-bold text-slate-900">HR Operations & Shortcuts</h3>
+          </div>
+          <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full">
+            Shortcuts
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* My Attendance */}
+          <button
+            type="button"
+            className="flex items-center justify-between p-3.5 sm:p-4 bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200/80 rounded-xl transition-all cursor-pointer group text-left shadow-2xs"
+            onClick={() => navigate('/employee/attendance')}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2.5 bg-emerald-600 text-white rounded-xl group-hover:scale-105 transition-transform shadow-xs shrink-0">
+                <CalendarCheck size={18} />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs sm:text-sm font-bold text-slate-900 block truncate group-hover:text-emerald-800">
+                  My Attendance
+                </span>
+                <span className={`inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.2 rounded border ${attendanceBadge.bg}`}>
+                  {attendanceBadge.label}
+                </span>
+              </div>
+            </div>
+            <ArrowRight size={15} className="text-slate-400 group-hover:text-emerald-700 group-hover:translate-x-1 transition-all shrink-0" />
+          </button>
+
+          {/* Employee Attendance */}
+          <button
+            type="button"
+            className="flex items-center justify-between p-3.5 sm:p-4 bg-blue-50/70 hover:bg-blue-100/70 border border-blue-200/80 rounded-xl transition-all cursor-pointer group text-left shadow-2xs"
+            onClick={() => navigate('/attendance')}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2.5 bg-blue-600 text-white rounded-xl group-hover:scale-105 transition-transform shadow-xs shrink-0">
+                <CalendarCheck size={18} />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs sm:text-sm font-bold text-slate-900 block truncate group-hover:text-blue-800">
+                  Employee Attendance
+                </span>
+                <span className="text-[11px] text-slate-500 truncate block">Workforce duty logs</span>
+              </div>
+            </div>
+            <ArrowRight size={15} className="text-slate-400 group-hover:text-blue-700 group-hover:translate-x-1 transition-all shrink-0" />
+          </button>
+
+          {/* Employee Management */}
+          <button
+            type="button"
+            className="flex items-center justify-between p-3.5 sm:p-4 bg-indigo-50/70 hover:bg-indigo-100/70 border border-indigo-200/80 rounded-xl transition-all cursor-pointer group text-left shadow-2xs"
+            onClick={() => navigate('/employees')}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2.5 bg-indigo-600 text-white rounded-xl group-hover:scale-105 transition-transform shadow-xs shrink-0">
+                <Users size={18} />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs sm:text-sm font-bold text-slate-900 block truncate group-hover:text-indigo-800">
+                  Employee Management
+                </span>
+                <span className="text-[11px] text-slate-500 truncate block">Directory & staff onboarding</span>
+              </div>
+            </div>
+            <ArrowRight size={15} className="text-slate-400 group-hover:text-indigo-700 group-hover:translate-x-1 transition-all shrink-0" />
+          </button>
+
+          {/* My Profile */}
+          <button
+            type="button"
+            className="flex items-center justify-between p-3.5 sm:p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl transition-all cursor-pointer group text-left shadow-2xs"
+            onClick={() => navigate('/profile')}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2.5 bg-slate-700 text-white rounded-xl group-hover:scale-105 transition-transform shadow-xs shrink-0">
+                <User size={18} />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs sm:text-sm font-bold text-slate-900 block truncate group-hover:text-slate-900">
+                  My Profile
+                </span>
+                <span className="text-[11px] text-slate-500 truncate block">Account settings & security</span>
+              </div>
+            </div>
+            <ArrowRight size={15} className="text-slate-400 group-hover:text-slate-700 group-hover:translate-x-1 transition-all shrink-0" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isServiceOffice) {
     return (

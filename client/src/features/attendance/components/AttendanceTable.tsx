@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Edit2,
   Copy,
   Check,
   Radio,
@@ -20,6 +21,7 @@ interface AttendanceTableProps {
   totalCount: number;
   onPageChange: (newPage: number) => void;
   onViewDetails: (record: AttendanceItem) => void;
+  onEditRecord?: (record: AttendanceItem) => void;
 }
 
 export const AttendanceTable: React.FC<AttendanceTableProps> = ({
@@ -30,6 +32,7 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
   totalCount,
   onPageChange,
   onViewDetails,
+  onEditRecord,
 }) => {
   const [copiedCoord, setCopiedCoord] = React.useState<string | null>(null);
 
@@ -266,14 +269,27 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
 
                     {/* Actions */}
                     <td className="py-4 px-6 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => onViewDetails(item)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-blue-600 hover:bg-blue-50/80 border border-slate-200/80 hover:border-blue-200 transition-all shadow-2xs"
-                      >
-                        <Eye size={13} />
-                        <span>View</span>
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onViewDetails(item)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-blue-600 hover:bg-blue-50/80 border border-slate-200/80 hover:border-blue-200 transition-all shadow-2xs cursor-pointer"
+                        >
+                          <Eye size={13} />
+                          <span>View</span>
+                        </button>
+                        {onEditRecord && (
+                          <button
+                            type="button"
+                            onClick={() => onEditRecord(item)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-50 border border-amber-200/80 transition-all shadow-2xs cursor-pointer"
+                            title="Edit Attendance Record"
+                          >
+                            <Edit2 size={13} />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

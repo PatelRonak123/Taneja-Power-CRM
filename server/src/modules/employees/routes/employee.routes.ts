@@ -17,36 +17,36 @@ const controller = new EmployeeController();
 // All employee routes require authentication
 router.use(authenticate);
 
-// 1. Read Endpoints (Admin & Manager)
+// 1. Read Endpoints (Admin, Manager & HR)
 router.get(
   '/',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER, APP_CONSTANTS.ROLES.HR),
   validateRequest(listEmployeesSchema),
   controller.list
 );
 router.get(
   '/:id',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER, APP_CONSTANTS.ROLES.HR),
   validateRequest(getEmployeeByIdSchema),
   controller.getById
 );
 
-// 2. Mutation Endpoints (Admin Only)
+// 2. Mutation Endpoints (Admin & HR)
 router.post(
   '/',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.HR),
   validateRequest(createEmployeeSchema),
   controller.create
 );
 router.put(
   '/:id',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.HR),
   validateRequest(updateEmployeeSchema),
   controller.update
 );
 router.delete(
   '/:id',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.HR),
   validateRequest(deleteEmployeeSchema),
   controller.delete
 );

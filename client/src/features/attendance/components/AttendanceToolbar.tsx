@@ -48,19 +48,19 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
   checkedInCount = 0,
 }) => {
   return (
-    <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs mb-6 space-y-3.5">
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs mb-6 space-y-3.5 overflow-hidden">
       {/* Top Controls: Date Presets & On-Duty Button */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1.5 flex items-center gap-1">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5 w-full">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto min-w-0">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
             <Calendar size={12} /> Timeframe:
           </span>
 
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
+          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 overflow-x-auto no-scrollbar max-w-full w-full sm:w-auto">
             <button
               type="button"
               onClick={() => onDatePresetChange('TODAY')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
                 datePreset === 'TODAY'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -72,7 +72,7 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
             <button
               type="button"
               onClick={() => onDatePresetChange('YESTERDAY')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
                 datePreset === 'YESTERDAY'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -84,7 +84,7 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
             <button
               type="button"
               onClick={() => onDatePresetChange('THIS_WEEK')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
                 datePreset === 'THIS_WEEK'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -96,7 +96,7 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
             <button
               type="button"
               onClick={() => onDatePresetChange('THIS_MONTH')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
                 datePreset === 'THIS_MONTH'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -108,7 +108,7 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
             <button
               type="button"
               onClick={() => onDatePresetChange('CUSTOM')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
                 datePreset === 'CUSTOM'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -123,7 +123,7 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
           <button
             type="button"
             onClick={onOpenCheckedInDrawer}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 transition-all cursor-pointer shadow-xs"
+            className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 transition-all cursor-pointer shadow-xs w-full sm:w-auto shrink-0"
           >
             <span className="flex h-2 w-2 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -137,7 +137,7 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
 
       {/* Date Pickers for Custom Range or Single Date display */}
       {datePreset === 'CUSTOM' ? (
-        <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+        <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 w-full">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-slate-600">From:</span>
             <input
@@ -170,16 +170,16 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
       ) : null}
 
       {/* Bottom Controls: Search, Employee Dropdown, Status Dropdown, Refresh */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 w-full">
         {/* Search Bar */}
-        <div className="relative flex-1 min-w-60">
+        <div className="relative flex-1 w-full min-w-0">
           <Search
             size={16}
             className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
           />
           <input
             type="text"
-            placeholder="Search by employee name, email, phone..."
+            placeholder="Search employee or phone..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full h-10 pl-10 pr-4 rounded-xl bg-slate-50/70 border border-slate-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-3 focus:ring-blue-100 transition-all"
@@ -187,10 +187,10 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
         </div>
 
         {/* Filter Dropdowns & Refresh */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {/* Employee Dropdown */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500 max-w-45">
-            <Users size={12} className="text-slate-400" />
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500 flex-1 sm:flex-initial min-w-0 sm:max-w-45">
+            <Users size={12} className="text-slate-400 shrink-0" />
             <select
               value={employeeFilter}
               onChange={(e) => onEmployeeFilterChange(e.target.value)}
@@ -206,12 +206,12 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
           </div>
 
           {/* Status Dropdown */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500">
-            <Filter size={12} className="text-slate-400" />
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500 flex-1 sm:flex-initial min-w-0">
+            <Filter size={12} className="text-slate-400 shrink-0" />
             <select
               value={statusFilter}
               onChange={(e) => onStatusFilterChange(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1"
+              className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer w-full truncate pr-1"
             >
               <option value="ALL">All Statuses</option>
               <option value="CHECKED_IN">Checked In</option>

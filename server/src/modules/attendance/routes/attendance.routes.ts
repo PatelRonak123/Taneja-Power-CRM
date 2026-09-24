@@ -23,33 +23,38 @@ router.post('/check-out', validateRequest(checkOutSchema), attendanceController.
 router.get('/me', attendanceController.getMyAttendance);
 router.get('/my-history', attendanceController.getMyHistory);
 
-// 2. Admin & Manager Analytics / Monitoring Endpoints
+// 2. Admin, Manager & HR Analytics / Monitoring Endpoints
 router.get(
   '/metrics',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER, APP_CONSTANTS.ROLES.HR),
   attendanceController.getMetrics
 );
 router.get(
   '/currently-checked-in',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER, APP_CONSTANTS.ROLES.HR),
   attendanceController.getCurrentlyCheckedIn
 );
 router.get(
   '/employee/:employeeId',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER, APP_CONSTANTS.ROLES.HR),
   validateRequest(getAttendanceByEmployeeSchema),
   attendanceController.getByEmployee
 );
 
-// 3. Attendance List (Admin & Manager)
+// 3. Attendance List (Admin, Manager & HR)
 router.get(
   '/',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER, APP_CONSTANTS.ROLES.HR),
   validateRequest(listAttendanceSchema),
   attendanceController.list
 );
 
-// 4. Attendance Details
+// 4. Attendance Details & Update
 router.get('/:id', validateRequest(getAttendanceByIdSchema), attendanceController.getById);
+router.put(
+  '/:id',
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER, APP_CONSTANTS.ROLES.HR),
+  attendanceController.updateAttendance
+);
 
 export default router;

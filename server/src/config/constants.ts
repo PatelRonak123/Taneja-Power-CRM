@@ -7,10 +7,12 @@ export const APP_CONSTANTS = {
     ADMIN: 'ADMIN',
     MANAGER: 'MANAGER',
     USER: 'USER',
+    HR: 'HR',
   } as const,
   STATUS: {
     ACTIVE: 'ACTIVE',
     INACTIVE: 'INACTIVE',
+    ON_LEAVE: 'ON_LEAVE',
   } as const,
   WORK_TYPES: {
     OFFICE: 'OFFICE',
@@ -20,6 +22,7 @@ export const APP_CONSTANTS = {
     OFFICE: [
       'Sales Office',
       'HR Office',
+      'HR',
       'Accountant Office',
       'Service Office',
     ] as const,

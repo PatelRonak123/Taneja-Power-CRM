@@ -27,9 +27,24 @@ export const AppRouter: React.FC = () => {
       const designationLower = (user?.designation || '').toLowerCase();
       const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('sales');
       const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('accountant');
+      const isHrOffice = (user?.role === 'USER' || (user as any)?.role === 'HR') && user?.workType === 'OFFICE' && (designationLower.includes('hr') || designationLower.includes('human resources'));
 
       if (currentPath === '/login' || currentPath === '/') {
         navigate(defaultHomePath);
+      } else if (isHrOffice) {
+        const allowedHrPaths = [
+          '/employee/dashboard',
+          '/dashboard',
+          '/hr/dashboard',
+          '/attendance',
+          '/employee/attendance',
+          '/employees',
+          '/admin/employees',
+          '/profile',
+        ];
+        if (!allowedHrPaths.includes(currentPath)) {
+          navigate('/employee/dashboard');
+        }
       } else if (
         (currentPath === '/admin/dashboard' ||
           currentPath === '/admin' ||

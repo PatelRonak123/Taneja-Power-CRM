@@ -6,12 +6,9 @@ import { useCurrentPath } from '../../app/router/navigation';
 import ProductsPage from '../../features/products/pages/ProductsPage';
 import { AdminDashboardPage } from '../../features/admin/pages/AdminDashboardPage';
 import { EmployeeManagementPage } from '../../features/admin/pages/EmployeeManagementPage';
-import { CustomerManagementPage } from '../../features/customers/pages/CustomerManagementPage';
 import { TaskManagementPage } from '../../features/tasks/pages/TaskManagementPage';
 import { AttendanceManagementPage } from '../../features/attendance/pages/AttendanceManagementPage';
 import { WhatsAppIntegrationPage } from '../../features/whatsapp/pages/WhatsAppIntegrationPage';
-import { LeadManagementPage } from '../../features/leads/pages/LeadManagementPage';
-import { PipelinePage } from '../../features/leads/pages/PipelinePage';
 import { EmployeeDashboardPage } from '../../features/employee/pages/EmployeeDashboardPage';
 import { AccountantDashboardPage } from '../../features/accountant/pages/AccountantDashboardPage';
 import { EmployeeAttendancePage } from '../../features/employee/pages/EmployeeAttendancePage';
@@ -48,29 +45,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return <AdminDashboardPage />;
     }
 
-    if ((currentPath === '/employees' || currentPath === '/admin/employees') && isAdmin) {
-      return <EmployeeManagementPage />;
-    }
-
-    if (currentPath === '/customers' || currentPath === '/admin/customers') {
-      return <CustomerManagementPage />;
-    }
-
-    if (currentPath === '/leads' || currentPath === '/admin/leads') {
-      return <LeadManagementPage />;
-    }
-
-    if (currentPath === '/pipeline' || currentPath === '/admin/pipeline') {
-      return <PipelinePage />;
-    }
-
     // Role / Designation flags
     const designation = (user?.designation || '').toLowerCase();
     const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('sales');
     const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('accountant');
+    const isHrOffice = (user?.role === 'USER' || (user as any)?.role === 'HR') && user?.workType === 'OFFICE' && (designation.includes('hr') || designation.includes('human resources'));
+
+    if ((currentPath === '/employees' || currentPath === '/admin/employees') && (isAdmin || isHrOffice)) {
+      return <EmployeeManagementPage />;
+    }
 
     if (currentPath.startsWith('/field-service')) {
-      if (isSalesOffice) {
+      if (isSalesOffice || isHrOffice) {
         return <EmployeeDashboardPage />;
       }
       if (isAccountantOffice) {
@@ -131,11 +117,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return <TaskManagementPage />;
     }
 
-    if ((currentPath === '/attendance' || currentPath === '/admin/attendance') && (isAdmin || isManager)) {
+    if ((currentPath === '/attendance' || currentPath === '/admin/attendance') && (isAdmin || isManager || isHrOffice)) {
       return <AttendanceManagementPage />;
     }
 
-    if (currentPath === '/employee/attendance' || (currentPath === '/attendance' && !isAdmin && !isManager)) {
+    if (currentPath === '/employee/attendance' || (currentPath === '/attendance' && !isAdmin && !isManager && !isHrOffice)) {
       return <EmployeeAttendancePage />;
     }
 
@@ -245,7 +231,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       />
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         <Header onToggleMobileMenu={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} />
-        <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">{renderContent()}</main>
+        <main className="flex-1 p-3 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">{renderContent()}</main>
       </div>
       <ToastContainer />
     </div>

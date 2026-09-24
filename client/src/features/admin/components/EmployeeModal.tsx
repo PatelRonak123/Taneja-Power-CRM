@@ -18,6 +18,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { EmployeeRole, EmployeeStatus, WorkType } from '../types/employee.types';
+import { useAuthStore } from '../../../stores/authStore';
 
 interface EmployeeModalProps {
   modalMode: 'create' | 'edit' | null;
@@ -55,6 +56,12 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   showPassword,
   onToggleShowPassword,
 }) => {
+  const { user: currentUser } = useAuthStore();
+  const designationLower = (currentUser?.designation || '').toLowerCase();
+  const isHrUser =
+    (currentUser?.role === 'USER' || (currentUser as any)?.role === 'HR') &&
+    (designationLower.includes('hr') || designationLower.includes('human resources'));
+
   if (!modalMode) return null;
 
   return createPortal(
@@ -212,16 +219,24 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
 
                 {/* System Access Role */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-slate-700">System Access Role *</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700">System Access Role *</label>
+                    {isHrUser && (
+                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                        HR Restricted: USER role only
+                      </span>
+                    )}
+                  </div>
                   <select
                     name="role"
                     value={formData.role}
                     onChange={onInputChange}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+                    disabled={isHrUser}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer disabled:opacity-75 disabled:bg-slate-100 disabled:cursor-not-allowed"
                   >
                     <option value="USER">USER (Standard Employee)</option>
-                    <option value="MANAGER">MANAGER (Operations & Inventory)</option>
-                    <option value="ADMIN">ADMIN (Full Control & User Management)</option>
+                    {!isHrUser && <option value="MANAGER">MANAGER (Operations & Inventory)</option>}
+                    {!isHrUser && <option value="ADMIN">ADMIN (Full Control & User Management)</option>}
                   </select>
                 </div>
 

@@ -165,12 +165,45 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
   const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('sales');
   const isServiceOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('service');
   const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('accountant');
+  const isHrOffice = (user?.role === 'USER' || (user as any)?.role === 'HR') && user?.workType === 'OFFICE' && (designation.includes('hr') || designation.includes('human resources'));
 
   const coreNavItems = isAdmin
     ? [
         { id: 'products', path: '/products', aliasPaths: ['/equipment'], label: 'Equipment & Inventory', icon: Zap },
         { id: 'analytics', path: '/analytics', aliasPaths: [], label: 'Energy Telemetry', icon: BarChart3 },
         { id: 'settings', path: '/settings', aliasPaths: [], label: 'System Configuration', icon: Settings },
+        { id: 'profile', path: '/profile', aliasPaths: [], label: 'My Profile', icon: User },
+      ]
+    : isHrOffice
+    ? [
+        {
+          id: 'hr-dashboard',
+          path: '/employee/dashboard',
+          aliasPaths: ['/dashboard', '/hr/dashboard'],
+          label: 'HR Dashboard',
+          icon: Home,
+        },
+        {
+          id: 'hr-my-attendance',
+          path: '/employee/attendance',
+          aliasPaths: [],
+          label: 'My Attendance',
+          icon: CalendarCheck,
+        },
+        {
+          id: 'hr-employee-attendance',
+          path: '/attendance',
+          aliasPaths: ['/admin/attendance'],
+          label: 'Employee Attendance',
+          icon: CalendarCheck,
+        },
+        {
+          id: 'hr-employees',
+          path: '/employees',
+          aliasPaths: ['/admin/employees'],
+          label: 'Employee Management',
+          icon: Users,
+        },
         { id: 'profile', path: '/profile', aliasPaths: [], label: 'My Profile', icon: User },
       ]
     : isAccountantOffice

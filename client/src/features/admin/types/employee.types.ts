@@ -1,5 +1,5 @@
 export type EmployeeRole = 'ADMIN' | 'MANAGER' | 'USER';
-export type EmployeeStatus = 'ACTIVE' | 'INACTIVE';
+export type EmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE';
 export type WorkType = 'OFFICE' | 'FIELD';
 
 export interface Employee {
