@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { LeadController } from '../controllers/lead.controller.js';
 import { validateRequest } from '../../../common/middleware/validate.middleware.js';
-import { authenticate } from '../../../common/middleware/auth.middleware.js';
+import { authenticate, requirePermission } from '../../../common/middleware/auth.middleware.js';
 import {
   listLeadsSchema,
   getLeadByIdSchema,
@@ -18,10 +18,10 @@ router.use(authenticate);
 
 router.get('/', validateRequest(listLeadsSchema), controller.list);
 router.get('/pipeline', controller.getPipeline);
-router.post('/', validateRequest(createLeadSchema), controller.create);
+router.post('/', requirePermission('leads:create'), validateRequest(createLeadSchema), controller.create);
 router.get('/:id', validateRequest(getLeadByIdSchema), controller.getById);
-router.put('/:id', validateRequest(updateLeadSchema), controller.update);
-router.delete('/:id', validateRequest(deleteLeadSchema), controller.delete);
-router.post('/:id/activity', controller.addActivity);
+router.put('/:id', requirePermission('leads:edit_own'), validateRequest(updateLeadSchema), controller.update);
+router.delete('/:id', requirePermission('leads:delete'), validateRequest(deleteLeadSchema), controller.delete);
+router.post('/:id/activity', requirePermission('leads:edit_own'), controller.addActivity);
 
 export default router;

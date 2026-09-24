@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { FieldServiceController } from '../controllers/field-service.controller.js';
 import { validateRequest } from '../../../common/middleware/validate.middleware.js';
-import { authenticate, requireRoles } from '../../../common/middleware/auth.middleware.js';
+import { authenticate, requireRoles, denyDesignations } from '../../../common/middleware/auth.middleware.js';
 import {
   createFsrSchema,
   updateFsrSchema,
@@ -31,6 +31,7 @@ const fsrController = new FieldServiceController();
 
 // All FSR routes strictly require authentication
 router.use(authenticate);
+router.use(denyDesignations('Accountant Office'));
 
 // 1. List & Create FSRs
 router.get('/', validateRequest(queryFsrSchema), fsrController.list);

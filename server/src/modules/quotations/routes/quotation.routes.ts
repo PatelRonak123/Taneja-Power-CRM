@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { QuotationController } from '../controllers/quotation.controller.js';
 import { validateRequest } from '../../../common/middleware/validate.middleware.js';
-import { authenticate, requireRoles } from '../../../common/middleware/auth.middleware.js';
+import { authenticate, requireRoles, requirePermission } from '../../../common/middleware/auth.middleware.js';
 import {
   createQuotationSchema,
   updateQuotationSchema,
@@ -25,7 +25,12 @@ router.use(authenticate);
 
 // 1. List & Create Quotations
 router.get('/', validateRequest(listQuotationsSchema), quotationController.list);
-router.post('/', validateRequest(createQuotationSchema), quotationController.create);
+router.post(
+  '/',
+  requirePermission('quotations:create'),
+  validateRequest(createQuotationSchema),
+  quotationController.create
+);
 
 // 2. Revision Management
 router.get('/:id/revisions', validateRequest(getQuotationByIdSchema), quotationController.getRevisions);
@@ -34,10 +39,20 @@ router.get(
   validateRequest(getRevisionByNumberSchema),
   quotationController.getRevisionByNumber
 );
-router.post('/:id/revisions', validateRequest(createRevisionSchema), quotationController.createRevision);
+router.post(
+  '/:id/revisions',
+  requirePermission('quotations:create'),
+  validateRequest(createRevisionSchema),
+  quotationController.createRevision
+);
 
 // 3. Approval Workflow Lifecycle
-router.post('/:id/submit', validateRequest(submitQuotationSchema), quotationController.submit);
+router.post(
+  '/:id/submit',
+  requirePermission('quotations:submit'),
+  validateRequest(submitQuotationSchema),
+  quotationController.submit
+);
 router.post(
   '/:id/approve',
   requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
@@ -50,10 +65,20 @@ router.post(
   validateRequest(rejectQuotationSchema),
   quotationController.reject
 );
-router.post('/:id/withdraw', validateRequest(withdrawQuotationSchema), quotationController.withdraw);
+router.post(
+  '/:id/withdraw',
+  requirePermission('quotations:edit'),
+  validateRequest(withdrawQuotationSchema),
+  quotationController.withdraw
+);
 
 // 4. Email Dispatching
-router.post('/:id/send-email', validateRequest(sendQuotationEmailSchema), quotationController.sendEmail);
+router.post(
+  '/:id/send-email',
+  requirePermission('quotations:edit'),
+  validateRequest(sendQuotationEmailSchema),
+  quotationController.sendEmail
+);
 
 // 4. Audit & History Streams
 router.get('/:id/approvals', validateRequest(getQuotationByIdSchema), quotationController.getApprovals);
@@ -69,6 +94,17 @@ router.get(
 
 // 6. Single Quotation Read & Update
 router.get('/:id', validateRequest(getQuotationByIdSchema), quotationController.getById);
-router.put('/:id', validateRequest(updateQuotationSchema), quotationController.update);
+router.put(
+  '/:id',
+  requirePermission('quotations:edit'),
+  validateRequest(updateQuotationSchema),
+  quotationController.update
+);
+router.patch(
+  '/:id',
+  requirePermission('quotations:edit'),
+  validateRequest(updateQuotationSchema),
+  quotationController.update
+);
 
 export default router;

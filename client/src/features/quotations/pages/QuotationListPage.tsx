@@ -24,7 +24,9 @@ import { useAuthStore } from '../../../stores/authStore';
 
 export const QuotationListPage: React.FC = () => {
   const { user } = useAuthStore();
-  const isServiceOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && (user?.designation || '').toLowerCase().includes('service');
+  const designationLower = (user?.designation || '').toLowerCase();
+  const isServiceOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('service');
+  const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('accountant');
 
   const [quotations, setQuotations] = useState<QuotationListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,7 +105,7 @@ export const QuotationListPage: React.FC = () => {
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          {!isServiceOffice && (
+          {!isServiceOffice && !isAccountantOffice && (
             <button
               type="button"
               onClick={() => navigate('/quotations/new')}
@@ -321,7 +323,7 @@ export const QuotationListPage: React.FC = () => {
                         >
                           <Eye size={16} />
                         </button>
-                        {['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'].includes(q.status) && (
+                        {['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'].includes(q.status) && !isAccountantOffice && (
                           <button
                             type="button"
                             onClick={() => navigate(`/quotations/${q.id}`)}
@@ -331,7 +333,7 @@ export const QuotationListPage: React.FC = () => {
                             <Mail size={16} />
                           </button>
                         )}
-                        {q.status === 'DRAFT' && (
+                        {q.status === 'DRAFT' && !isAccountantOffice && (
                           <button
                             type="button"
                             onClick={() => navigate(`/quotations/${q.id}/edit`)}

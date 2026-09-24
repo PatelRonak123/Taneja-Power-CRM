@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyToken, JwtPayload } from '../auth/jwt.js';
 import { AppError } from '../errors/AppError.js';
 import { UserRole } from '../../config/constants.js';
+import { hasPermission } from '../auth/permissions.js';
 
 declare global {
   namespace Express {
@@ -47,3 +48,32 @@ export const requireRoles = (...allowedRoles: UserRole[]) => {
     next();
   };
 };
+
+export const requirePermission = (permission: string) => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      return next(AppError.unauthorized());
+    }
+
+    if (!hasPermission(req.user.role, permission, req.user.designation)) {
+      return next(AppError.forbidden('You do not have permission to access this resource'));
+    }
+
+    next();
+  };
+};
+
+export const denyDesignations = (...blockedDesignations: string[]) => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      return next(AppError.unauthorized());
+    }
+
+    if (req.user.designation && blockedDesignations.includes(req.user.designation)) {
+      return next(AppError.forbidden('You do not have permission to access this resource'));
+    }
+
+    next();
+  };
+};
+

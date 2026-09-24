@@ -54,7 +54,11 @@ export class LeadRepository {
     const conditions = [];
 
     // Server-side Ownership Scoping for Sales Employees (USER / SALES)
-    const isSalesRole = user && user.role !== 'ADMIN' && user.role !== 'MANAGER';
+    const isSalesRole =
+      user &&
+      user.role !== 'ADMIN' &&
+      user.role !== 'MANAGER' &&
+      user.designation !== 'Accountant Office';
     if (isSalesRole && user) {
       const [currentUser] = await db
         .select({ fullName: users.fullName })
@@ -152,7 +156,11 @@ export class LeadRepository {
     if (!leadRecord) return null;
 
     // Ownership check for Sales role
-    const isSalesRole = user && user.role !== 'ADMIN' && user.role !== 'MANAGER';
+    const isSalesRole =
+      user &&
+      user.role !== 'ADMIN' &&
+      user.role !== 'MANAGER' &&
+      user.designation !== 'Accountant Office';
     if (isSalesRole && user) {
       const [currentUser] = await db
         .select({ fullName: users.fullName })
@@ -306,6 +314,10 @@ export class LeadRepository {
   }
 
   async create(data: NewLeadEntity, user?: JwtPayload) {
+    if (user?.designation === 'Accountant Office') {
+      throw AppError.forbidden('Accountant Office is not permitted to create leads');
+    }
+
     const newId = data.id || `lead-${crypto.randomUUID()}`;
     const newCode = data.leadCode || `lead-${Math.floor(100 + Math.random() * 900)}`;
 
@@ -367,6 +379,10 @@ export class LeadRepository {
   }
 
   async update(id: string, data: Partial<NewLeadEntity>, user?: JwtPayload) {
+    if (user?.designation === 'Accountant Office') {
+      throw AppError.forbidden('Accountant Office is not permitted to update leads');
+    }
+
     await this.ensureSchema();
     const existingLead = await this.findById(id, user);
 

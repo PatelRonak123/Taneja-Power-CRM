@@ -13,6 +13,7 @@ import { WhatsAppIntegrationPage } from '../../features/whatsapp/pages/WhatsAppI
 import { LeadManagementPage } from '../../features/leads/pages/LeadManagementPage';
 import { PipelinePage } from '../../features/leads/pages/PipelinePage';
 import { EmployeeDashboardPage } from '../../features/employee/pages/EmployeeDashboardPage';
+import { AccountantDashboardPage } from '../../features/accountant/pages/AccountantDashboardPage';
 import { EmployeeAttendancePage } from '../../features/employee/pages/EmployeeAttendancePage';
 import { ProfilePage } from '../../features/profile/pages/ProfilePage';
 import { ReportsPage } from '../../features/admin/pages/ReportsPage';
@@ -63,13 +64,17 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return <PipelinePage />;
     }
 
-    // Field Service Routes (Isolated from Sales Office)
+    // Role / Designation flags
     const designation = (user?.designation || '').toLowerCase();
     const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('sales');
+    const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('accountant');
 
     if (currentPath.startsWith('/field-service')) {
       if (isSalesOffice) {
         return <EmployeeDashboardPage />;
+      }
+      if (isAccountantOffice) {
+        return <AccountantDashboardPage />;
       }
       if (currentPath === '/field-service') {
         return <FsrDashboardPage />;
@@ -94,10 +99,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
 
     if (currentPath === '/quotations/new') {
+      if (isAccountantOffice) {
+        return <QuotationListPage />;
+      }
       return <CreateQuotationPage />;
     }
 
     if (currentPath.startsWith('/quotations/') && currentPath.endsWith('/edit')) {
+      if (isAccountantOffice) {
+        return <QuotationListPage />;
+      }
       return <EditQuotationPage />;
     }
 
@@ -114,6 +125,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
 
     if (currentPath === '/tasks' || currentPath === '/admin/tasks') {
+      if (isAccountantOffice) {
+        return <AccountantDashboardPage />;
+      }
       return <TaskManagementPage />;
     }
 
@@ -133,7 +147,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return <ReportsPage />;
     }
 
-    if (currentPath === '/employee/dashboard' || currentPath === '/dashboard') {
+    if (currentPath === '/employee/dashboard' || currentPath === '/dashboard' || currentPath === '/accountant/dashboard') {
+      if (isAccountantOffice) {
+        return <AccountantDashboardPage />;
+      }
       return <EmployeeDashboardPage />;
     }
 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AmcContractController } from '../controllers/amc-contract.controller.js';
-import { authenticate, requireRoles } from '../../../common/middleware/auth.middleware.js';
+import { authenticate, requireRoles, denyDesignations } from '../../../common/middleware/auth.middleware.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
 
 const router = Router();
@@ -10,9 +10,9 @@ const controller = new AmcContractController();
 router.use(authenticate);
 
 router.get('/', controller.getContracts);
-router.post('/from-quotation/:quotationId', controller.createFromQuotation);
+router.post('/from-quotation/:quotationId', denyDesignations('Accountant Office'), controller.createFromQuotation);
 router.get('/:id', controller.getContractById);
-router.put('/:id', controller.updateContract);
+router.put('/:id', denyDesignations('Accountant Office'), controller.updateContract);
 router.post(
   '/:id/activate',
   requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
@@ -23,10 +23,10 @@ router.post(
   requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
   controller.terminateContract
 );
-router.post('/:id/service-requests', controller.createBreakdownRequest);
-router.post('/:id/service-requests/:requestId/escalate', controller.escalateBreakdownRequest);
+router.post('/:id/service-requests', denyDesignations('Accountant Office'), controller.createBreakdownRequest);
+router.post('/:id/service-requests/:requestId/escalate', denyDesignations('Accountant Office'), controller.escalateBreakdownRequest);
 router.get('/:id/service-requests/:requestId', controller.getBreakdownRequestById);
-router.post('/schedule/:visitId/create-task', controller.createTaskForVisit);
+router.post('/schedule/:visitId/create-task', denyDesignations('Accountant Office'), controller.createTaskForVisit);
 
 // Phase 7: Renewal & History
 router.post(
@@ -37,11 +37,11 @@ router.post(
 router.get('/:id/history', controller.getContractHistory);
 
 // Phase 5 Service Execution & Report Routes
-router.post('/visits/:visitId/start', controller.startVisit);
-router.post('/visits/:visitId/cancel', controller.cancelVisit);
+router.post('/visits/:visitId/start', denyDesignations('Accountant Office'), controller.startVisit);
+router.post('/visits/:visitId/cancel', denyDesignations('Accountant Office'), controller.cancelVisit);
 router.get('/visits/:visitId/report', controller.getOrCreateServiceReport);
-router.post('/visits/:visitId/report', controller.updateServiceReport);
-router.post('/visits/:visitId/complete', controller.completeServiceVisit);
+router.post('/visits/:visitId/report', denyDesignations('Accountant Office'), controller.updateServiceReport);
+router.post('/visits/:visitId/complete', denyDesignations('Accountant Office'), controller.completeServiceVisit);
 router.get('/reports/:reportId/pdf', controller.downloadServiceReportPdf);
 
 // Phase 6 Materials Routes

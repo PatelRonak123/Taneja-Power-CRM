@@ -45,6 +45,10 @@ export class QuotationService {
       throw AppError.unauthorized('User not authenticated');
     }
 
+    if (authUser.designation === 'Accountant Office') {
+      throw AppError.forbidden('Accountant Office is not permitted to create quotations');
+    }
+
     // 1. Authoritative customer validation & snapshot preparation
     const [customer] = await db
       .select()
@@ -335,6 +339,10 @@ export class QuotationService {
     const quotation = await this.quotationRepo.findById(id);
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
+    }
+
+    if (authUser.designation === 'Accountant Office') {
+      throw AppError.forbidden('Accountant Office is not permitted to update quotations');
     }
 
     if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
@@ -673,6 +681,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
 
+    if (authUser.designation === 'Accountant Office') {
+      throw AppError.forbidden('Accountant Office is not permitted to create quotation revisions');
+    }
+
     if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
       throw AppError.forbidden('You are not authorized to create revisions for this quotation');
     }
@@ -1005,6 +1017,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
 
+    if (authUser.designation === 'Accountant Office') {
+      throw AppError.forbidden('Accountant Office is not permitted to submit quotations for approval');
+    }
+
     if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
       throw AppError.forbidden('You can only submit your own quotations for approval');
     }
@@ -1234,6 +1250,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
 
+    if (authUser.designation === 'Accountant Office') {
+      throw AppError.forbidden('Accountant Office is not permitted to withdraw quotations');
+    }
+
     if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
       throw AppError.forbidden('You can only withdraw your own quotations');
     }
@@ -1300,7 +1320,11 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
-    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+    if (
+      authUser?.role === APP_CONSTANTS.ROLES.USER &&
+      authUser?.designation !== 'Accountant Office' &&
+      quotation.salespersonId !== authUser.userId
+    ) {
       throw AppError.notFound('Quotation not found');
     }
     return quotation;
@@ -1311,7 +1335,7 @@ export class QuotationService {
    */
   async listQuotations(options: QuotationFilterOptions, authUser?: JwtPayload) {
     // If the authenticated user is a normal sales employee (USER role), strictly scope to their assigned quotations
-    if (authUser?.role === APP_CONSTANTS.ROLES.USER) {
+    if (authUser?.role === APP_CONSTANTS.ROLES.USER && authUser?.designation !== 'Accountant Office') {
       options.salespersonId = authUser.userId;
     }
 
@@ -1345,7 +1369,11 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
-    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+    if (
+      authUser?.role === APP_CONSTANTS.ROLES.USER &&
+      authUser?.designation !== 'Accountant Office' &&
+      quotation.salespersonId !== authUser.userId
+    ) {
       throw AppError.notFound('Quotation not found');
     }
 
@@ -1360,7 +1388,11 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
-    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+    if (
+      authUser?.role === APP_CONSTANTS.ROLES.USER &&
+      authUser?.designation !== 'Accountant Office' &&
+      quotation.salespersonId !== authUser.userId
+    ) {
       throw AppError.notFound('Quotation not found');
     }
 
@@ -1380,7 +1412,11 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
-    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+    if (
+      authUser?.role === APP_CONSTANTS.ROLES.USER &&
+      authUser?.designation !== 'Accountant Office' &&
+      quotation.salespersonId !== authUser.userId
+    ) {
       throw AppError.notFound('Quotation not found');
     }
 
@@ -1395,7 +1431,11 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
-    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+    if (
+      authUser?.role === APP_CONSTANTS.ROLES.USER &&
+      authUser?.designation !== 'Accountant Office' &&
+      quotation.salespersonId !== authUser.userId
+    ) {
       throw AppError.notFound('Quotation not found');
     }
 
@@ -1410,7 +1450,11 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
-    if (authUser?.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+    if (
+      authUser?.role === APP_CONSTANTS.ROLES.USER &&
+      authUser?.designation !== 'Accountant Office' &&
+      quotation.salespersonId !== authUser.userId
+    ) {
       throw AppError.notFound('Quotation not found');
     }
 
@@ -1461,6 +1505,10 @@ export class QuotationService {
     options?: SendQuotationEmailDto,
     authUser?: JwtPayload
   ) {
+    if (authUser?.designation === 'Accountant Office') {
+      throw AppError.forbidden('Accountant Office is not permitted to dispatch quotation emails');
+    }
+
     const quotation = await this.quotationRepo.findById(id);
     if (!quotation) {
       throw AppError.notFound('Quotation not found');

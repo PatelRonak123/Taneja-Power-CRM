@@ -33,6 +33,17 @@ export class AmcContractService {
     quotationId: string,
     createdById: string
   ): Promise<AmcContractEntity> {
+    if (createdById) {
+      const [creator] = await db
+        .select({ designation: users.designation })
+        .from(users)
+        .where(eq(users.id, createdById))
+        .limit(1);
+      if (creator?.designation === 'Accountant Office') {
+        throw new Error('Accountant Office is not permitted to create AMC Contracts.');
+      }
+    }
+
     return await db.transaction(async (tx) => {
       // 1. Fetch quotation
       const [quotation] = await tx
@@ -316,6 +327,17 @@ export class AmcContractService {
     },
     updatedById?: string
   ): Promise<AmcContractEntity> {
+    if (updatedById) {
+      const [updater] = await db
+        .select({ designation: users.designation })
+        .from(users)
+        .where(eq(users.id, updatedById))
+        .limit(1);
+      if (updater?.designation === 'Accountant Office') {
+        throw new Error('Accountant Office is not permitted to update AMC Contracts.');
+      }
+    }
+
     const [contract] = await db
       .select()
       .from(amcContracts)

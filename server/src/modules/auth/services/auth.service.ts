@@ -18,13 +18,17 @@ export class AuthService {
   private async generateTokensAndSaveSession(
     userId: string,
     email: string,
-    role: any
+    role: any,
+    workType?: any,
+    designation?: any
   ): Promise<{ accessToken: string; refreshToken: string }> {
     // Access JWT
     const accessToken = signToken({
       userId,
       email,
       role,
+      workType,
+      designation,
     });
 
     // Opaque Refresh Token
@@ -63,7 +67,9 @@ export class AuthService {
     const { accessToken, refreshToken } = await this.generateTokensAndSaveSession(
       authenticatedUser.id,
       authenticatedUser.email,
-      authenticatedUser.role
+      authenticatedUser.role,
+      authenticatedUser.workType,
+      authenticatedUser.designation
     );
 
     return {
@@ -92,7 +98,9 @@ export class AuthService {
     const { accessToken, refreshToken } = await this.generateTokensAndSaveSession(
       authenticatedUser.id,
       authenticatedUser.email,
-      authenticatedUser.role
+      authenticatedUser.role,
+      authenticatedUser.workType,
+      authenticatedUser.designation
     );
 
     return {
@@ -132,7 +140,9 @@ export class AuthService {
       await this.generateTokensAndSaveSession(
         authenticatedUser.id,
         authenticatedUser.email,
-        authenticatedUser.role
+        authenticatedUser.role,
+        authenticatedUser.workType,
+        authenticatedUser.designation
       );
 
     return {

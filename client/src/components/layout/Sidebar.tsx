@@ -164,6 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
   const designation = (user?.designation || '').toLowerCase();
   const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('sales');
   const isServiceOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('service');
+  const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('accountant');
 
   const coreNavItems = isAdmin
     ? [
@@ -171,6 +172,65 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
         { id: 'analytics', path: '/analytics', aliasPaths: [], label: 'Energy Telemetry', icon: BarChart3 },
         { id: 'settings', path: '/settings', aliasPaths: [], label: 'System Configuration', icon: Settings },
         { id: 'profile', path: '/profile', aliasPaths: [], label: 'My Profile', icon: User },
+      ]
+    : isAccountantOffice
+    ? [
+        {
+          id: 'accountant-dashboard',
+          path: '/employee/dashboard',
+          aliasPaths: ['/dashboard', '/accountant/dashboard'],
+          label: 'Accountant Dashboard',
+          icon: Home,
+        },
+        {
+          id: 'employee-customers',
+          path: '/customers',
+          aliasPaths: ['/admin/customers'],
+          label: 'Customers',
+          icon: Building2,
+        },
+        {
+          id: 'employee-pipeline',
+          path: '/pipeline',
+          aliasPaths: ['/admin/pipeline'],
+          label: 'Deals Pipeline',
+          icon: Layers,
+        },
+        {
+          id: 'employee-quotations',
+          path: '/quotations',
+          aliasPaths: [],
+          label: 'Quotations & Deals',
+          icon: FileSpreadsheet,
+        },
+        {
+          id: 'products',
+          path: '/products',
+          aliasPaths: ['/equipment'],
+          label: 'Equipment & Inventory',
+          icon: Zap,
+        },
+        {
+          id: 'employee-amc-contracts',
+          path: '/amc-contracts',
+          aliasPaths: [],
+          label: 'AMC Contracts',
+          icon: ShieldCheck,
+        },
+        {
+          id: 'employee-attendance',
+          path: '/employee/attendance',
+          aliasPaths: ['/attendance'],
+          label: 'My Attendance',
+          icon: CalendarCheck,
+        },
+        {
+          id: 'profile',
+          path: '/profile',
+          aliasPaths: [],
+          label: 'My Profile',
+          icon: User,
+        },
       ]
     : isServiceOffice
     ? [

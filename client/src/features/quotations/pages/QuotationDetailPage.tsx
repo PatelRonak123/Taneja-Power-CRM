@@ -152,13 +152,14 @@ export const QuotationDetailPage: React.FC = () => {
   }
 
   const activeRev = quotation.currentRevision;
+  const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && (user?.designation || '').toLowerCase().includes('accountant');
   const isManagerOrAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER' || (user as any)?.role === 'SALES_MANAGER' || (user as any)?.role === 'SUPER_ADMIN';
-  const canEdit = quotation.status === 'DRAFT';
-  const canSubmitApproval = quotation.status === 'DRAFT' || (quotation.status === 'REJECTED' && !isManagerOrAdmin);
-  const canWithdrawApproval = quotation.status === 'PENDING_APPROVAL' && !isManagerOrAdmin;
+  const canEdit = quotation.status === 'DRAFT' && !isAccountantOffice;
+  const canSubmitApproval = (quotation.status === 'DRAFT' || (quotation.status === 'REJECTED' && !isManagerOrAdmin)) && !isAccountantOffice;
+  const canWithdrawApproval = quotation.status === 'PENDING_APPROVAL' && !isManagerOrAdmin && !isAccountantOffice;
   const canApproveOrReject = quotation.status === 'PENDING_APPROVAL' && isManagerOrAdmin;
-  const canCreateRevision = ['APPROVED', 'SENT', 'EXPIRED', 'ACCEPTED'].includes(quotation.status) || (quotation.status === 'REJECTED' && !isManagerOrAdmin);
-  const canSendEmail = ['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'].includes(quotation.status);
+  const canCreateRevision = (['APPROVED', 'SENT', 'EXPIRED', 'ACCEPTED'].includes(quotation.status) || (quotation.status === 'REJECTED' && !isManagerOrAdmin)) && !isAccountantOffice;
+  const canSendEmail = ['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'].includes(quotation.status) && !isAccountantOffice;
 
   // Check if Intra-State (CGST + SGST) vs Inter-State (IGST)
   const isIntraState = Number(activeRev?.cgstAmount || 0) > 0 || Number(activeRev?.sgstAmount || 0) > 0;
