@@ -22,6 +22,17 @@ import { employeeService } from '../../admin/services/employeeService';
 import { Employee } from '../../admin/types/employee.types';
 import { toast } from '../../../utils/toast';
 import { confirmModal } from '../../../utils/confirmModal';
+import { Button } from '../../../components/ui/Button';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableEmptyState,
+} from '../../../components/ui/table';
+import { StatusPill } from '../../../components/ui/StatusPill';
 
 export const LeadManagementPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -230,155 +241,125 @@ export const LeadManagementPage: React.FC = () => {
     setIsDrawerOpen(false);
   };
 
-  // Helper for Status Badge styling
-  const getStatusBadgeStyle = (status: string) => {
-    switch (status.toUpperCase()) {
-      case 'APPROVED':
-      case 'APPROVED/PO':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200/80';
-      case 'MEETING SCHEDULED':
-        return 'bg-blue-50 text-blue-700 border-blue-200/80';
-      case 'PROPOSAL SENT':
-      case 'QUOTATION SENT':
-        return 'bg-purple-50 text-purple-700 border-purple-200/80';
-      case 'CONTACTED':
-        return 'bg-indigo-50 text-indigo-700 border-indigo-200/80';
-      case 'NEGOTIATION':
-        return 'bg-amber-50 text-amber-800 border-amber-300';
-      case 'INSTALLATION':
-        return 'bg-cyan-50 text-cyan-700 border-cyan-200';
-      case 'AMC SUPPORT':
-        return 'bg-teal-50 text-teal-700 border-teal-200';
-      case 'COMPLETED':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-300';
-      case 'NEW':
-        return 'bg-amber-50 text-amber-700 border-amber-200/80';
-      case 'LOST':
-        return 'bg-rose-50 text-rose-700 border-rose-200/80';
-      default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
-    }
-  };
-
-  // Helper for Priority Badge styling
-  const getPriorityBadgeStyle = (priority: string) => {
-    switch (priority.toUpperCase()) {
-      case 'URGENT':
-      case 'HIGH':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
-      case 'MEDIUM':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-      default:
-        return 'bg-blue-50 text-blue-700 border-blue-200';
-    }
-  };
-
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-16 select-none">
+    <div className="space-y-5 max-w-7xl mx-auto pb-10 select-none">
 
       {/* Top Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-xl border border-border shadow-xs">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
+            <span className="text-[11px] font-medium tracking-wider text-slate-400 uppercase">
               LEADS PIPELINE
             </span>
             {user && (
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">
+              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">
                 User: {user.fullName} ({user.role})
               </span>
             )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
             Lead Management
           </h1>
+          <p className="text-[13px] text-slate-500 leading-relaxed mt-0.5">
+            Capture, track, and convert prospective client opportunities into active orders
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <button
-            type="button"
+        <div className="flex items-center gap-2.5 self-start sm:self-auto shrink-0">
+          <Button
+            variant="outline"
+            size="md"
             onClick={handleExportCsv}
             disabled={filteredLeads.length === 0}
-            className="px-3.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200/90 text-slate-700 font-bold text-xs sm:text-sm rounded-xl shadow-2xs hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
             title="Download CSV report of current leads list"
           >
-            <Download size={16} />
+            <Download size={14} className="mr-1.5" />
             <span>Export CSV</span>
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
             onClick={handleOpenAdd}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
           >
-            <Plus size={18} />
+            <Plus size={15} className="mr-1.5" />
             <span>Add New Lead</span>
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* KPI Stats Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col gap-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Total Leads</span>
-            <Building2 size={16} className="text-blue-500" />
+        <div className="bg-card p-4 rounded-xl border border-border shadow-xs flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-xs text-slate-500 font-medium block">Total Leads</span>
+            <span className="text-[22px] font-bold text-slate-900 tabular-nums leading-none block">{stats.totalCount}</span>
+            <span className="text-[11px] text-slate-400">In CRM Database</span>
           </div>
-          <span className="text-xl font-bold text-slate-900">{stats.totalCount}</span>
-          <span className="text-[11px] text-slate-400 font-medium">In CRM Database</span>
+          <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <Building2 size={18} />
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col gap-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Pipeline Value</span>
-            <DollarSign size={16} className="text-emerald-500" />
+        <div className="bg-card p-4 rounded-xl border border-border shadow-xs flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-xs text-slate-500 font-medium block">Pipeline Value</span>
+            <span className="text-[22px] font-bold text-slate-900 tabular-nums leading-none block">
+              ₹{(stats.totalPipelineValue / 100000).toFixed(1)}L
+            </span>
+            <span className="text-[11px] text-slate-400">Expected revenue</span>
           </div>
-          <span className="text-xl font-bold text-slate-900">
-            ₹{(stats.totalPipelineValue / 100000).toFixed(1)}L
-          </span>
-          <span className="text-[11px] text-slate-400 font-medium">Expected revenue</span>
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <DollarSign size={18} />
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col gap-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Won Revenue</span>
-            <CheckCircle2 size={16} className="text-purple-500" />
+        <div className="bg-card p-4 rounded-xl border border-border shadow-xs flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-xs text-slate-500 font-medium block">Won Revenue</span>
+            <span className="text-[22px] font-bold text-emerald-600 tabular-nums leading-none block">
+              ₹{(stats.wonValue / 100000).toFixed(1)}L
+            </span>
+            <span className="text-[11px] text-slate-400">Approved / Closed</span>
           </div>
-          <span className="text-xl font-bold text-emerald-600">
-            ₹{(stats.wonValue / 100000).toFixed(1)}L
-          </span>
-          <span className="text-[11px] text-slate-400 font-medium">Approved / Closed</span>
+          <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <CheckCircle2 size={18} />
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col gap-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Win Rate</span>
-            <TrendingUp size={16} className="text-amber-500" />
+        <div className="bg-card p-4 rounded-xl border border-border shadow-xs flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-xs text-slate-500 font-medium block">Win Rate</span>
+            <span className="text-[22px] font-bold text-slate-900 tabular-nums leading-none block">{stats.winRate}%</span>
+            <span className="text-[11px] text-slate-400">Conversion ratio</span>
           </div>
-          <span className="text-xl font-bold text-slate-900">{stats.winRate}%</span>
-          <span className="text-[11px] text-slate-400 font-medium">Conversion ratio</span>
+          <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            <TrendingUp size={18} />
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col gap-1 col-span-2 sm:col-span-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] font-bold uppercase tracking-wider">High Priority</span>
-            <AlertCircle size={16} className="text-rose-500" />
+        <div className="bg-card p-4 rounded-xl border border-border shadow-xs flex items-center justify-between col-span-2 sm:col-span-1">
+          <div className="space-y-1">
+            <span className="text-xs text-slate-500 font-medium block">High Priority</span>
+            <span className="text-[22px] font-bold text-rose-600 tabular-nums leading-none block">{stats.urgentCount}</span>
+            <span className="text-[11px] text-slate-400">Urgent / High deals</span>
           </div>
-          <span className="text-xl font-bold text-rose-600">{stats.urgentCount}</span>
-          <span className="text-[11px] text-slate-400 font-medium">Urgent / High deals</span>
+          <div className="w-9 h-9 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+            <AlertCircle size={18} />
+          </div>
         </div>
       </div>
 
       {/* Filter Toolbar Box */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-wrap items-center gap-3">
+      <div className="bg-card p-3.5 rounded-xl border border-border shadow-xs flex flex-wrap items-center gap-2.5">
         {/* View Scope Tabs ("All Leads" vs "My Leads") */}
         {isAdminOrManager ? (
-          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/80 shrink-0">
+          <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-border shrink-0">
             <button
               type="button"
               onClick={() => setViewScope('ALL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewScope === 'ALL'
-                ? 'bg-white text-slate-900 shadow-2xs'
-                : 'text-slate-500 hover:text-slate-800'
+              className={`h-8 px-3 rounded-md text-xs font-medium transition-all cursor-pointer ${viewScope === 'ALL'
+                ? 'bg-white text-slate-900 shadow-xs border border-border/60'
+                : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
               All Leads
@@ -386,9 +367,9 @@ export const LeadManagementPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewScope('MY')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${viewScope === 'MY'
-                ? 'bg-white text-blue-600 shadow-2xs'
-                : 'text-slate-500 hover:text-slate-800'
+              className={`h-8 px-3 rounded-md text-xs font-medium transition-all cursor-pointer flex items-center gap-1 ${viewScope === 'MY'
+                ? 'bg-white text-blue-600 shadow-xs border border-border/60'
+                : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
               <UserCheck size={13} />
@@ -396,18 +377,18 @@ export const LeadManagementPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-bold shrink-0">
-            <UserCheck size={14} className="mr-1.5" />
+          <div className="flex items-center px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200/80 rounded-lg text-xs font-medium shrink-0">
+            <UserCheck size={13} className="mr-1.5" />
             <span>My Leads</span>
           </div>
         )}
 
         {/* Search Field */}
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+        <div className="relative flex-1 min-w-50">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
           <input
             type="text"
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs sm:text-sm font-medium text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full h-9 pl-9 pr-3 bg-white border border-border rounded-lg text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
             placeholder="Search customer, company, product..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -416,7 +397,7 @@ export const LeadManagementPage: React.FC = () => {
 
         {/* Status Filter */}
         <select
-          className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+          className="h-9 px-2.5 bg-white border border-border rounded-lg text-[13px] font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all cursor-pointer"
           value={selectedStatus}
           onChange={(e) => setSelectedStatus(e.target.value)}
         >
@@ -435,7 +416,7 @@ export const LeadManagementPage: React.FC = () => {
 
         {/* Priority Filter */}
         <select
-          className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+          className="h-9 px-2.5 bg-white border border-border rounded-lg text-[13px] font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all cursor-pointer"
           value={selectedPriority}
           onChange={(e) => setSelectedPriority(e.target.value)}
         >
@@ -449,7 +430,7 @@ export const LeadManagementPage: React.FC = () => {
         {/* Assignee Filter (Only for Admin/Manager) */}
         {isAdminOrManager && (
           <select
-            className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+            className="h-9 px-2.5 bg-white border border-border rounded-lg text-[13px] font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all cursor-pointer max-w-48 truncate"
             value={selectedAssignee}
             onChange={(e) => setSelectedAssignee(e.target.value)}
           >
@@ -472,146 +453,165 @@ export const LeadManagementPage: React.FC = () => {
       </div>
 
       {/* Leads Table Container */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                <th className="py-4 px-6">ID</th>
-                <th className="py-4 px-6">
+      <div className="bg-card rounded-xl border border-border shadow-xs overflow-hidden flex flex-col w-full">
+        <div className="w-full overflow-x-auto">
+          <Table density="standard" className="min-w-225 md:min-w-0 md:table-fixed">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="md:w-[10%]">ID</TableHead>
+                <TableHead className="md:w-[22%]">
                   <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-600">
                     <span>CLIENT</span>
-                    <ArrowUpDown size={13} />
+                    <ArrowUpDown size={12} />
                   </div>
-                </th>
-                <th className="py-4 px-6">PRODUCT INTERESTED</th>
-                <th className="py-4 px-6">
-                  <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-600">
+                </TableHead>
+                <TableHead className="md:w-[18%]">PRODUCT INTERESTED</TableHead>
+                <TableHead align="right" className="md:w-[14%]">
+                  <div className="flex items-center justify-end gap-1.5 cursor-pointer hover:text-slate-600">
                     <span>EXPECTED VALUE</span>
-                    <ArrowUpDown size={13} />
+                    <ArrowUpDown size={12} />
                   </div>
-                </th>
-                <th className="py-4 px-6">{isAdminOrManager ? 'ASSIGNED TO' : 'ASSIGNED BY'}</th>
-                <th className="py-4 px-6">PRIORITY</th>
-                <th className="py-4 px-6">STATUS</th>
-                <th className="py-4 px-6 text-right">ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {filteredLeads.length > 0 ? (
+                </TableHead>
+                <TableHead className="md:w-[14%]">{isAdminOrManager ? 'ASSIGNED TO' : 'ASSIGNED BY'}</TableHead>
+                <TableHead align="center" className="md:w-[8%]">PRIORITY</TableHead>
+                <TableHead align="center" className="md:w-[9%]">STATUS</TableHead>
+                <TableHead align="right" className="md:w-[8%]">ACTIONS</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredLeads.length === 0 ? (
+                <TableEmptyState
+                  colSpan={8}
+                  icon={<Building2 size={24} />}
+                  title="No leads found matching criteria"
+                  description="No leads match your active filters. Try resetting search criteria or adding a new lead."
+                  action={
+                    <button
+                      type="button"
+                      onClick={handleOpenAdd}
+                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium cursor-pointer shadow-xs"
+                    >
+                      Add New Lead
+                    </button>
+                  }
+                />
+              ) : (
                 filteredLeads.map((lead) => (
-                  <tr
+                  <TableRow
                     key={lead.id}
                     className="hover:bg-slate-50/60 transition-colors group"
                   >
                     {/* ID */}
-                    <td className="py-4 px-6 font-mono text-xs text-slate-400 font-medium">
+                    <TableCell className="align-middle font-mono text-[11px] text-slate-500 font-medium">
                       {lead.id}
-                    </td>
+                    </TableCell>
 
                     {/* CLIENT */}
-                    <td className="py-4 px-6">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                    <TableCell className="align-middle">
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-semibold text-slate-900 text-xs truncate">
                           {lead.customerName}
                         </span>
-                        <div className="flex items-center gap-1 text-xs text-slate-400 font-medium mt-0.5">
-                          <Building2 size={13} />
-                          <span>{lead.companyName}</span>
+                        <div className="flex items-center gap-1 text-[11px] text-slate-500 font-normal mt-0.5 truncate">
+                          <Building2 size={11} className="shrink-0" />
+                          <span className="truncate">{lead.companyName}</span>
                         </div>
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* PRODUCT INTERESTED */}
-                    <td className="py-4 px-6 font-medium text-slate-700">
+                    <TableCell className="align-middle text-slate-700 text-xs font-medium">
                       {lead.productInterested}
-                    </td>
+                    </TableCell>
 
                     {/* EXPECTED VALUE */}
-                    <td className="py-4 px-6 font-bold text-slate-900">
+                    <TableCell align="right" className="align-middle font-semibold text-slate-900 text-xs tabular-nums">
                       ₹{lead.expectedValue.toLocaleString('en-IN')}
-                    </td>
+                    </TableCell>
 
                     {/* ASSIGNED TO / ASSIGNED BY */}
-                    <td className="py-4 px-6 font-medium text-slate-700">
+                    <TableCell className="align-middle text-slate-700 text-xs">
                       {isAdminOrManager ? (
                         lead.assignedExecutive || 'Unassigned'
                       ) : (
                         <div className="flex flex-col">
-                          <span className="font-semibold text-slate-900">{lead.createdBy || 'System Admin'}</span>
-                          <span className="text-[11px] text-slate-400">Assigned to: {lead.assignedExecutive}</span>
+                          <span className="font-medium text-slate-900">{lead.createdBy || 'System Admin'}</span>
+                          <span className="text-[11px] text-slate-400">Assigned: {lead.assignedExecutive}</span>
                         </div>
                       )}
-                    </td>
+                    </TableCell>
 
                     {/* PRIORITY */}
-                    <td className="py-4 px-6">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getPriorityBadgeStyle(
-                          lead.priority
-                        )}`}
+                    <TableCell align="center" className="align-middle">
+                      <StatusPill
+                        variant={
+                          lead.priority.toUpperCase() === 'URGENT' || lead.priority.toUpperCase() === 'HIGH'
+                            ? 'danger'
+                            : lead.priority.toUpperCase() === 'MEDIUM'
+                            ? 'warning'
+                            : 'neutral'
+                        }
+                        size="xs"
                       >
                         {lead.priority}
-                      </span>
-                    </td>
+                      </StatusPill>
+                    </TableCell>
 
                     {/* STATUS */}
-                    <td className="py-4 px-6">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getStatusBadgeStyle(
-                          lead.status
-                        )}`}
+                    <TableCell align="center" className="align-middle">
+                      <StatusPill
+                        variant={
+                          lead.status.toUpperCase().includes('APPROVED') || lead.status.toUpperCase() === 'COMPLETED'
+                            ? 'success'
+                            : lead.status.toUpperCase() === 'LOST'
+                            ? 'danger'
+                            : lead.status.toUpperCase() === 'NEW' || lead.status.toUpperCase() === 'NEGOTIATION'
+                            ? 'warning'
+                            : 'info'
+                        }
+                        dot
+                        size="xs"
                       >
                         {lead.status}
-                      </span>
-                    </td>
+                      </StatusPill>
+                    </TableCell>
 
                     {/* ACTIONS */}
-                    <td className="py-4 px-6 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <TableCell align="right" className="align-middle whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
                           onClick={() => handleOpenView(lead)}
                           title="View Lead Details"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer border border-transparent hover:border-blue-200"
+                          className="p-1.5 rounded-md border border-border bg-white text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition-colors cursor-pointer"
                         >
-                          <Eye size={16} />
+                          <Eye size={13} />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleOpenEdit(lead)}
                           title="Edit Lead"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+                          className="p-1.5 rounded-md border border-border bg-white text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
                         >
-                          <Pencil size={16} />
+                          <Pencil size={13} />
                         </button>
                         {isAdminOrManager && (
                           <button
                             type="button"
                             onClick={() => handleDeleteLead(lead.id, lead.customerName)}
                             title="Delete Lead"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer border border-transparent hover:border-rose-200"
+                            className="p-1.5 rounded-md border border-border bg-white text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={13} />
                           </button>
                         )}
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
-              ) : (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Search size={24} className="text-slate-300" />
-                      <p className="text-sm font-semibold text-slate-600">No leads found matching criteria</p>
-                      <p className="text-xs text-slate-400">Try adjusting your search query or filters.</p>
-                    </div>
-                  </td>
-                </tr>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
 

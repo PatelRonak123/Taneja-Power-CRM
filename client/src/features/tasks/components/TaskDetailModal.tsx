@@ -1,7 +1,5 @@
 import React from 'react';
-import { createPortal } from 'react-dom';
 import {
-  X,
   Building2,
   MapPin,
   User,
@@ -12,11 +10,13 @@ import {
   Navigation,
   Edit2,
   XCircle,
-  ClipboardList,
   Play,
   CheckCircle2,
 } from 'lucide-react';
 import { TaskItem, TaskPriority, TaskStatus } from '../types/task.types';
+import { Drawer } from '../../../components/ui/Drawer';
+import { Button } from '../../../components/ui/Button';
+import { StatusPill } from '../../../components/ui/StatusPill';
 
 interface TaskDetailModalProps {
   task: TaskItem | null;
@@ -57,386 +57,328 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const getPriorityBadge = (priority: TaskPriority) => {
     switch (priority) {
       case 'URGENT':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-50 text-rose-600 border border-rose-200">
-            URGENT
-          </span>
-        );
+        return <StatusPill variant="danger" size="xs">URGENT</StatusPill>;
       case 'HIGH':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-            HIGH
-          </span>
-        );
+        return <StatusPill variant="warning" size="xs">HIGH</StatusPill>;
       case 'LOW':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-            LOW
-          </span>
-        );
+        return <StatusPill variant="neutral" size="xs">LOW</StatusPill>;
       case 'MEDIUM':
       default:
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-            MEDIUM
-          </span>
-        );
+        return <StatusPill variant="info" size="xs">MEDIUM</StatusPill>;
     }
   };
 
   const getStatusBadge = (status: TaskStatus) => {
     switch (status) {
       case 'COMPLETED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            Completed
-          </span>
-        );
+        return <StatusPill variant="success" dot size="xs">Completed</StatusPill>;
       case 'IN_PROGRESS':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-            In Progress
-          </span>
-        );
+        return <StatusPill variant="warning" dot dotPulse size="xs">In Progress</StatusPill>;
       case 'ASSIGNED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-            Assigned
-          </span>
-        );
+        return <StatusPill variant="info" dot size="xs">Assigned</StatusPill>;
       case 'CANCELLED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-            Cancelled
-          </span>
-        );
+        return <StatusPill variant="danger" dot size="xs">Cancelled</StatusPill>;
       case 'CREATED':
       default:
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-            Created
-          </span>
-        );
+        return <StatusPill variant="neutral" dot size="xs">Created</StatusPill>;
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100] overflow-hidden select-none">
-      <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-300 animate-fade-in"
-        onClick={onClose}
-      />
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-[100]">
-        <div
-          className="w-screen max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 animate-slide-in-right overflow-y-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between bg-white/95 backdrop-blur-md sticky top-0 z-10">
-            <div className="flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200/60 flex items-center justify-center shrink-0 mt-0.5">
-                <ClipboardList size={20} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  {getStatusBadge(task.status)}
-                  {getPriorityBadge(task.priority)}
-                </div>
-                <h2 className="text-base font-black text-slate-900 leading-snug">{task.title}</h2>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer border border-slate-200/80 shrink-0 ml-4"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-        {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-5 text-xs">
-          {/* Instructions Box */}
-          {task.description && (
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="flex items-center gap-2 font-bold text-slate-900 mb-1.5 text-xs">
-                <FileText size={15} className="text-blue-600" />
-                <span>Task Instructions & Field Notes</span>
-              </div>
-              <p className="text-slate-600 text-xs leading-relaxed whitespace-pre-wrap">
-                {task.description}
-              </p>
-            </div>
-          )}
-
-          {/* Customer & Destination Side-by-Side */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Customer Box */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-white">
-              <div className="flex items-center gap-2 font-bold text-slate-900 text-xs pb-2 border-b border-slate-100 mb-2.5">
-                <Building2 size={15} className="text-blue-600" />
-                <span>Customer Information</span>
-              </div>
-              <div className="space-y-1.5 text-slate-600">
-                <div className="font-extrabold text-slate-900 text-sm">{task.customer?.name || 'Unknown Client'}</div>
-                {task.customer?.companyName && (
-                  <div className="text-slate-500 font-medium">{task.customer.companyName}</div>
-                )}
-                {task.customer?.phone && (
-                  <div className="flex items-center gap-1.5 text-slate-500 text-[11px] pt-0.5">
-                    <Phone size={12} className="text-slate-400" />
-                    <span>{task.customer.phone}</span>
-                  </div>
-                )}
-                {task.customer?.email && (
-                  <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
-                    <Mail size={12} className="text-slate-400" />
-                    <span>{task.customer.email}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Destination Site Box */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-white">
-              <div className="flex items-center gap-2 font-bold text-slate-900 text-xs pb-2 border-b border-slate-100 mb-2.5">
-                <MapPin size={15} className="text-blue-600" />
-                <span>Destination Site</span>
-              </div>
-              <div className="space-y-1.5 text-slate-600">
-                <div className="font-extrabold text-slate-900 text-sm">{task.destination?.name || 'Site location'}</div>
-                {task.destination?.address && (
-                  <div className="text-slate-500">{task.destination.address}</div>
-                )}
-                {(task.destination?.city || task.destination?.state) && (
-                  <div className="text-slate-500 text-[11px]">
-                    {[task.destination.city, task.destination.state, task.destination.pincode].filter(Boolean).join(', ')}
-                  </div>
-                )}
-                {task.destination?.contactPerson && (
-                  <div className="text-[11px] text-slate-600 pt-0.5">
-                    Contact: <strong className="text-slate-900">{task.destination.contactPerson}</strong>{' '}
-                    {task.destination.contactPhone ? `(${task.destination.contactPhone})` : ''}
-                  </div>
-                )}
-                {task.destination?.latitude && task.destination?.longitude && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 pt-0.5">
-                    <Navigation size={12} />
-                    <span>GPS: {task.destination.latitude}, {task.destination.longitude}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Assignment & Schedule */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Engineer Box */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-white">
-              <div className="flex items-center gap-2 font-bold text-slate-900 text-xs pb-2 border-b border-slate-100 mb-2.5">
-                <User size={15} className="text-blue-600" />
-                <span>Assigned Field Engineer</span>
-              </div>
-              {task.assignedUser ? (
-                <div className="space-y-1 text-slate-600">
-                  <div className="font-extrabold text-slate-900 text-sm">{task.assignedUser.fullName}</div>
-                  {task.assignedUser.designation && (
-                    <div className="text-slate-500">{task.assignedUser.designation}</div>
-                  )}
-                  {task.assignedUser.phone && (
-                    <div className="flex items-center gap-1.5 text-slate-500 text-[11px] pt-1">
-                      <Phone size={12} className="text-slate-400" />
-                      <span>{task.assignedUser.phone}</span>
-                    </div>
-                  )}
-                  {task.assignedUser.email && (
-                    <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
-                      <Mail size={12} className="text-slate-400" />
-                      <span>{task.assignedUser.email}</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-slate-400 italic py-1">
-                  No engineer assigned yet (Pending Assignment)
-                </div>
-              )}
-            </div>
-
-            {/* Schedule Box */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-white">
-              <div className="flex items-center gap-2 font-bold text-slate-900 text-xs pb-2 border-b border-slate-100 mb-2.5">
-                <Clock size={15} className="text-blue-600" />
-                <span>Schedule & Deadlines</span>
-              </div>
-              <div className="space-y-2">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Scheduled Time</span>
-                  <span className="font-extrabold text-slate-900 text-xs">{formatDateTime(task.scheduledAt)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Due Time</span>
-                  <span className="font-extrabold text-slate-900 text-xs">{formatDateTime(task.dueAt)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Lifecycle Progression Timeline */}
-          <div className="p-4 rounded-xl border border-slate-200 bg-white">
-            <h3 className="font-extrabold text-slate-900 text-xs mb-3">Task Lifecycle Progression</h3>
-            <div className="relative pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-              {/* Step 1: Created */}
-              <div className="relative">
-                <div className="absolute -left-6 top-0.5 w-4 h-4 rounded-full bg-emerald-100 border-2 border-emerald-500 flex items-center justify-center"></div>
-                <div className="font-bold text-slate-900 text-xs">Task Created</div>
-                <div className="text-slate-500 text-[11px]">
-                  {formatDateTime(task.createdAt)} {task.createdByUser ? `by ${task.createdByUser.fullName}` : ''}
-                </div>
-              </div>
-
-              {/* Step 2: Assigned */}
-              <div className="relative">
-                <div
-                  className={`absolute -left-6 top-0.5 w-4 h-4 rounded-full flex items-center justify-center ${
-                    task.assignedUser
-                      ? 'bg-emerald-100 border-2 border-emerald-500'
-                      : 'bg-slate-100 border-2 border-slate-300'
-                  }`}
-                ></div>
-                <div className="font-bold text-slate-900 text-xs">
-                  {task.assignedUser ? `Assigned to ${task.assignedUser.fullName}` : 'Awaiting Assignment'}
-                </div>
-                <div className="text-slate-500 text-[11px]">
-                  {task.assignedUser ? 'Ready for field dispatch' : 'No engineer assigned'}
-                </div>
-              </div>
-
-              {/* Step 3: Started */}
-              <div className="relative">
-                <div
-                  className={`absolute -left-6 top-0.5 w-4 h-4 rounded-full flex items-center justify-center ${
-                    task.startedAt || task.status === 'IN_PROGRESS' || task.status === 'COMPLETED'
-                      ? 'bg-emerald-100 border-2 border-emerald-500'
-                      : 'bg-slate-100 border-2 border-slate-300'
-                  }`}
-                ></div>
-                <div className="font-bold text-slate-900 text-xs">Task Started</div>
-                <div className="text-slate-500 text-[11px]">
-                  {task.startedAt ? formatDateTime(task.startedAt) : 'Pending work commencement'}
-                </div>
-              </div>
-
-              {/* Step 4: Final Outcome */}
-              <div className="relative">
-                <div
-                  className={`absolute -left-6 top-0.5 w-4 h-4 rounded-full flex items-center justify-center ${
-                    task.status === 'COMPLETED'
-                      ? 'bg-emerald-100 border-2 border-emerald-500'
-                      : task.status === 'CANCELLED'
-                      ? 'bg-rose-100 border-2 border-rose-500'
-                      : 'bg-slate-100 border-2 border-slate-300'
-                  }`}
-                ></div>
-                <div className="font-bold text-slate-900 text-xs">
-                  {task.status === 'COMPLETED'
-                    ? 'Task Completed'
-                    : task.status === 'CANCELLED'
-                    ? 'Task Cancelled'
-                    : 'Resolution'}
-                </div>
-                <div className="text-slate-500 text-[11px]">
-                  {task.status === 'COMPLETED'
-                    ? formatDateTime(task.completedAt)
-                    : task.status === 'CANCELLED'
-                    ? `${formatDateTime(task.cancelledAt)} — Reason: ${task.cancellationReason || 'Not specified'}`
-                    : 'Pending completion'}
-                </div>
-              </div>
-            </div>
-          </div>
+  return (
+    <Drawer
+      isOpen={task !== null}
+      onClose={onClose}
+      title={
+        <div>
+          <div className="text-base font-semibold text-slate-900">{task.title}</div>
+          <p className="text-xs text-slate-500 font-normal mt-0.5">
+            Field task details, customer site info, and workflow progression
+          </p>
         </div>
-
-        {/* Modal Footer */}
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/70">
+      }
+      maxWidth="lg"
+      footer={
+        <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2">
             {!isFinalized && isManagement && (
               <>
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => {
                     onClose();
                     onEdit(task);
                   }}
-                  className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                 >
-                  <Edit2 size={14} />
+                  <Edit2 size={13} className="mr-1.5" />
                   <span>Edit Task</span>
-                </button>
+                </Button>
 
-                <button
-                  type="button"
+                <Button
+                  variant="danger"
+                  size="sm"
                   onClick={() => {
                     onClose();
                     onCancel(task);
                   }}
-                  className="px-3.5 py-2 rounded-xl border border-rose-200 bg-white text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                 >
-                  <XCircle size={14} />
+                  <XCircle size={13} className="mr-1.5" />
                   <span>Cancel Task</span>
-                </button>
+                </Button>
               </>
             )}
 
             {!isFinalized && !isManagement && (
               <>
                 {(task.status === 'CREATED' || task.status === 'ASSIGNED') && onStartTask && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="primary"
+                    size="sm"
                     onClick={() => {
                       onClose();
                       onStartTask(task);
                     }}
-                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
                   >
-                    <Play size={14} />
+                    <Play size={13} className="mr-1.5" />
                     <span>Start Task</span>
-                  </button>
+                  </Button>
                 )}
 
                 {task.status === 'IN_PROGRESS' && onCompleteTask && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="primary"
+                    size="sm"
                     onClick={() => {
                       onClose();
                       onCompleteTask(task);
                     }}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                    className="bg-emerald-600 hover:bg-emerald-700"
                   >
-                    <CheckCircle2 size={14} />
+                    <CheckCircle2 size={13} className="mr-1.5" />
                     <span>Complete Task</span>
-                  </button>
+                  </Button>
                 )}
               </>
             )}
           </div>
 
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
           >
             Close
-          </button>
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        {/* Status & Priority Row */}
+        <div className="flex items-center gap-2 pb-1">
+          {getStatusBadge(task.status)}
+          {getPriorityBadge(task.priority)}
+        </div>
+
+        {/* Instructions Box */}
+        {task.description && (
+          <div className="p-3.5 rounded-lg bg-slate-50 border border-border">
+            <div className="flex items-center gap-2 font-medium text-slate-900 mb-1 text-xs">
+              <FileText size={14} className="text-blue-600" />
+              <span>Task Instructions & Field Notes</span>
+            </div>
+            <p className="text-slate-600 text-xs leading-relaxed whitespace-pre-wrap">
+              {task.description}
+            </p>
+          </div>
+        )}
+
+        {/* Customer & Destination Side-by-Side */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {/* Customer Box */}
+          <div className="p-3.5 rounded-lg border border-border bg-card">
+            <div className="flex items-center gap-1.5 font-medium text-slate-900 text-xs pb-2 border-b border-border/60 mb-2">
+              <Building2 size={14} className="text-blue-600" />
+              <span>Customer Information</span>
+            </div>
+            <div className="space-y-1 text-slate-600">
+              <div className="font-semibold text-slate-900 text-xs">{task.customer?.name || 'Unknown Client'}</div>
+              {task.customer?.companyName && (
+                <div className="text-slate-500 text-[11px]">{task.customer.companyName}</div>
+              )}
+              {task.customer?.phone && (
+                <div className="flex items-center gap-1.5 text-slate-500 text-[11px] pt-0.5">
+                  <Phone size={11} className="text-slate-400" />
+                  <span>{task.customer.phone}</span>
+                </div>
+              )}
+              {task.customer?.email && (
+                <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+                  <Mail size={11} className="text-slate-400" />
+                  <span>{task.customer.email}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Destination Site Box */}
+          <div className="p-3.5 rounded-lg border border-border bg-card">
+            <div className="flex items-center gap-1.5 font-medium text-slate-900 text-xs pb-2 border-b border-border/60 mb-2">
+              <MapPin size={14} className="text-blue-600" />
+              <span>Destination Site</span>
+            </div>
+            <div className="space-y-1 text-slate-600">
+              <div className="font-semibold text-slate-900 text-xs">{task.destination?.name || 'Site location'}</div>
+              {task.destination?.address && (
+                <div className="text-slate-500 text-[11px]">{task.destination.address}</div>
+              )}
+              {(task.destination?.city || task.destination?.state) && (
+                <div className="text-slate-500 text-[11px]">
+                  {[task.destination.city, task.destination.state, task.destination.pincode].filter(Boolean).join(', ')}
+                </div>
+              )}
+              {task.destination?.contactPerson && (
+                <div className="text-[11px] text-slate-600 pt-0.5">
+                  Contact: <strong className="text-slate-900">{task.destination.contactPerson}</strong>{' '}
+                  {task.destination.contactPhone ? `(${task.destination.contactPhone})` : ''}
+                </div>
+              )}
+              {task.destination?.latitude && task.destination?.longitude && (
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-400 pt-0.5">
+                  <Navigation size={11} />
+                  <span>GPS: {task.destination.latitude}, {task.destination.longitude}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Assignment & Schedule */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {/* Engineer Box */}
+          <div className="p-3.5 rounded-lg border border-border bg-card">
+            <div className="flex items-center gap-1.5 font-medium text-slate-900 text-xs pb-2 border-b border-border/60 mb-2">
+              <User size={14} className="text-blue-600" />
+              <span>Assigned Field Engineer</span>
+            </div>
+            {task.assignedUser ? (
+              <div className="space-y-1 text-slate-600">
+                <div className="font-semibold text-slate-900 text-xs">{task.assignedUser.fullName}</div>
+                {task.assignedUser.designation && (
+                  <div className="text-slate-500 text-[11px]">{task.assignedUser.designation}</div>
+                )}
+                {task.assignedUser.phone && (
+                  <div className="flex items-center gap-1.5 text-slate-500 text-[11px] pt-0.5">
+                    <Phone size={11} className="text-slate-400" />
+                    <span>{task.assignedUser.phone}</span>
+                  </div>
+                )}
+                {task.assignedUser.email && (
+                  <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+                    <Mail size={11} className="text-slate-400" />
+                    <span>{task.assignedUser.email}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-slate-400 italic py-1 text-xs">
+                No engineer assigned yet (Pending Assignment)
+              </div>
+            )}
+          </div>
+
+          {/* Schedule Box */}
+          <div className="p-3.5 rounded-lg border border-border bg-card">
+            <div className="flex items-center gap-1.5 font-medium text-slate-900 text-xs pb-2 border-b border-border/60 mb-2">
+              <Clock size={14} className="text-blue-600" />
+              <span>Schedule & Deadlines</span>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <span className="text-[11px] font-medium text-slate-400 block">Scheduled Time</span>
+                <span className="font-semibold text-slate-900 text-xs tabular-nums">{formatDateTime(task.scheduledAt)}</span>
+              </div>
+              <div>
+                <span className="text-[11px] font-medium text-slate-400 block">Due Time</span>
+                <span className="font-semibold text-slate-900 text-xs tabular-nums">{formatDateTime(task.dueAt)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Lifecycle Progression Timeline */}
+        <div className="p-3.5 rounded-lg border border-border bg-card">
+          <h3 className="font-semibold text-slate-900 text-xs mb-3">Task Lifecycle Progression</h3>
+          <div className="relative pl-6 space-y-3.5 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+            {/* Step 1: Created */}
+            <div className="relative">
+              <div className="absolute -left-6 top-0.5 w-4 h-4 rounded-full bg-emerald-100 border-2 border-emerald-500 flex items-center justify-center" />
+              <div className="font-medium text-slate-900 text-xs">Task Created</div>
+              <div className="text-slate-500 text-[11px] tabular-nums">
+                {formatDateTime(task.createdAt)} {task.createdByUser ? `by ${task.createdByUser.fullName}` : ''}
+              </div>
+            </div>
+
+            {/* Step 2: Assigned */}
+            <div className="relative">
+              <div
+                className={`absolute -left-6 top-0.5 w-4 h-4 rounded-full flex items-center justify-center ${
+                  task.assignedUser
+                    ? 'bg-emerald-100 border-2 border-emerald-500'
+                    : 'bg-slate-100 border-2 border-slate-300'
+                }`}
+              />
+              <div className="font-medium text-slate-900 text-xs">
+                {task.assignedUser ? `Assigned to ${task.assignedUser.fullName}` : 'Awaiting Assignment'}
+              </div>
+              <div className="text-slate-500 text-[11px]">
+                {task.assignedUser ? 'Ready for field dispatch' : 'No engineer assigned'}
+              </div>
+            </div>
+
+            {/* Step 3: Started */}
+            <div className="relative">
+              <div
+                className={`absolute -left-6 top-0.5 w-4 h-4 rounded-full flex items-center justify-center ${
+                  task.startedAt || task.status === 'IN_PROGRESS' || task.status === 'COMPLETED'
+                    ? 'bg-emerald-100 border-2 border-emerald-500'
+                    : 'bg-slate-100 border-2 border-slate-300'
+                }`}
+              />
+              <div className="font-medium text-slate-900 text-xs">Task Started</div>
+              <div className="text-slate-500 text-[11px] tabular-nums">
+                {task.startedAt ? formatDateTime(task.startedAt) : 'Pending work commencement'}
+              </div>
+            </div>
+
+            {/* Step 4: Final Outcome */}
+            <div className="relative">
+              <div
+                className={`absolute -left-6 top-0.5 w-4 h-4 rounded-full flex items-center justify-center ${
+                  task.status === 'COMPLETED'
+                    ? 'bg-emerald-100 border-2 border-emerald-500'
+                    : task.status === 'CANCELLED'
+                    ? 'bg-rose-100 border-2 border-rose-500'
+                    : 'bg-slate-100 border-2 border-slate-300'
+                }`}
+              />
+              <div className="font-medium text-slate-900 text-xs">
+                {task.status === 'COMPLETED'
+                  ? 'Task Completed'
+                  : task.status === 'CANCELLED'
+                  ? 'Task Cancelled'
+                  : 'Resolution'}
+              </div>
+              <div className="text-slate-500 text-[11px] tabular-nums">
+                {task.status === 'COMPLETED'
+                  ? formatDateTime(task.completedAt)
+                  : task.status === 'CANCELLED'
+                  ? `${formatDateTime(task.cancelledAt)} — Reason: ${task.cancellationReason || 'Not specified'}`
+                  : 'Pending completion'}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>,
-  document.body
-);
+    </Drawer>
+  );
 };

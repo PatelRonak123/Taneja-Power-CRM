@@ -6,6 +6,7 @@ import { LeadDrawer } from '../components/LeadDrawer';
 import { useAuthStore } from '../../../stores/authStore';
 import { employeeService } from '../../admin/services/employeeService';
 import { Employee } from '../../admin/types/employee.types';
+import { Button } from '../../../components/ui/Button';
 
 interface PipelineColumn {
   stageId: string;
@@ -273,47 +274,50 @@ export const PipelinePage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-full mx-auto pb-16 select-none">
+    <div className="space-y-5 max-w-full mx-auto pb-10 select-none">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-xl border border-border shadow-xs">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
+            <span className="text-[11px] font-medium tracking-wider text-slate-400 uppercase">
               KANBAN WORKFLOW
             </span>
             {user && (
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">
+              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">
                 User: {user.fullName} ({user.role})
               </span>
             )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
             Deals Pipeline
           </h1>
+          <p className="text-[13px] text-slate-500 leading-relaxed mt-0.5">
+            Visualize deal velocity and manage stage-by-stage sales progression
+          </p>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="md"
           onClick={loadPipeline}
           disabled={isLoading}
-          className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200/90 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 shadow-2xs hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 self-start sm:self-auto"
         >
-          <RotateCw size={15} className={isLoading ? 'animate-spin' : ''} />
+          <RotateCw size={14} className={isLoading ? 'animate-spin mr-1.5' : 'mr-1.5'} />
           <span>Reload Board</span>
-        </button>
+        </Button>
       </div>
 
       {/* Kanban Filter & View Bar */}
-      <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-wrap items-center gap-3">
+      <div className="bg-card p-3.5 rounded-xl border border-border shadow-xs flex flex-wrap items-center gap-2.5">
         {/* Scope View Toggle ("All Deals" vs "My Deals") */}
         {isAdminOrManager ? (
-          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/80 shrink-0">
+          <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-border shrink-0">
             <button
               type="button"
               onClick={() => setViewScope('ALL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewScope === 'ALL'
-                ? 'bg-white text-slate-900 shadow-2xs'
-                : 'text-slate-500 hover:text-slate-800'
+              className={`h-8 px-3 rounded-md text-xs font-medium transition-all cursor-pointer ${viewScope === 'ALL'
+                ? 'bg-white text-slate-900 shadow-xs border border-border/60'
+                : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
               All Deals
@@ -321,9 +325,9 @@ export const PipelinePage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewScope('MY')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${viewScope === 'MY'
-                ? 'bg-white text-blue-600 shadow-2xs'
-                : 'text-slate-500 hover:text-slate-800'
+              className={`h-8 px-3 rounded-md text-xs font-medium transition-all cursor-pointer flex items-center gap-1 ${viewScope === 'MY'
+                ? 'bg-white text-blue-600 shadow-xs border border-border/60'
+                : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
               <UserCheck size={13} />
@@ -331,18 +335,18 @@ export const PipelinePage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-bold shrink-0">
-            <UserCheck size={14} className="mr-1.5" />
+          <div className="flex items-center px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200/80 rounded-lg text-xs font-medium shrink-0">
+            <UserCheck size={13} className="mr-1.5" />
             <span>My Deals</span>
           </div>
         )}
 
         {/* Search Field */}
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+        <div className="relative flex-1 min-w-50">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
           <input
             type="text"
-            className="w-full pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            className="w-full h-9 pl-9 pr-3 bg-white border border-border rounded-lg text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
             placeholder="Search deals, company, product..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -352,7 +356,7 @@ export const PipelinePage: React.FC = () => {
         {/* Assignee Filter (Admin/Manager only) */}
         {isAdminOrManager && (
           <select
-            className="px-3 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            className="h-9 px-2.5 bg-white border border-border rounded-lg text-[13px] font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 cursor-pointer max-w-48 truncate"
             value={selectedAssignee}
             onChange={(e) => setSelectedAssignee(e.target.value)}
           >
@@ -375,7 +379,7 @@ export const PipelinePage: React.FC = () => {
 
         {/* Priority Filter */}
         <select
-          className="px-3 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+          className="h-9 px-2.5 bg-white border border-border rounded-lg text-[13px] font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 cursor-pointer"
           value={selectedPriority}
           onChange={(e) => setSelectedPriority(e.target.value)}
         >
@@ -426,7 +430,7 @@ export const PipelinePage: React.FC = () => {
               </div>
 
               {/* Deals List Cards */}
-              <div className="flex flex-col gap-3.5 min-h-[100px]">
+              <div className="flex flex-col gap-3.5 min-h-25">
                 {col.deals.length > 0 ? (
                   col.deals.map((deal) => {
                     const isBeingDragged = draggedDealId === deal.id;
@@ -473,7 +477,7 @@ export const PipelinePage: React.FC = () => {
 
                         {/* Bottom Row: Product & Value */}
                         <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                          <span className="text-slate-500 truncate max-w-[170px] font-medium">
+                          <span className="text-slate-500 truncate max-w-42.5 font-medium">
                             {deal.productInterested}
                           </span>
                           <span className="font-bold text-slate-900 shrink-0">

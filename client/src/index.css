@@ -1,29 +1,132 @@
 @import "tailwindcss";
 
+@theme {
+  /* Typography Tokens (Phase 1) */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Radius Scale */
+  --radius-sm: 0.25rem;   /* 4px */
+  --radius-md: 0.375rem;  /* 6px */
+  --radius-lg: 0.5rem;    /* 8px */
+  --radius-xl: 0.75rem;   /* 12px */
+  --radius-2xl: 1rem;     /* 16px */
+  --radius-full: 9999px;
+
+  /* Semantic Colors */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-foreground: #ffffff;
+
+  --color-background: #f8fafc;
+  --color-foreground: #0f172a;
+
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
+
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+
+  --color-border: #e2e8f0;
+  --color-input: #e2e8f0;
+
+  --color-secondary: #1e293b;
+  --color-secondary-foreground: #ffffff;
+
+  --color-accent: #eff6ff;
+  --color-accent-foreground: #1d4ed8;
+
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+
+  /* Restrained ERP Shadows */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+}
+
 /* ==========================================================================
-   Taneja Power Base Variables & Reset
+   Taneja Power Core Design Tokens & Root Variables
    ========================================================================== */
 
 :root {
-  --font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family: var(--font-sans);
 
-  /* Dark Theme Palette */
-  --bg-app: #090d16;
-  --bg-surface: #0f172a;
-  --border-color: #1e293b;
-
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-
+  /* Semantic Colors */
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
+  --primary-foreground: #ffffff;
+
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+
+  --secondary: #1e293b;
+  --secondary-foreground: #ffffff;
+
+  --accent: #eff6ff;
+  --accent-foreground: #1d4ed8;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  /* Standard ERP Control Heights */
+  --control-height-sm: 2rem;     /* 32px - compact / dense tables */
+  --control-height-md: 2.25rem;  /* 36px - standard controls */
+  --control-height-lg: 2.625rem; /* 42px - large inputs & primary actions */
+
+  /* ERP Radius Scale */
+  --radius-sm: 0.25rem;          /* 4px */
+  --radius-md: 0.375rem;         /* 6px */
+  --radius-lg: 0.5rem;           /* 8px */
+  --radius-xl: 0.75rem;          /* 12px */
+  --radius-2xl: 1rem;            /* 16px */
+  --radius-full: 9999px;
+
+  /* Backward Compatibility Aliases */
+  --bg-app: var(--background);
+  --bg-surface: var(--card);
+  --border-color: var(--border);
+  --text-primary: var(--foreground);
+  --text-secondary: #475569;
+  --text-muted: var(--muted-foreground);
+}
+
+/* ==========================================================================
+   Global Utilities (Phase 1 Typography & Focus Foundation)
+   ========================================================================== */
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.focus-ring {
+  outline: 2px solid var(--primary, #2563eb);
+  outline-offset: 2px;
+}
+
+.focus-ring:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible {
+  outline-color: var(--primary, #2563eb);
 }
 
 body {
   font-family: var(--font-family);
-  background-color: var(--bg-app);
-  color: var(--text-primary);
+  background-color: var(--background);
+  color: var(--foreground);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
@@ -42,20 +145,20 @@ select option {
   background-color: #ffffff;
 }
 
-/* Hide scrollbar for Chrome, Safari, Opera, Edge, and Firefox while retaining scroll function */
+/* Scrollbar Utility - cleanly styled without unnecessary !important */
 .custom-scrollbar::-webkit-scrollbar,
 .no-scrollbar::-webkit-scrollbar,
 aside nav::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .custom-scrollbar,
 .no-scrollbar,
 aside nav {
-  -ms-overflow-style: none !important;
-  scrollbar-width: none !important;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* ==========================================================================

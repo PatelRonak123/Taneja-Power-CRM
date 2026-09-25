@@ -257,27 +257,27 @@ export const EmployeeAttendancePage: React.FC = () => {
   const todayRecord = todayData?.todayRecord;
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-12 animate-fade-in">
+    <div className="space-y-5 max-w-7xl mx-auto pb-10">
       {/* Top Banner & Live Clock */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 md:p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
+      <div className="bg-linear-to-r from-slate-900 via-indigo-950 to-slate-900 p-5 md:p-6 rounded-xl text-white shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30">
-              <CalendarCheck size={14} className="text-blue-400" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-400/30">
+              <CalendarCheck size={12} className="text-blue-400" />
               <span>EMPLOYEE ATTENDANCE PORTAL</span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+            <h1 className="text-[22px] font-semibold tracking-tight">
               Welcome, {user?.fullName || 'Valued Team Member'}
             </h1>
-            <p className="text-sm text-slate-300 max-w-xl">
+            <p className="text-[13px] text-slate-300 max-w-xl">
               Log your daily shift check-in and check-out timestamps, record location coordinates, and review your personal attendance records.
             </p>
           </div>
 
           {/* Real-time Digital Clock & Status Badge */}
-          <div className="flex flex-col items-start md:items-end gap-2 bg-slate-900/60 p-4 rounded-2xl border border-slate-800 backdrop-blur-xs">
-            <div className="text-2xl font-mono font-bold tracking-wider text-emerald-400">
+          <div className="flex flex-col items-start md:items-end gap-1 bg-slate-900/60 p-3.5 rounded-lg border border-slate-800 backdrop-blur-xs">
+            <div className="text-xl font-mono font-bold tracking-wider text-emerald-400 tabular-nums">
               {currentTime.toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -285,7 +285,7 @@ export const EmployeeAttendancePage: React.FC = () => {
                 hour12: true,
               })}
             </div>
-            <div className="text-xs text-slate-400 font-medium">
+            <div className="text-[11px] text-slate-400 font-medium">
               {currentTime.toLocaleDateString('en-US', {
                 weekday: 'long',
                 month: 'long',
@@ -299,15 +299,15 @@ export const EmployeeAttendancePage: React.FC = () => {
 
       {/* Notifications Alert Messages */}
       {errorMsg && (
-        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center justify-between text-sm font-semibold shadow-xs">
-          <div className="flex items-center gap-3">
-            <AlertCircle size={18} className="shrink-0 text-rose-600" />
+        <div className="p-3.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-center justify-between text-xs font-medium shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle size={16} className="shrink-0 text-rose-600" />
             <span>{errorMsg}</span>
           </div>
           <button
             type="button"
             onClick={() => setErrorMsg(null)}
-            className="text-xs font-bold text-rose-500 hover:text-rose-800"
+            className="text-xs font-semibold text-rose-500 hover:text-rose-800"
           >
             Dismiss
           </button>
@@ -315,9 +315,9 @@ export const EmployeeAttendancePage: React.FC = () => {
       )}
 
       {/* Main Grid: Control Panel (Left) & Metrics/Quick Status (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Attendance Action Control Panel */}
-        <div className="lg:col-span-7 bg-white p-6 md:p-7 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between gap-6">
+        <div className="lg:col-span-7 bg-card p-5 md:p-6 rounded-xl border border-border shadow-xs flex flex-col justify-between gap-5">
           <div>
             {/* Header / Status Title */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -385,7 +385,7 @@ export const EmployeeAttendancePage: React.FC = () => {
 
             {/* Shift Session Information */}
             {currentStatus === 'CHECKED_IN' && todayRecord && (
-              <div className="mt-5 p-5 bg-gradient-to-br from-emerald-50 to-teal-50/60 rounded-2xl border border-emerald-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="mt-5 p-5 bg-linear-to-br from-emerald-50 to-teal-50/60 rounded-2xl border border-emerald-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
                     Checked In At
@@ -441,7 +441,7 @@ export const EmployeeAttendancePage: React.FC = () => {
             {/* Optional Notes Input */}
             {currentStatus !== 'CHECKED_OUT' && (
               <div className="mt-5 space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   <FileText size={14} className="text-slate-400" />
                   Shift Notes / Work Log (Optional)
                 </label>
@@ -467,7 +467,7 @@ export const EmployeeAttendancePage: React.FC = () => {
                 type="button"
                 disabled={actionLoading || loadingToday}
                 onClick={handleCheckIn}
-                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-sm shadow-lg shadow-emerald-600/25 transition-all duration-200 cursor-pointer flex items-center justify-center gap-2.5 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-4 px-6 rounded-2xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-sm shadow-lg shadow-emerald-600/25 transition-all duration-200 cursor-pointer flex items-center justify-center gap-2.5 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {actionLoading ? (
                   <>
@@ -486,7 +486,7 @@ export const EmployeeAttendancePage: React.FC = () => {
                 type="button"
                 disabled={actionLoading || loadingToday}
                 onClick={handleCheckOut}
-                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-extrabold text-sm shadow-lg shadow-rose-600/25 transition-all duration-200 cursor-pointer flex items-center justify-center gap-2.5 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-4 px-6 rounded-2xl bg-linear-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-extrabold text-sm shadow-lg shadow-rose-600/25 transition-all duration-200 cursor-pointer flex items-center justify-center gap-2.5 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {actionLoading ? (
                   <>

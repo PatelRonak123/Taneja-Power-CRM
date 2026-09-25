@@ -2,15 +2,25 @@ import React from 'react';
 import {
   Building2,
   MapPin,
-  RefreshCw,
   Phone,
   Edit2,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
   Plus,
 } from 'lucide-react';
 import { Customer } from '../types/customer.types';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TablePagination,
+  TableEmptyState,
+  TableLoadingState,
+} from '../../../components/ui/table';
+import { StatusPill } from '../../../components/ui/StatusPill';
+import { Button } from '../../../components/ui/Button';
 
 interface CustomerTableProps {
   customers: Customer[];
@@ -48,215 +58,187 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   isAdmin = false,
 }) => {
   return (
-    <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden flex flex-col">
-      {loading ? (
-        <div className="p-16 flex flex-col items-center justify-center gap-3 text-center">
-          <RefreshCw size={32} className="animate-spin text-blue-600" />
-          <p className="text-sm font-semibold text-slate-500">Fetching customer records from database...</p>
-        </div>
-      ) : customers.length === 0 ? (
-        <div className="p-16 flex flex-col items-center justify-center gap-3 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-center text-slate-400">
-            <Building2 size={28} />
-          </div>
-          <h3 className="text-base font-bold text-slate-900">No Customers Found</h3>
-          <p className="text-xs text-slate-500 max-w-md">
-            {searchQuery || statusFilter !== 'ALL'
-              ? 'No client accounts match the current search or filter criteria.'
-              : 'No customers registered yet. Click "Add New Customer" above to create one.'}
-          </p>
-          {!searchQuery && statusFilter === 'ALL' && (
-            <button
-              onClick={onOpenCreate}
-              className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-            >
-              <Plus size={16} />
-              <span>Add First Customer</span>
-            </button>
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  <th className="py-3.5 px-6 min-w-60">Customer & Company</th>
-                  <th className="py-3.5 px-4 min-w-45">Contact Details</th>
-                  <th className="py-3.5 px-4 min-w-40">Primary Location</th>
-                  <th className="py-3.5 px-4 min-w-32.5">Service Destinations</th>
-                  <th className="py-3.5 px-4 min-w-30">Status</th>
-                  <th className="py-3.5 px-4 min-w-32.5">Registered Date</th>
-                  <th className="py-3.5 px-6 text-right min-w-30">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {customers.map((cust) => {
-                  const initials = cust.name
-                    ? cust.name
-                        .split(' ')
-                        .map((n) => n[0])
-                        .join('')
-                        .toUpperCase()
-                        .slice(0, 2)
-                    : 'CU';
+    <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden flex flex-col">
+      <div className="overflow-x-auto">
+        <Table density="standard">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-60">Customer & Company</TableHead>
+              <TableHead className="min-w-45">Contact Details</TableHead>
+              <TableHead className="min-w-40">Primary Location</TableHead>
+              <TableHead className="min-w-32.5">Service Destinations</TableHead>
+              <TableHead className="min-w-30">Status</TableHead>
+              <TableHead className="min-w-32.5">Registered Date</TableHead>
+              <TableHead align="right" className="min-w-30">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableLoadingState columns={7} rows={6} />
+            ) : customers.length === 0 ? (
+              <TableEmptyState
+                colSpan={7}
+                icon={<Building2 size={24} />}
+                title="No Customers Found"
+                description={
+                  searchQuery || statusFilter !== 'ALL'
+                    ? 'No client accounts match the current search or filter criteria.'
+                    : 'No customers registered yet. Click "Add New Customer" above to create one.'
+                }
+                action={
+                  !searchQuery && statusFilter === 'ALL' ? (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={<Plus size={14} />}
+                      onClick={onOpenCreate}
+                    >
+                      Add First Customer
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              customers.map((cust) => {
+                const initials = cust.name
+                  ? cust.name
+                      .split(' ')
+                      .map((n) => n[0])
+                      .join('')
+                      .toUpperCase()
+                      .slice(0, 2)
+                  : 'CU';
 
-                  return (
-                    <tr key={cust.id} className="hover:bg-blue-50/20 transition-colors">
-                      {/* Customer & Company */}
-                      <td className="py-3.5 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-linear-to-br from-blue-600 to-indigo-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
-                            {initials}
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-900 text-sm">{cust.name}</span>
-                            <span className="text-xs text-slate-500 font-medium">
-                              {cust.companyName || 'Individual Client'}
-                            </span>
-                          </div>
+                return (
+                  <TableRow key={cust.id}>
+                    {/* Customer & Company */}
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-slate-900 text-white font-semibold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                          {initials}
                         </div>
-                      </td>
-
-                      {/* Contact */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-col gap-0.5">
-                          {cust.phone ? (
-                            <div className="flex items-center gap-1.5 font-semibold text-slate-800 text-xs">
-                              <Phone size={11} className="text-slate-400 shrink-0" />
-                              <span>{cust.phone}</span>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 text-xs italic">No phone</span>
-                          )}
-                          {cust.email && <span className="text-slate-500 text-xs">{cust.email}</span>}
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-semibold text-slate-900 text-[13px] truncate">{cust.name}</span>
+                          <span className="text-xs text-slate-500 font-normal truncate">
+                            {cust.companyName || 'Individual Client'}
+                          </span>
                         </div>
-                      </td>
+                      </div>
+                    </TableCell>
 
-                      {/* Location */}
-                      <td className="py-3.5 px-4">
-                        {cust.city || cust.state ? (
-                          <div className="flex flex-col">
-                            <span className="font-medium text-slate-800 text-xs">
-                              {[cust.city, cust.state].filter(Boolean).join(', ')}
-                            </span>
-                            {cust.pincode && (
-                              <span className="text-[11px] text-slate-400">PIN: {cust.pincode}</span>
-                            )}
+                    {/* Contact */}
+                    <TableCell>
+                      <div className="flex flex-col gap-0.5">
+                        {cust.phone ? (
+                          <div className="flex items-center gap-1.5 font-medium text-slate-800 text-xs">
+                            <Phone size={11} className="text-slate-400 shrink-0" />
+                            <span className="tabular-nums">{cust.phone}</span>
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs italic">—</span>
+                          <span className="text-slate-400 text-xs italic">No phone</span>
                         )}
-                      </td>
+                        {cust.email && <span className="text-slate-500 text-xs truncate">{cust.email}</span>}
+                      </div>
+                    </TableCell>
 
-                      {/* Destinations count */}
-                      <td className="py-3.5 px-4">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/70 hover:bg-indigo-100 transition-colors cursor-pointer"
-                          onClick={() => onOpenDestinations(cust)}
-                          title="Click to view/manage customer destinations"
-                        >
-                          <MapPin size={11} />
-                          <span>
-                            {cust.destinationCount || 0}{' '}
-                            {cust.destinationCount === 1 ? 'Site' : 'Sites'}
+                    {/* Location */}
+                    <TableCell>
+                      {cust.city || cust.state ? (
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-800 text-xs">
+                            {[cust.city, cust.state].filter(Boolean).join(', ')}
                           </span>
-                        </button>
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                            cust.status === 'ACTIVE'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/70'
-                              : 'bg-slate-100 text-slate-600 border border-slate-200'
-                          }`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              cust.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-slate-400'
-                            }`}
-                          />
-                          {cust.status === 'ACTIVE' ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-
-                      {/* Registered Date */}
-                      <td className="py-3.5 px-4 text-xs text-slate-500 font-medium whitespace-nowrap">
-                        {new Date(cust.createdAt).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3.5 px-6 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            className="p-1.5 rounded-lg border border-slate-200/80 bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all cursor-pointer shadow-2xs"
-                            onClick={() => onEditCustomer(cust)}
-                            title="Edit Customer"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              className="p-1.5 rounded-lg border border-slate-200/80 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 hover:border-rose-200 transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed shadow-2xs"
-                              onClick={() => onDeleteCustomer(cust)}
-                              title="Delete Customer"
-                              disabled={deletingCustomerId === cust.id}
-                            >
-                              <Trash2 size={13} />
-                            </button>
+                          {cust.pincode && (
+                            <span className="text-[11px] text-slate-400 tabular-nums">PIN: {cust.pincode}</span>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      ) : (
+                        <span className="text-slate-400 text-xs italic">—</span>
+                      )}
+                    </TableCell>
 
-          {/* Pagination Footer */}
-          <div className="px-6 py-3.5 border-t border-slate-200/80 bg-slate-50/60 flex items-center justify-between text-xs text-slate-600">
-            <div>
-              Showing <span className="font-bold text-slate-900">{(page - 1) * limit + 1}</span> to{' '}
-              <span className="font-bold text-slate-900">{Math.min(page * limit, totalCount)}</span> of{' '}
-              <span className="font-black text-slate-900">{totalCount}</span> customers
-            </div>
+                    {/* Destinations count */}
+                    <TableCell>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200/70 hover:bg-indigo-100 transition-colors cursor-pointer"
+                        onClick={() => onOpenDestinations(cust)}
+                        title="Click to view/manage customer destinations"
+                      >
+                        <MapPin size={11} />
+                        <span className="tabular-nums">
+                          {cust.destinationCount || 0}{' '}
+                          {cust.destinationCount === 1 ? 'Site' : 'Sites'}
+                        </span>
+                      </button>
+                    </TableCell>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => onPageChange(page - 1)}
-                className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center hover:bg-slate-100 hover:border-slate-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span className="px-2 font-bold text-slate-900">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => onPageChange(page + 1)}
-                className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center hover:bg-slate-100 hover:border-slate-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        </>
+                    {/* Status */}
+                    <TableCell>
+                      <StatusPill
+                        variant={cust.status === 'ACTIVE' ? 'success' : 'neutral'}
+                        size="xs"
+                        dot
+                        dotPulse={cust.status === 'ACTIVE'}
+                      >
+                        {cust.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                      </StatusPill>
+                    </TableCell>
+
+                    {/* Registered Date */}
+                    <TableCell className="text-xs text-slate-500 tabular-nums whitespace-nowrap">
+                      {new Date(cust.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </TableCell>
+
+                    {/* Actions */}
+                    <TableCell align="right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600"
+                          onClick={() => onEditCustomer(cust)}
+                          title="Edit Customer"
+                          aria-label={`Edit ${cust.name}`}
+                        >
+                          <Edit2 size={13} />
+                        </button>
+
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 hover:border-rose-200 transition-colors cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed shadow-2xs focus-visible:outline-2 focus-visible:outline-rose-600"
+                            onClick={() => onDeleteCustomer(cust)}
+                            title="Delete Customer"
+                            aria-label={`Delete ${cust.name}`}
+                            disabled={deletingCustomerId === cust.id}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {!loading && customers.length > 0 && (
+        <TablePagination
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          limit={limit}
+          onPageChange={onPageChange}
+          entityName="customers"
+        />
       )}
     </div>
   );
 };
-

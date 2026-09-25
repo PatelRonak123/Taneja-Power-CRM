@@ -1,5 +1,6 @@
 import React from 'react';
 import { QuotationStatus } from '../types/quotation.types';
+import { StatusPill, StatusPillVariant } from '../../../components/ui/StatusPill';
 import { Clock, CheckCircle2, XCircle, FileEdit, Send, PhoneCall, Check, UserX, AlertCircle } from 'lucide-react';
 
 interface Props {
@@ -9,92 +10,90 @@ interface Props {
 }
 
 export const QuotationStatusBadge: React.FC<Props> = ({ status, size = 'md', showIcon = true }) => {
-  const getBadgeConfig = () => {
+  const getBadgeConfig = (): {
+    label: string;
+    variant: StatusPillVariant;
+    icon: React.ReactNode;
+    pulse?: boolean;
+  } => {
+    const iconSize = size === 'sm' ? 11 : size === 'lg' ? 14 : 12;
     switch (status) {
       case 'DRAFT':
         return {
           label: 'Draft',
-          icon: FileEdit,
-          classes: 'bg-slate-100 text-slate-700 border-slate-200',
+          variant: 'neutral',
+          icon: <FileEdit size={iconSize} />,
         };
       case 'PENDING_APPROVAL':
         return {
           label: 'Pending Approval',
-          icon: Clock,
-          classes: 'bg-amber-50 text-amber-700 border-amber-300/80 shadow-xs animate-pulse',
+          variant: 'warning',
+          icon: <Clock size={iconSize} />,
+          pulse: true,
         };
       case 'APPROVED':
         return {
           label: 'Approved',
-          icon: CheckCircle2,
-          classes: 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-xs',
+          variant: 'success',
+          icon: <CheckCircle2 size={iconSize} />,
         };
       case 'REJECTED':
         return {
           label: 'Rejected',
-          icon: XCircle,
-          classes: 'bg-rose-50 text-rose-700 border-rose-300',
+          variant: 'danger',
+          icon: <XCircle size={iconSize} />,
         };
       case 'SENT':
         return {
           label: 'Sent to Client',
-          icon: Send,
-          classes: 'bg-blue-50 text-blue-700 border-blue-300',
+          variant: 'info',
+          icon: <Send size={iconSize} />,
         };
       case 'FOLLOW_UP':
         return {
           label: 'Follow-up',
-          icon: PhoneCall,
-          classes: 'bg-purple-50 text-purple-700 border-purple-300',
+          variant: 'purple',
+          icon: <PhoneCall size={iconSize} />,
         };
       case 'ACCEPTED':
         return {
           label: 'Accepted',
-          icon: Check,
-          classes: 'bg-teal-50 text-teal-700 border-teal-300 font-bold',
+          variant: 'success',
+          icon: <Check size={iconSize} />,
         };
       case 'REJECTED_BY_CUSTOMER':
         return {
           label: 'Rejected by Client',
-          icon: UserX,
-          classes: 'bg-zinc-100 text-zinc-700 border-zinc-300',
+          variant: 'neutral',
+          icon: <UserX size={iconSize} />,
         };
       case 'EXPIRED':
         return {
           label: 'Expired',
-          icon: AlertCircle,
-          classes: 'bg-red-50 text-red-600 border-red-200',
+          variant: 'danger',
+          icon: <AlertCircle size={iconSize} />,
         };
       default:
         return {
           label: status,
-          icon: FileEdit,
-          classes: 'bg-slate-100 text-slate-700 border-slate-200',
+          variant: 'neutral',
+          icon: <FileEdit size={iconSize} />,
         };
     }
   };
 
   const config = getBadgeConfig();
-  const Icon = config.icon;
-
-  const sizeClasses = {
-    sm: 'px-2 py-0.5 text-[10px] gap-1',
-    md: 'px-2.5 py-1 text-xs gap-1.5',
-    lg: 'px-3 py-1.5 text-sm gap-2 font-semibold',
-  }[size];
-
-  const iconSizes = {
-    sm: 11,
-    md: 13,
-    lg: 15,
-  }[size];
+  const pillSize = size === 'lg' ? 'md' : size === 'sm' ? 'xs' : 'sm';
 
   return (
-    <span
-      className={`inline-flex items-center font-medium rounded-full border ${config.classes} ${sizeClasses} transition-all`}
+    <StatusPill
+      variant={config.variant}
+      size={pillSize}
+      icon={showIcon ? config.icon : undefined}
+      dot={!showIcon}
+      dotPulse={config.pulse}
     >
-      {showIcon && <Icon size={iconSizes} className="shrink-0" />}
-      <span>{config.label}</span>
-    </span>
+      {config.label}
+    </StatusPill>
   );
 };

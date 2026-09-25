@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search, RefreshCw, X, Filter } from 'lucide-react';
+import { Button } from '../../../components/ui/Button';
 
 interface EmployeeToolbarProps {
   searchQuery: string;
@@ -31,22 +32,23 @@ export const EmployeeToolbar: React.FC<EmployeeToolbarProps> = ({
   loading,
 }) => {
   return (
-    <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+    <div className="bg-card border border-border rounded-xl p-3 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
       {/* Search Box */}
       <form onSubmit={onSearchSubmit} className="relative flex-1 min-w-70">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
         <input
           type="text"
           placeholder="Search employees by name, email, or phone..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full h-10 pl-10 pr-10 rounded-xl bg-slate-50/70 border border-slate-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-3 focus:ring-blue-100 transition-all"
+          className="w-full h-9 pl-9 pr-9 rounded-lg bg-slate-50 border border-slate-200 text-[13px] font-normal text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-colors"
         />
         {searchQuery && (
           <button
             type="button"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 rounded-md"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 rounded cursor-pointer"
             onClick={onClearSearch}
+            title="Clear search"
           >
             <X size={14} />
           </button>
@@ -56,8 +58,8 @@ export const EmployeeToolbar: React.FC<EmployeeToolbarProps> = ({
       {/* Filter and Refresh Controls */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Work Type Filter */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500">
-          <Filter size={12} className="text-slate-400" />
+        <div className="flex items-center gap-1.5 h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-600">
+          <Filter size={13} className="text-slate-400" />
           <span className="text-[11px] uppercase tracking-wider text-slate-400">Type:</span>
           <select
             value={workTypeFilter}
@@ -71,7 +73,7 @@ export const EmployeeToolbar: React.FC<EmployeeToolbarProps> = ({
         </div>
 
         {/* Role Filter */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500">
+        <div className="flex items-center gap-1.5 h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-600">
           <span className="text-[11px] uppercase tracking-wider text-slate-400">Role:</span>
           <select
             value={roleFilter}
@@ -86,7 +88,7 @@ export const EmployeeToolbar: React.FC<EmployeeToolbarProps> = ({
         </div>
 
         {/* Status Filter */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500">
+        <div className="flex items-center gap-1.5 h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-600">
           <span className="text-[11px] uppercase tracking-wider text-slate-400">Status:</span>
           <select
             value={statusFilter}
@@ -99,15 +101,16 @@ export const EmployeeToolbar: React.FC<EmployeeToolbarProps> = ({
           </select>
         </div>
 
-        <button
-          type="button"
-          className="w-10 h-10 rounded-xl border border-slate-200/80 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+        <Button
+          variant="outline"
+          size="md"
           onClick={onRefresh}
-          title="Refresh List"
           disabled={loading}
+          title="Refresh List"
+          className="px-3"
         >
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-        </button>
+        </Button>
       </div>
     </div>
   );

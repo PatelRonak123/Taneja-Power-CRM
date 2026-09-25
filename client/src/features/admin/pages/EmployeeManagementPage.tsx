@@ -14,6 +14,7 @@ import { EmployeeMetricsCards } from "../components/EmployeeMetricsCards";
 import { EmployeeToolbar } from "../components/EmployeeToolbar";
 import { EmployeeTable } from "../components/EmployeeTable";
 import { EmployeeModal } from "../components/EmployeeModal";
+import { Button } from "../../../components/ui/Button";
 
 export const EmployeeManagementPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -331,32 +332,32 @@ export const EmployeeManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 max-w-7xl mx-auto pb-10">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0 shadow-xs">
-            <Users size={24} />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-xl border border-border shadow-xs">
+        <div className="flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+            <Users size={18} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+            <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
               Staff Management
             </h1>
-            <p className="text-xs font-medium text-slate-500 mt-0.5">
-              Manage office and field personnel, configure designations, and
-              administer credentials.
+            <p className="text-[13px] text-slate-500 font-normal mt-0.5 leading-normal">
+              Manage office and field personnel, configure designations, and administer credentials.
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="md"
+          leftIcon={<Plus size={16} />}
           onClick={handleOpenCreate}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-900/20 hover:shadow-lg transition-all active:scale-[0.98] shrink-0 cursor-pointer"
+          className="shrink-0"
         >
-          <Plus size={16} />
-          <span>Add New Employee</span>
-        </button>
+          Add Employee
+        </Button>
       </div>
 
       {/* Metrics Header Cards */}

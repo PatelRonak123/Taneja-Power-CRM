@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import {
   MapPin,
   X,
@@ -18,6 +17,8 @@ import {
 } from 'lucide-react';
 import { DestinationStatus } from '../types/customer.types';
 import { geocodingService } from '../services/geocodingService';
+import { Drawer } from '../../../components/ui/Drawer';
+import { Button } from '../../../components/ui/Button';
 
 export interface AddressSuggestionItem {
   id: string;
@@ -234,53 +235,59 @@ export const DestinationModal: React.FC<DestinationModalProps> = ({
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${mapBbox}&layer=mapnik&marker=${latNum},${lngNum}`
     : '';
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100] overflow-hidden select-none">
-      {/* Overlay Backdrop */}
-      <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-300 animate-fade-in"
+  const drawerTitle = (
+    <div className="flex items-center gap-2.5">
+      <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
+        <MapPin size={16} />
+      </div>
+      <div>
+        <h3 className="text-base font-semibold text-slate-900 leading-snug">
+          {modalMode === 'create' ? 'Register Destination Site' : 'Edit Destination Site'}
+        </h3>
+        <p className="text-xs text-slate-500 font-normal">
+          Google Maps address search & GPS facility management
+        </p>
+      </div>
+    </div>
+  );
+
+  const drawerFooter = (
+    <div className="flex items-center justify-end gap-2 w-full">
+      <Button
+        variant="outline"
+        size="md"
         onClick={onClose}
-      />
+        disabled={formSubmitting}
+      >
+        Cancel
+      </Button>
+      <Button
+        variant="primary"
+        size="md"
+        type="submit"
+        isLoading={formSubmitting}
+        onClick={onSubmit}
+      >
+        {modalMode === 'create' ? 'Add Destination Site' : 'Save Changes'}
+      </Button>
+    </div>
+  );
 
-      {/* Slide-Over Drawer Container */}
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-[100]">
-        <div
-          className="w-screen max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 animate-slide-in-right overflow-y-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white/95 backdrop-blur-md sticky top-0 z-20">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200/60 flex items-center justify-center">
-                <MapPin size={20} />
-              </div>
-              <div>
-                <h2 className="text-base font-black text-slate-900">
-                  {modalMode === 'create' ? 'Register Destination Site' : 'Edit Destination Site'}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Google Maps address search & GPS facility management
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer border border-slate-200/80"
-            >
-              <X size={18} />
-            </button>
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={drawerTitle}
+      maxWidth="xl"
+      footer={drawerFooter}
+    >
+      <form onSubmit={onSubmit} className="space-y-4">
+        {formError && (
+          <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
+            <AlertCircle size={15} className="shrink-0 text-rose-600" />
+            <span>{formError}</span>
           </div>
-
-          {/* Form Content */}
-          <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-y-auto">
-            <div className="p-6 space-y-5 flex-1">
-              {formError && (
-                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle size={16} className="shrink-0 text-rose-600" />
-                  <span>{formError}</span>
-                </div>
-              )}
+        )}
 
               {/* 1. Facility Address with Google Maps Autocomplete */}
               <div className="relative" ref={dropdownRef}>
@@ -651,33 +658,7 @@ export const DestinationModal: React.FC<DestinationModalProps> = ({
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 sticky bottom-0 z-10">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={formSubmitting}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={formSubmitting}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {formSubmitting && (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                )}
-                <span>{modalMode === 'create' ? 'Add Destination Site' : 'Save Changes'}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>,
-    document.body
+      </form>
+    </Drawer>
   );
 };

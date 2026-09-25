@@ -12,6 +12,7 @@ import { customerService } from '../../customers/services/customerService';
 import { productService } from '../../products/services/productService';
 import { Customer, CustomerDestination } from '../../customers/types/customer.types';
 import { Product } from '../../products/types/product.types';
+import { Button } from '../../../components/ui/Button';
 import {
   Plus,
   Trash2,
@@ -1195,26 +1196,26 @@ export const QuotationForm: React.FC<Props> = ({
                 </div>
 
                 {/* Quantity, Unit, Price, Discount, GST Rate, Line Total */}
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-3 pt-1 border-t border-slate-200/60">
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-3 pt-2 border-t border-slate-200">
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-slate-600">Qty</label>
+                    <label className="text-xs font-medium text-slate-700">Qty</label>
                     <input
                       type="number"
                       step="any"
                       min={0.001}
                       value={item.quantity}
                       onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
-                      className="px-3 py-1.5 text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-xl"
+                      className="h-9 px-3 text-[13px] font-medium text-slate-900 bg-white border border-slate-200 rounded-lg text-right tabular-nums focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                       required
                     />
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-slate-600">Unit</label>
+                    <label className="text-xs font-medium text-slate-700">Unit</label>
                     <select
                       value={item.unit}
                       onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                      className="px-2.5 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
+                      className="h-9 px-2.5 text-[13px] font-medium text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
                     >
                       <option value="NOS">NOS</option>
                       <option value="SET">SET</option>
@@ -1227,8 +1228,8 @@ export const QuotationForm: React.FC<Props> = ({
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-slate-600">
-                      {quotationType === 'AMC' ? 'AMC Amount / Unit (₹)' : 'Unit Price (₹)'}
+                    <label className="text-xs font-medium text-slate-700 truncate">
+                      {quotationType === 'AMC' ? 'AMC Price / Unit (₹)' : 'Unit Price (₹)'}
                     </label>
                     <input
                       type="number"
@@ -1236,13 +1237,13 @@ export const QuotationForm: React.FC<Props> = ({
                       min={0}
                       value={item.unitPrice}
                       onChange={(e) => handleItemChange(index, 'unitPrice', Number(e.target.value))}
-                      className="px-3 py-1.5 text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-xl"
+                      className="h-9 px-3 text-[13px] font-medium text-slate-900 bg-white border border-slate-200 rounded-lg text-right tabular-nums focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                       required
                     />
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-slate-600">Discount (%)</label>
+                    <label className="text-xs font-medium text-slate-700">Discount (%)</label>
                     <input
                       type="number"
                       min={0}
@@ -1250,16 +1251,16 @@ export const QuotationForm: React.FC<Props> = ({
                       step="any"
                       value={item.discountPercent || 0}
                       onChange={(e) => handleItemChange(index, 'discountPercent', Number(e.target.value))}
-                      className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
+                      className="h-9 px-3 text-[13px] font-medium text-slate-900 bg-white border border-slate-200 rounded-lg text-right tabular-nums focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-slate-600">GST Rate (%)</label>
+                    <label className="text-xs font-medium text-slate-700">GST Rate (%)</label>
                     <select
                       value={item.gstRate}
                       onChange={(e) => handleItemChange(index, 'gstRate', Number(e.target.value))}
-                      className="px-2.5 py-1.5 text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-xl"
+                      className="h-9 px-2.5 text-[13px] font-medium text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer text-right"
                     >
                       <option value={0}>0% (Exempt)</option>
                       <option value={5}>5%</option>
@@ -1269,9 +1270,9 @@ export const QuotationForm: React.FC<Props> = ({
                     </select>
                   </div>
 
-                  <div className="flex flex-col gap-1 bg-white p-2 rounded-xl border border-slate-200 text-right">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Line Total</label>
-                    <div className="text-xs font-bold text-slate-900">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-slate-500 text-right">Line Total</label>
+                    <div className="h-9 px-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-end text-xs font-semibold text-slate-900 tabular-nums">
                       ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
@@ -1676,14 +1677,15 @@ export const QuotationForm: React.FC<Props> = ({
 
       {/* SUBMISSION FOOTER BUTTONS */}
       <div className="flex items-center justify-end gap-3 pt-2">
-        <button
+        <Button
           type="submit"
-          disabled={isSubmitting}
-          className="px-6 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-600/30 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+          variant="primary"
+          size="lg"
+          isLoading={isSubmitting}
+          leftIcon={<Save size={16} />}
         >
-          <Save size={16} />
-          <span>{isSubmitting ? 'Saving...' : isEditing ? 'Save Quotation Changes' : 'Save as Draft Quotation'}</span>
-        </button>
+          {isEditing ? 'Save Quotation Changes' : 'Save as Draft Quotation'}
+        </Button>
       </div>
     </form>
   );

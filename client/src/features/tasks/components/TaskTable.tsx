@@ -7,13 +7,21 @@ import {
   MapPin,
   Calendar,
   ClipboardList,
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  RefreshCw,
   Radio,
 } from 'lucide-react';
 import { TaskItem, TaskPriority, TaskStatus } from '../types/task.types';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TablePagination,
+  TableEmptyState,
+  TableLoadingState,
+} from '../../../components/ui/table';
+import { StatusPill } from '../../../components/ui/StatusPill';
 
 interface TaskTableProps {
   tasks: TaskItem[];
@@ -56,28 +64,28 @@ export const TaskTable: React.FC<TaskTableProps> = ({
     switch (priority) {
       case 'URGENT':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200/70 whitespace-nowrap uppercase tracking-wider">
+          <StatusPill variant="danger" size="xs">
             URGENT
-          </span>
+          </StatusPill>
         );
       case 'HIGH':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/70 whitespace-nowrap uppercase tracking-wider">
+          <StatusPill variant="warning" size="xs">
             HIGH
-          </span>
+          </StatusPill>
         );
       case 'LOW':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap uppercase tracking-wider">
+          <StatusPill variant="neutral" size="xs">
             LOW
-          </span>
+          </StatusPill>
         );
       case 'MEDIUM':
       default:
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/70 whitespace-nowrap uppercase tracking-wider">
+          <StatusPill variant="info" size="xs">
             MEDIUM
-          </span>
+          </StatusPill>
         );
     }
   };
@@ -86,39 +94,34 @@ export const TaskTable: React.FC<TaskTableProps> = ({
     switch (status) {
       case 'COMPLETED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/70 whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+          <StatusPill variant="success" dot size="xs">
             Completed
-          </span>
+          </StatusPill>
         );
       case 'IN_PROGRESS':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200/70 whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping shrink-0" />
+          <StatusPill variant="warning" dot dotPulse size="xs">
             In Progress
-          </span>
+          </StatusPill>
         );
       case 'ASSIGNED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/70 whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+          <StatusPill variant="info" dot size="xs">
             Assigned
-          </span>
+          </StatusPill>
         );
       case 'CANCELLED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200/70 whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+          <StatusPill variant="danger" dot size="xs">
             Cancelled
-          </span>
+          </StatusPill>
         );
       case 'CREATED':
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+          <StatusPill variant="neutral" dot size="xs">
             Created
-          </span>
+          </StatusPill>
         );
     }
   };
@@ -136,214 +139,191 @@ export const TaskTable: React.FC<TaskTableProps> = ({
   };
 
   return (
-    <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden flex flex-col w-full">
-      {loading ? (
-        <div className="p-16 flex flex-col items-center justify-center gap-3 text-center">
-          <RefreshCw size={32} className="animate-spin text-blue-600" />
-          <p className="text-sm font-semibold text-slate-500">Fetching field task records from database...</p>
-        </div>
-      ) : tasks.length === 0 ? (
-        <div className="p-16 flex flex-col items-center justify-center gap-3 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-center text-slate-400">
-            <ClipboardList size={28} />
-          </div>
-          <h3 className="text-base font-bold text-slate-900">No {isManagement ? 'Field Tasks' : 'Assigned Tasks'} Found</h3>
-          <p className="text-xs text-slate-500 max-w-md">
-            {searchQuery || statusFilter !== 'ALL' || priorityFilter !== 'ALL'
-              ? 'No work orders match your current search or filter criteria.'
-              : isManagement
-              ? 'No field tasks registered yet. Click "Create Field Task" above to dispatch your first task.'
-              : 'You have no assigned tasks at the moment.'}
-          </p>
-          {!searchQuery && statusFilter === 'ALL' && priorityFilter === 'ALL' && isManagement && (
-            <button
-              onClick={onOpenCreate}
-              className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-            >
-              <Plus size={16} />
-              <span>Create First Task</span>
-            </button>
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="w-full overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[900px] md:min-w-0 md:table-fixed">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  <th className="py-3 px-3.5 md:w-[20%]">Task Title</th>
-                  <th className="py-3 px-3 md:w-[15%]">Customer & Site</th>
-                  <th className="py-3 px-3 md:w-[15%]">Assigned Engineer</th>
-                  <th className="py-3 px-2 md:w-[9%] text-center">Priority</th>
-                  <th className="py-3 px-2 md:w-[11%] text-center">Status</th>
-                  <th className="py-3 px-2 md:w-[12%]">Scheduled</th>
-                  <th className="py-3 px-3.5 text-right md:w-[18%]">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
-                {tasks.map((task) => {
-                  const isFinalized = task.status === 'COMPLETED' || task.status === 'CANCELLED';
-                  const assigneeInitials = task.assignedUser
-                    ? task.assignedUser.fullName
-                        .split(' ')
-                        .map((n) => n[0])
-                        .join('')
-                        .toUpperCase()
-                        .slice(0, 2)
-                    : 'UN';
+    <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden flex flex-col w-full">
+      <div className="w-full overflow-x-auto">
+        <Table density="standard" className="min-w-225 md:min-w-0 md:table-fixed">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="md:w-[22%]">Task Title</TableHead>
+              <TableHead className="md:w-[16%]">Customer & Site</TableHead>
+              <TableHead className="md:w-[16%]">Assigned Engineer</TableHead>
+              <TableHead align="center" className="md:w-[10%]">Priority</TableHead>
+              <TableHead align="center" className="md:w-[12%]">Status</TableHead>
+              <TableHead className="md:w-[12%]">Scheduled</TableHead>
+              <TableHead align="right" className="md:w-[12%]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableLoadingState columns={7} rows={6} />
+            ) : tasks.length === 0 ? (
+              <TableEmptyState
+                colSpan={7}
+                icon={<ClipboardList size={24} />}
+                title={searchQuery || statusFilter !== 'ALL' || priorityFilter !== 'ALL' ? 'No matching tasks' : 'No tasks recorded'}
+                description={
+                  searchQuery || statusFilter !== 'ALL' || priorityFilter !== 'ALL'
+                    ? 'No field tasks matched your active filter criteria.'
+                    : isManagement
+                    ? 'Create your first field task to dispatch technician orders.'
+                    : 'You have no assigned tasks at this time.'
+                }
+                action={
+                  !searchQuery && statusFilter === 'ALL' && priorityFilter === 'ALL' && isManagement ? (
+                    <button
+                      type="button"
+                      onClick={onOpenCreate}
+                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium cursor-pointer shadow-xs"
+                    >
+                      Create Field Task
+                    </button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              tasks.map((task) => {
+                const isFinalized = task.status === 'COMPLETED' || task.status === 'CANCELLED';
+                const assigneeInitials = task.assignedUser
+                  ? task.assignedUser.fullName
+                      .split(' ')
+                      .map((n) => n[0])
+                      .join('')
+                      .toUpperCase()
+                      .slice(0, 2)
+                  : 'UN';
 
-                  return (
-                    <tr key={task.id} className="hover:bg-slate-50/60 transition-colors">
-                      {/* Task Title & Details */}
-                      <td className="py-3 px-3.5 align-middle">
-                        <div className="flex flex-col min-w-0 pr-1">
-                          <span className="font-bold text-slate-900 text-xs truncate" title={task.title}>
-                            {task.title}
+                return (
+                  <TableRow key={task.id} className="group">
+                    {/* Task Title & Details */}
+                    <TableCell className="align-middle">
+                      <div className="flex flex-col min-w-0 pr-1">
+                        <span className="font-semibold text-slate-900 text-xs truncate" title={task.title}>
+                          {task.title}
+                        </span>
+                        {task.description && (
+                          <span className="text-[11px] text-slate-500 truncate mt-0.5" title={task.description}>
+                            {task.description}
                           </span>
-                          {task.description && (
-                            <span className="text-[10px] text-slate-500 truncate mt-0.5" title={task.description}>
-                              {task.description}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Customer & Destination */}
-                      <td className="py-3 px-3 align-middle">
-                        <div className="flex flex-col min-w-0 pr-1">
-                          <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs truncate" title={task.customer?.name || 'Unknown Client'}>
-                            <Building2 size={12} className="text-blue-600 shrink-0" />
-                            <span className="truncate">{task.customer?.name || 'Unknown Client'}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-slate-500 text-[10px] truncate mt-0.5" title={task.destination?.name || 'Site location'}>
-                            <MapPin size={10} className="text-slate-400 shrink-0" />
-                            <span className="truncate">{task.destination?.name || 'Site location'}</span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Assigned Employee */}
-                      <td className="py-3 px-3 align-middle">
-                        {task.assignedUser ? (
-                          <div className="flex items-center gap-2 min-w-0 pr-1">
-                            <div className="w-7 h-7 rounded-lg bg-linear-to-br from-blue-600 to-indigo-700 text-white font-bold text-[10px] flex items-center justify-center shrink-0 shadow-2xs">
-                              {assigneeInitials}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <span className="font-bold text-slate-900 text-xs truncate" title={task.assignedUser.fullName}>
-                                {task.assignedUser.fullName}
-                              </span>
-                              {task.assignedUser.designation && (
-                                <span className="text-[9px] text-slate-400 truncate" title={task.assignedUser.designation}>
-                                  {task.assignedUser.designation}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">Unassigned</span>
                         )}
-                      </td>
+                      </div>
+                    </TableCell>
 
-                      {/* Priority */}
-                      <td className="py-3 px-2 align-middle text-center">{getPriorityBadge(task.priority)}</td>
-
-                      {/* Status */}
-                      <td className="py-3 px-2 align-middle text-center">{getStatusBadge(task.status)}</td>
-
-                      {/* Scheduled Date */}
-                      <td className="py-3 px-2 align-middle">
-                        <div className="flex items-center gap-1 text-[11px] font-medium text-slate-600 whitespace-nowrap" title={formatDateTime(task.scheduledAt)}>
-                          <Calendar size={11} className="text-slate-400 shrink-0" />
-                          <span>{formatDateTime(task.scheduledAt)}</span>
+                    {/* Customer & Destination */}
+                    <TableCell className="align-middle">
+                      <div className="flex flex-col min-w-0 pr-1">
+                        <div className="flex items-center gap-1.5 font-medium text-slate-800 text-xs truncate" title={task.customer?.name || 'Unknown Client'}>
+                          <Building2 size={12} className="text-blue-600 shrink-0" />
+                          <span className="truncate">{task.customer?.name || 'Unknown Client'}</span>
                         </div>
-                      </td>
+                        <div className="flex items-center gap-1 text-slate-500 text-[11px] truncate mt-0.5" title={task.destination?.name || 'Site location'}>
+                          <MapPin size={10} className="text-slate-400 shrink-0" />
+                          <span className="truncate">{task.destination?.name || 'Site location'}</span>
+                        </div>
+                      </div>
+                    </TableCell>
 
-                      {/* Actions */}
-                      <td className="py-3 px-3.5 text-right align-middle">
-                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                          {task.status === 'IN_PROGRESS' && onTrackTask && (
-                            <button
-                              type="button"
-                              onClick={() => onTrackTask(task)}
-                              className="px-2 py-1 rounded-md border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1 shrink-0"
-                              title="Live Route Tracking"
-                            >
-                              <Radio size={11} className="animate-pulse text-orange-600" />
-                              <span>Track</span>
-                            </button>
-                          )}
+                    {/* Assigned Employee */}
+                    <TableCell className="align-middle">
+                      {task.assignedUser ? (
+                        <div className="flex items-center gap-2 min-w-0 pr-1">
+                          <div className="w-7 h-7 rounded-lg bg-linear-to-br from-blue-600 to-indigo-700 text-white font-bold text-[10px] flex items-center justify-center shrink-0 shadow-2xs">
+                            {assigneeInitials}
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-semibold text-slate-900 text-xs truncate" title={task.assignedUser.fullName}>
+                              {task.assignedUser.fullName}
+                            </span>
+                            {task.assignedUser.designation && (
+                              <span className="text-[10px] text-slate-400 truncate" title={task.assignedUser.designation}>
+                                {task.assignedUser.designation}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">Unassigned</span>
+                      )}
+                    </TableCell>
 
+                    {/* Priority */}
+                    <TableCell align="center" className="align-middle">{getPriorityBadge(task.priority)}</TableCell>
+
+                    {/* Status */}
+                    <TableCell align="center" className="align-middle">{getStatusBadge(task.status)}</TableCell>
+
+                    {/* Scheduled Date */}
+                    <TableCell className="align-middle tabular-nums">
+                      <div className="flex items-center gap-1 text-[11px] font-medium text-slate-600 whitespace-nowrap" title={formatDateTime(task.scheduledAt)}>
+                        <Calendar size={11} className="text-slate-400 shrink-0" />
+                        <span>{formatDateTime(task.scheduledAt)}</span>
+                      </div>
+                    </TableCell>
+
+                    {/* Actions */}
+                    <TableCell align="right" className="align-middle whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        {task.status === 'IN_PROGRESS' && onTrackTask && (
                           <button
                             type="button"
-                            onClick={() => onViewDetails(task)}
-                            className="p-1.5 rounded-lg border border-slate-200/80 bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all cursor-pointer shadow-2xs shrink-0"
-                            title="View Full Details"
+                            onClick={() => onTrackTask(task)}
+                            className="px-2 py-1 rounded-md border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10px] font-medium transition-all cursor-pointer shadow-2xs flex items-center gap-1 shrink-0"
+                            title="Live Route Tracking"
                           >
-                            <Eye size={13} />
+                            <Radio size={11} className="animate-pulse text-orange-600" />
+                            <span>Track</span>
                           </button>
+                        )}
 
-                          {!isFinalized && isManagement && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => onEditTask(task)}
-                                className="p-1.5 rounded-lg border border-slate-200/80 bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all cursor-pointer shadow-2xs shrink-0"
-                                title="Edit Task"
-                              >
-                                <Edit2 size={13} />
-                              </button>
+                        <button
+                          type="button"
+                          onClick={() => onViewDetails(task)}
+                          className="p-1.5 rounded-md border border-border bg-white hover:bg-blue-50 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all cursor-pointer shadow-2xs shrink-0"
+                          title="View Full Details"
+                        >
+                          <Eye size={13} />
+                        </button>
 
-                              <button
-                                type="button"
-                                onClick={() => onCancelTask(task)}
-                                className="p-1.5 rounded-lg border border-slate-200/80 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 hover:border-rose-200 transition-all cursor-pointer shadow-2xs shrink-0"
-                                title="Cancel Task"
-                              >
-                                <XCircle size={13} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {!isFinalized && isManagement && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onEditTask(task)}
+                              className="p-1.5 rounded-md border border-border bg-white hover:bg-blue-50 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all cursor-pointer shadow-2xs shrink-0"
+                              title="Edit Task"
+                            >
+                              <Edit2 size={13} />
+                            </button>
 
-          {/* Pagination Footer */}
-          <div className="px-6 py-3 border-t border-slate-200/80 bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
-            <div>
-              Showing <span className="font-bold text-slate-900">{(page - 1) * limit + 1}</span> to{' '}
-              <span className="font-bold text-slate-900">{Math.min(page * limit, totalCount)}</span> of{' '}
-              <span className="font-black text-slate-900">{totalCount}</span> tasks
-            </div>
+                            <button
+                              type="button"
+                              onClick={() => onCancelTask(task)}
+                              className="p-1.5 rounded-md border border-border bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 hover:border-rose-200 transition-all cursor-pointer shadow-2xs shrink-0"
+                              title="Cancel Task"
+                            >
+                              <XCircle size={13} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => onPageChange(page - 1)}
-                className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center hover:bg-slate-100 hover:border-slate-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span className="px-2 font-bold text-slate-900">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => onPageChange(page + 1)}
-                className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center hover:bg-slate-100 hover:border-slate-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        </>
+      {/* Pagination Footer */}
+      {!loading && tasks.length > 0 && (
+        <TablePagination
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          limit={limit}
+          onPageChange={onPageChange}
+          entityName="tasks"
+        />
       )}
     </div>
   );
