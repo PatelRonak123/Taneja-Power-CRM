@@ -4,6 +4,7 @@ import { amcContractApi, AmcContract, AmcServiceRequest } from '../api/amcContra
 import { navigate, useCurrentPath } from '../../../app/router/navigation';
 import { useAuthStore } from '../../../stores/authStore';
 import { AmcServiceReportModal } from '../components/AmcServiceReportModal';
+import { toast } from '../../../utils/toast';
 import {
   Building2,
   Calendar,
@@ -88,9 +89,10 @@ export const AmcContractDetailPage: React.FC = () => {
         amcPaymentTerms: editPaymentTerms.trim() || undefined,
       });
       setIsEditModalOpen(false);
+      toast.success('Contract details updated successfully');
       await fetchContractDetail();
     } catch (err: any) {
-      alert(err?.message || 'Failed to update contract details.');
+      toast.error('Failed to update contract details', err?.message);
     } finally {
       setEditLoading(false);
     }
@@ -140,9 +142,10 @@ export const AmcContractDetailPage: React.FC = () => {
     try {
       setActionLoading(true);
       await amcContractApi.startVisit(visitId);
+      toast.success('Service visit started');
       await fetchContractDetail();
     } catch (err: any) {
-      alert(err?.message || 'Failed to start visit.');
+      toast.error('Failed to start visit', err?.message);
     } finally {
       setActionLoading(false);
     }
@@ -186,9 +189,10 @@ export const AmcContractDetailPage: React.FC = () => {
     try {
       setActionLoading(true);
       await amcContractApi.activateContract(contract.id);
+      toast.success('AMC Contract activated successfully');
       await fetchContractDetail();
     } catch (err: any) {
-      alert(err?.message || 'Failed to activate contract.');
+      toast.error('Failed to activate contract', err?.message);
     } finally {
       setActionLoading(false);
     }
@@ -207,9 +211,10 @@ export const AmcContractDetailPage: React.FC = () => {
       setTerminationReason('');
       setTerminationNoticeDate('');
       setTerminationDate('');
+      toast.warning('Contract Terminated', 'AMC Contract has been terminated.');
       await fetchContractDetail();
     } catch (err: any) {
-      alert(err?.message || 'Failed to terminate contract.');
+      toast.error('Failed to terminate contract', err?.message);
     } finally {
       setActionLoading(false);
     }
@@ -248,7 +253,7 @@ export const AmcContractDetailPage: React.FC = () => {
         totalAmount: renewalTotalAmount || undefined,
       });
       setIsRenewalModalOpen(false);
-      alert(`${res.message || 'Renewal contract created.'} Navigate to the new contract to activate it.`);
+      toast.success('Renewal Contract Created', 'Navigate to the new contract to activate it.');
       // Navigate to the new renewal contract
       if (res.data?.id) {
         navigate(`/amc-contracts/${res.data.id}`);
@@ -256,7 +261,7 @@ export const AmcContractDetailPage: React.FC = () => {
         await fetchContractDetail();
       }
     } catch (err: any) {
-      alert(err?.message || 'Failed to create renewal contract.');
+      toast.error('Failed to create renewal contract', err?.message);
     } finally {
       setRenewalLoading(false);
     }
@@ -277,9 +282,10 @@ export const AmcContractDetailPage: React.FC = () => {
       setIsBreakdownModalOpen(false);
       setIssueDescription('');
       setEquipmentId('');
+      toast.success('Breakdown Request Logged', 'Emergency breakdown request logged successfully.');
       await fetchContractDetail();
     } catch (err: any) {
-      alert(err?.message || 'Failed to log breakdown request.');
+      toast.error('Failed to log breakdown request', err?.message);
     } finally {
       setActionLoading(false);
     }
@@ -296,9 +302,10 @@ export const AmcContractDetailPage: React.FC = () => {
       setIsEscalateModalOpen(false);
       setSelectedEscalateReq(null);
       setEscalationNotes('');
+      toast.warning('Breakdown Request Escalated', `Request escalated to ${targetEscalationLevel}`);
       await fetchContractDetail();
     } catch (err: any) {
-      alert(err?.message || 'Failed to escalate breakdown request.');
+      toast.error('Failed to escalate breakdown request', err?.message);
     } finally {
       setActionLoading(false);
     }
@@ -308,9 +315,10 @@ export const AmcContractDetailPage: React.FC = () => {
     try {
       setActionLoading(true);
       await amcContractApi.createTaskForVisit(visitId);
+      toast.success('Task Created', 'Work order task created for service visit.');
       await fetchContractDetail();
     } catch (err: any) {
-      alert(err?.message || 'Failed to create task for visit.');
+      toast.error('Failed to create task for visit', err?.message);
     } finally {
       setActionLoading(false);
     }

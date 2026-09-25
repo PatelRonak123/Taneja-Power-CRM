@@ -20,6 +20,7 @@ import {
 import { useAuthStore } from '../../../stores/authStore';
 import { attendanceService } from '../../attendance/services/attendanceService';
 import { AttendanceItem, MyAttendanceResponse } from '../../attendance/types/attendance.types';
+import { toast } from '../../../utils/toast';
 
 export const EmployeeAttendancePage: React.FC = () => {
   const { user } = useAuthStore();
@@ -32,7 +33,6 @@ export const EmployeeAttendancePage: React.FC = () => {
   const [loadingToday, setLoadingToday] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Form Inputs
   const [notes, setNotes] = useState<string>('');
@@ -152,7 +152,6 @@ export const EmployeeAttendancePage: React.FC = () => {
   const handleCheckIn = async () => {
     setActionLoading(true);
     setErrorMsg(null);
-    setSuccessMsg(null);
 
     try {
       const res = await attendanceService.checkIn({
@@ -162,15 +161,19 @@ export const EmployeeAttendancePage: React.FC = () => {
       });
 
       if (res.success) {
-        setSuccessMsg('Checked in successfully! Have a productive shift.');
+        toast.success('Check-in Successful', 'Checked in successfully! Have a productive shift.');
         setNotes('');
         await fetchTodayStatus();
         await fetchHistory(1);
       } else {
-        setErrorMsg(res.error?.message || 'Failed to check in.');
+        const msg = res.error?.message || 'Failed to check in.';
+        setErrorMsg(msg);
+        toast.error('Check-in Failed', msg);
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'An error occurred during check in.');
+      const msg = err?.message || 'An error occurred during check in.';
+      setErrorMsg(msg);
+      toast.error('Check-in Failed', msg);
     } finally {
       setActionLoading(false);
     }
@@ -180,7 +183,6 @@ export const EmployeeAttendancePage: React.FC = () => {
   const handleCheckOut = async () => {
     setActionLoading(true);
     setErrorMsg(null);
-    setSuccessMsg(null);
 
     try {
       const res = await attendanceService.checkOut({
@@ -190,15 +192,19 @@ export const EmployeeAttendancePage: React.FC = () => {
       });
 
       if (res.success) {
-        setSuccessMsg('Checked out successfully! Shift logged.');
+        toast.success('Check-out Successful', 'Checked out successfully! Shift logged.');
         setNotes('');
         await fetchTodayStatus();
         await fetchHistory(1);
       } else {
-        setErrorMsg(res.error?.message || 'Failed to check out.');
+        const msg = res.error?.message || 'Failed to check out.';
+        setErrorMsg(msg);
+        toast.error('Check-out Failed', msg);
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'An error occurred during check out.');
+      const msg = err?.message || 'An error occurred during check out.';
+      setErrorMsg(msg);
+      toast.error('Check-out Failed', msg);
     } finally {
       setActionLoading(false);
     }
@@ -302,22 +308,6 @@ export const EmployeeAttendancePage: React.FC = () => {
             type="button"
             onClick={() => setErrorMsg(null)}
             className="text-xs font-bold text-rose-500 hover:text-rose-800"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {successMsg && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between text-sm font-semibold shadow-xs">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 size={18} className="shrink-0 text-emerald-600" />
-            <span>{successMsg}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSuccessMsg(null)}
-            className="text-xs font-bold text-emerald-600 hover:text-emerald-900"
           >
             Dismiss
           </button>

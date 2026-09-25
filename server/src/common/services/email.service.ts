@@ -13,6 +13,11 @@ export interface SendQuotationEmailOptions {
   filename: string;
   customMessage?: string;
 }
+export interface SendOtpEmailResult {
+  delivered: boolean;
+  error?: string;
+  isSandboxRestricted?: boolean;
+}
 
 export class EmailService {
   private resendClient: Resend | null = null;
@@ -141,22 +146,26 @@ export class EmailService {
     }
   }
 
+
   /**
    * Send 4-digit password reset OTP email
    */
-  async sendOtpEmail(to: string, otpCode: string): Promise<void> {
+  async sendOtpEmail(to: string, otpCode: string): Promise<SendOtpEmailResult> {
     const apiKey = env.RESEND_API_KEY || process.env.RESEND_API_KEY;
     if (!apiKey || apiKey.includes('your_resend_api_key')) {
-      console.log(`\n==============================================`);
-      console.log(`[DEV OTP EMAIL] Sent 4-digit OTP code [${otpCode}] to recipient: ${to}`);
-      console.log(`==============================================\n`);
-      return;
+      console.warn(`\n==============================================`);
+      console.warn(`[DEV OTP EMAIL] RESEND_API_KEY not configured. OTP code [${otpCode}] for recipient: ${to}`);
+      console.warn(`==============================================\n`);
+      return {
+        delivered: false,
+        error: 'RESEND_API_KEY is not configured on this server.',
+      };
     }
 
     try {
       const resend = this.getClient();
       const fromAddress = env.RESEND_FROM_EMAIL || 'Taneja Power Systems <onboarding@resend.dev>';
-      await resend.emails.send({
+      const response = await resend.emails.send({
         from: fromAddress,
         to: [to],
         subject: `[Taneja Power CRM] Password Reset OTP: ${otpCode}`,
@@ -227,8 +236,27 @@ export class EmailService {
           </html>
         `,
       });
+
+      if (response.error) {
+        console.error(`[OTP EMAIL ERROR] Resend failed to send OTP to ${to}:`, response.error);
+        const isSandbox =
+          response.error.message?.includes('testing emails') ||
+          response.error.statusCode === 403;
+        return {
+          delivered: false,
+          error: response.error.message,
+          isSandboxRestricted: isSandbox,
+        };
+      }
+
+      console.info(`[OTP EMAIL SUCCESS] Sent OTP email to ${to} (Message ID: ${response.data?.id})`);
+      return { delivered: true };
     } catch (err: any) {
-      console.log(`[DEV OTP EMAIL FALLBACK] Sent 4-digit OTP code [${otpCode}] to ${to}. Notice: ${err?.message}`);
+      console.error(`[OTP EMAIL EXCEPTION] Failed to deliver OTP email:`, err?.message || err);
+      return {
+        delivered: false,
+        error: err?.message || 'Email delivery failed unexpectedly',
+      };
     }
   }
 }

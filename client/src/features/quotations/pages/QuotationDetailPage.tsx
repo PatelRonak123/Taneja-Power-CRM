@@ -15,6 +15,7 @@ import { SendQuotationEmailModal } from '../components/SendQuotationEmailModal';
 import { QuotationPrintDocument } from '../components/QuotationPrintDocument';
 import { QuotationRevision, QuotationItem } from '../types/quotation.types';
 import { amcContractApi } from '../../amc-contracts/api/amcContractApi';
+import { toast } from '../../../utils/toast';
 
 import {
   ArrowLeft,
@@ -95,9 +96,10 @@ export const QuotationDetailPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotation', quotationId] });
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
+      toast.success('Quotation submitted for approval');
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || err.message || 'Failed to submit for approval');
+      toast.error('Failed to submit for approval', err.response?.data?.message || err.message);
     },
   });
 
@@ -106,9 +108,10 @@ export const QuotationDetailPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotation', quotationId] });
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
+      toast.info('Approval submission withdrawn');
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || err.message || 'Failed to withdraw approval');
+      toast.error('Failed to withdraw approval', err.response?.data?.message || err.message);
     },
   });
 
@@ -167,8 +170,10 @@ export const QuotationDetailPage: React.FC = () => {
   const handleApprovalSubmit = async (comments: string) => {
     if (approvalModalAction === 'APPROVE') {
       await quotationService.approveQuotation(quotation.id, { comments });
+      toast.success('Quotation approved successfully');
     } else if (approvalModalAction === 'REJECT') {
       await quotationService.rejectQuotation(quotation.id, { rejectionReason: comments });
+      toast.warning('Quotation rejected', comments ? `Reason: ${comments}` : undefined);
     }
     queryClient.invalidateQueries({ queryKey: ['quotation', quotation.id] });
     queryClient.invalidateQueries({ queryKey: ['quotations'] });
@@ -176,6 +181,7 @@ export const QuotationDetailPage: React.FC = () => {
 
   const handleCreateRevisionSubmit = async (reason: string) => {
     await quotationService.createRevision(quotation.id, { revisionReason: reason });
+    toast.success('Formal revision created successfully');
     queryClient.invalidateQueries({ queryKey: ['quotation', quotation.id] });
     queryClient.invalidateQueries({ queryKey: ['quotations'] });
     navigate(`/quotations/${quotation.id}/edit`);
@@ -287,10 +293,11 @@ export const QuotationDetailPage: React.FC = () => {
                   try {
                     const res = await amcContractApi.createFromQuotation(quotation.id);
                     if (res.data?.id) {
+                      toast.success('AMC Contract created successfully from proposal');
                       navigate(`/amc-contracts/${res.data.id}`);
                     }
                   } catch (err: any) {
-                    alert(err?.message || 'Failed to create AMC Contract.');
+                    toast.error('Failed to create AMC Contract', err?.message);
                   }
                 }}
                 className="inline-flex items-center px-4 py-2 border border-emerald-300 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors cursor-pointer"

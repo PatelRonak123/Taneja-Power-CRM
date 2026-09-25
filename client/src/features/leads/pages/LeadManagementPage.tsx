@@ -20,6 +20,8 @@ import { leadsApi } from '../api/leadsApi';
 import { useAuthStore } from '../../../stores/authStore';
 import { employeeService } from '../../admin/services/employeeService';
 import { Employee } from '../../admin/types/employee.types';
+import { toast } from '../../../utils/toast';
+import { confirmModal } from '../../../utils/confirmModal';
 
 export const LeadManagementPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -160,6 +162,7 @@ export const LeadManagementPage: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    toast.info('Export Complete', 'Leads CSV downloaded successfully.');
   };
 
   // Drawer Action Triggers
@@ -183,18 +186,25 @@ export const LeadManagementPage: React.FC = () => {
 
   const handleDeleteLead = async (id: string, name: string) => {
     if (!isAdminOrManager) {
-      alert('Access Restricted: Only Managers or Admins can delete lead records.');
+      toast.warning('Permission Denied', 'Access Restricted: Only Managers or Admins can delete lead records.');
       return;
     }
 
-    if (window.confirm(`Are you sure you want to delete lead for "${name}"?`)) {
+    const isConfirmed = await confirmModal.danger(
+      'Delete Lead',
+      `Are you sure you want to delete lead for "${name}"? This record will be permanently deleted.`,
+      'Delete Lead'
+    );
+
+    if (isConfirmed) {
       try {
         await leadsApi.deleteLead(id);
-      } catch (err) {
-        console.warn('Delete lead error:', err);
+        toast.success(`Lead for "${name}" deleted successfully.`);
+        setLeads((prev) => prev.filter((item) => item.id !== id));
+        fetchLeads();
+      } catch (err: any) {
+        toast.error('Failed to delete lead', err?.message);
       }
-      setLeads((prev) => prev.filter((item) => item.id !== id));
-      fetchLeads();
     }
   };
 
@@ -205,13 +215,15 @@ export const LeadManagementPage: React.FC = () => {
         const updated = await leadsApi.updateLead(savedLead.id, savedLead);
         const finalLead = updated || savedLead;
         setLeads((prev) => prev.map((item) => (item.id === savedLead.id ? finalLead : item)));
+        toast.success('Lead updated successfully');
       } else {
         const created = await leadsApi.createLead(savedLead);
         const finalLead = created || savedLead;
         setLeads((prev) => [finalLead, ...prev.filter((l) => l.id !== finalLead.id)]);
+        toast.success('Lead created successfully');
       }
-    } catch (err) {
-      console.error('Save lead error:', err);
+    } catch (err: any) {
+      toast.error('Failed to save lead', err?.message);
     } finally {
       fetchLeads();
     }

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productService } from '../services/productService';
 import { ProductQueryParams, CreateProductPayload, UpdateProductPayload } from '../types/product.types';
+import { toast } from '../../../utils/toast';
 
 export const useProducts = (params?: ProductQueryParams) => {
   const queryClient = useQueryClient();
@@ -29,6 +30,10 @@ export const useProducts = (params?: ProductQueryParams) => {
     mutationFn: (id: string) => productService.deleteProduct(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Equipment asset deleted successfully');
+    },
+    onError: (err: any) => {
+      toast.error('Failed to delete product', err?.message);
     },
   });
 

@@ -23,6 +23,7 @@ import { navigate } from '../../../app/router/navigation';
 import { employeeService } from '../../admin/services/employeeService';
 import { Employee } from '../../admin/types/employee.types';
 import { customerService } from '../../customers/services/customerService';
+import { toast } from '../../../utils/toast';
 import { Customer } from '../../customers/types/customer.types';
 import { leadsApi } from '../api/leadsApi';
 
@@ -217,7 +218,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customerName || !formData.companyName) {
-      alert('Please enter customer name and company name.');
+      toast.warning('Required Information', 'Please enter customer name and company name.');
       return;
     }
 

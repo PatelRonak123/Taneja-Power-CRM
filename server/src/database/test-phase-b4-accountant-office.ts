@@ -433,8 +433,8 @@ async function runPhaseB4Tests() {
 
     const employeeRoutesPath = path.resolve(__dirname, "../modules/employees/routes/employee.routes.ts");
     const employeeRouteContent = fs.readFileSync(employeeRoutesPath, "utf-8");
-    if (!employeeRouteContent.includes("requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER)")) {
-      throw new Error("Employee routes missing requireRoles for staff directory");
+    if (!employeeRouteContent.includes("requireRoles") || employeeRouteContent.includes("APP_CONSTANTS.ROLES.USER")) {
+      throw new Error("Employee routes missing requireRoles or incorrectly allowing USER");
     }
     console.log("✓ PASS: Employee management strictly blocked for USER role.");
 

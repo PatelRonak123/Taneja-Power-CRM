@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { amcContractApi, AmcContract } from '../api/amcContractApi';
 import { quotationService } from '../../quotations/services/quotationService';
 import { navigate } from '../../../app/router/navigation';
+import { toast } from '../../../utils/toast';
 import {
   ShieldCheck,
   Search,
@@ -61,13 +62,14 @@ export const AmcContractListPage: React.FC = () => {
       setCreatingContract(true);
       const res = await amcContractApi.createFromQuotation(selectedQuotationId);
       setIsCreateModalOpen(false);
+      toast.success('AMC Contract created successfully');
       if (res.data?.id) {
         navigate(`/amc-contracts/${res.data.id}`);
       } else {
         fetchContracts();
       }
     } catch (err: any) {
-      alert(err?.message || 'Failed to create AMC Contract.');
+      toast.error('Failed to create AMC Contract', err?.message);
     } finally {
       setCreatingContract(false);
     }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { amcContractApi, AmcServiceReport, AmcServiceReportMaterial } from '../api/amcContractApi';
 import { productService } from '../../products/services/productService';
 import { Product } from '../../products/types/product.types';
+import { toast } from '../../../utils/toast';
 import {
   FileText,
   X,
@@ -225,9 +226,9 @@ export const AmcServiceReportModal: React.FC<AmcServiceReportModalProps> = ({
         deleteMaterialIds: deletedMaterialIds,
       });
       setDeletedMaterialIds([]);
-      alert('Service report draft saved.');
+      toast.success('Service report draft saved.');
     } catch (err: any) {
-      alert(err?.message || 'Failed to save draft.');
+      toast.error('Failed to save draft', err?.message);
     } finally {
       setSaving(false);
     }
@@ -249,11 +250,11 @@ export const AmcServiceReportModal: React.FC<AmcServiceReportModalProps> = ({
         materials: buildMaterialsPayload(),
         deleteMaterialIds: deletedMaterialIds,
       });
-      alert('Service Visit & Report successfully completed!');
+      toast.success('Visit Completed', 'Service Visit & Report successfully completed!');
       if (onSuccess) onSuccess();
       onClose();
     } catch (err: any) {
-      alert(err?.message || 'Failed to complete visit.');
+      toast.error('Failed to complete visit', err?.message);
     } finally {
       setSaving(false);
     }

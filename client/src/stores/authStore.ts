@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { apiClient, ApiEnvelope } from '../app/api/apiClient';
+import { toast } from '../utils/toast';
 
 export interface User {
   id: string;
@@ -95,9 +96,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 }));
 
+
+
 // Global listener for unauthorized event from apiClient
 if (typeof window !== 'undefined') {
   window.addEventListener('auth:unauthorized', () => {
+    const wasAuth = useAuthStore.getState().isAuthenticated;
     useAuthStore.setState({ user: null, isAuthenticated: false });
+    if (wasAuth) {
+      toast.warning('Session Expired', 'Your session has expired. Please sign in again.', {
+        dedupeKey: 'auth:session-expired',
+      });
+    }
   });
 }
