@@ -1,6 +1,7 @@
 import React from 'react';
-import { Search, RotateCw, Calendar, Users, Filter, Clock } from 'lucide-react';
+import { Search, RotateCw, Calendar, Clock } from 'lucide-react';
 import { Employee } from '../../admin/types/employee.types';
+import { Button } from '../../../components/ui/Button';
 
 export type DatePreset = 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'CUSTOM';
 
@@ -48,123 +49,92 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
   checkedInCount = 0,
 }) => {
   return (
-    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs mb-6 space-y-3.5 overflow-hidden">
+    <div className="bg-card p-3.5 rounded-xl border border-border shadow-xs space-y-3">
       {/* Top Controls: Date Presets & On-Duty Button */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5 w-full">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border/60 pb-3 w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto min-w-0">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
+          <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
             <Calendar size={12} /> Timeframe:
           </span>
 
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 overflow-x-auto no-scrollbar max-w-full w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => onDatePresetChange('TODAY')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                datePreset === 'TODAY'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              Today
-            </button>
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-border overflow-x-auto no-scrollbar max-w-full w-full sm:w-auto">
+            {(['TODAY', 'YESTERDAY', 'THIS_WEEK', 'THIS_MONTH', 'CUSTOM'] as DatePreset[]).map((preset) => {
+              const label =
+                preset === 'TODAY'
+                  ? 'Today'
+                  : preset === 'YESTERDAY'
+                  ? 'Yesterday'
+                  : preset === 'THIS_WEEK'
+                  ? 'This Week'
+                  : preset === 'THIS_MONTH'
+                  ? 'This Month'
+                  : 'Custom Range';
 
-            <button
-              type="button"
-              onClick={() => onDatePresetChange('YESTERDAY')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                datePreset === 'YESTERDAY'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              Yesterday
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onDatePresetChange('THIS_WEEK')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                datePreset === 'THIS_WEEK'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              This Week
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onDatePresetChange('THIS_MONTH')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                datePreset === 'THIS_MONTH'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              This Month
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onDatePresetChange('CUSTOM')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                datePreset === 'CUSTOM'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              Custom Range
-            </button>
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => onDatePresetChange(preset)}
+                  className={`h-7 px-2.5 rounded-md text-xs font-medium transition-all cursor-pointer shrink-0 ${
+                    datePreset === preset
+                      ? 'bg-white text-slate-900 shadow-xs border border-border/60'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {onOpenCheckedInDrawer && (
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={onOpenCheckedInDrawer}
-            className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 transition-all cursor-pointer shadow-xs w-full sm:w-auto shrink-0"
+            className="text-emerald-700 border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100"
           >
-            <span className="flex h-2 w-2 relative">
+            <span className="flex h-2 w-2 relative mr-1.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
-            <Clock size={13} />
+            <Clock size={13} className="mr-1" />
             <span>Currently On Duty ({checkedInCount})</span>
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Date Pickers for Custom Range or Single Date display */}
       {datePreset === 'CUSTOM' ? (
-        <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 w-full">
+        <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-border w-full">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-600">From:</span>
+            <span className="text-xs font-medium text-slate-600">From:</span>
             <input
               type="date"
               value={startDate}
               onChange={(e) => onStartDateChange(e.target.value)}
-              className="h-8 px-2.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600"
+              className="h-9 px-2.5 rounded-lg bg-white border border-border text-[13px] font-medium text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-600">To:</span>
+            <span className="text-xs font-medium text-slate-600">To:</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => onEndDateChange(e.target.value)}
-              className="h-8 px-2.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600"
+              className="h-9 px-2.5 rounded-lg bg-white border border-border text-[13px] font-medium text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             />
           </div>
         </div>
       ) : datePreset === 'TODAY' || datePreset === 'YESTERDAY' ? (
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+        <div className="flex items-center gap-2 text-xs text-slate-600">
           <span className="text-slate-400 font-normal">Active Date:</span>
           <input
             type="date"
             value={singleDate}
             onChange={(e) => onSingleDateChange(e.target.value)}
-            className="h-7 px-2.5 rounded-lg bg-slate-100 border border-slate-200/80 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer"
+            className="h-8 px-2.5 rounded-lg bg-white border border-border text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer"
           />
         </div>
       ) : null}
@@ -174,27 +144,26 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
         {/* Search Bar */}
         <div className="relative flex-1 w-full min-w-0">
           <Search
-            size={16}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
           />
           <input
             type="text"
             placeholder="Search employee or phone..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full h-10 pl-10 pr-4 rounded-xl bg-slate-50/70 border border-slate-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-3 focus:ring-blue-100 transition-all"
+            className="w-full h-9 pl-9 pr-3 rounded-lg bg-white border border-border text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
           />
         </div>
 
         {/* Filter Dropdowns & Refresh */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
           {/* Employee Dropdown */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500 flex-1 sm:flex-initial min-w-0 sm:max-w-45">
-            <Users size={12} className="text-slate-400 shrink-0" />
+          <div className="relative flex-1 sm:flex-initial min-w-0 sm:max-w-48">
             <select
               value={employeeFilter}
               onChange={(e) => onEmployeeFilterChange(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer w-full truncate pr-1"
+              className="w-full h-9 px-2.5 rounded-lg bg-white border border-border text-[13px] font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 cursor-pointer truncate"
             >
               <option value="ALL">All Employees</option>
               {employeesList.map((emp) => (
@@ -206,12 +175,11 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
           </div>
 
           {/* Status Dropdown */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-500 flex-1 sm:flex-initial min-w-0">
-            <Filter size={12} className="text-slate-400 shrink-0" />
+          <div className="relative flex-1 sm:flex-initial min-w-0">
             <select
               value={statusFilter}
               onChange={(e) => onStatusFilterChange(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer w-full truncate pr-1"
+              className="w-full h-9 px-2.5 rounded-lg bg-white border border-border text-[13px] font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 cursor-pointer truncate"
             >
               <option value="ALL">All Statuses</option>
               <option value="CHECKED_IN">Checked In</option>
@@ -220,18 +188,17 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
           </div>
 
           {/* Refresh Button */}
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={onRefresh}
             disabled={loading}
             title="Refresh Attendance Feed"
-            className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 border border-slate-200/80 text-slate-600 hover:bg-slate-100 hover:text-blue-600 hover:border-blue-300 transition-all cursor-pointer shrink-0 disabled:opacity-50"
           >
-            <RotateCw size={15} className={loading ? 'animate-spin' : ''} />
-          </button>
+            <RotateCw size={14} className={loading ? 'animate-spin' : ''} />
+          </Button>
         </div>
       </div>
     </div>
   );
 };
-

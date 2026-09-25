@@ -2,6 +2,7 @@ import React from 'react';
 import { User } from 'lucide-react';
 import { navigate } from '../../../app/router/navigation';
 import { useAuthStore } from '../../../stores/authStore';
+import { Button } from '../../../components/ui/Button';
 
 interface EmployeeWelcomeBannerProps {
   fullName?: string;
@@ -28,15 +29,15 @@ export const EmployeeWelcomeBanner: React.FC<EmployeeWelcomeBannerProps> = ({ fu
     : 'EMP';
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 bg-white p-4 sm:p-7 rounded-2xl border border-slate-200/90 shadow-xs">
-      <div className="flex items-start sm:items-center gap-3 sm:gap-5 min-w-0 flex-1">
-        <div className="w-11 h-11 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-blue-600 to-indigo-700 text-white font-black text-base sm:text-xl flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-4 sm:p-5 rounded-xl border border-border shadow-xs">
+      <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+        <div className="w-12 h-12 rounded-xl bg-blue-600 text-white font-bold text-base flex items-center justify-center shrink-0">
           {userInitials}
         </div>
-        <div className="flex flex-col gap-1 min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />{' '}
+        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />{' '}
               {isHrOffice
                 ? 'HR MANAGEMENT ACTIVE'
                 : isAccountantOffice
@@ -48,10 +49,10 @@ export const EmployeeWelcomeBanner: React.FC<EmployeeWelcomeBannerProps> = ({ fu
                 : 'OPERATIONAL SESSION ACTIVE'}
             </span>
           </div>
-          <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-snug break-words">
+          <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-snug wrap-break-word">
             Welcome back, {fullName || 'Employee'}!
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 max-w-2xl leading-relaxed">
+          <p className="text-[13px] text-slate-500 max-w-2xl leading-relaxed">
             {isHrOffice
               ? 'HR Operational Portal. Oversee employee records, process workforce attendance, and administer staff profiles.'
               : isAccountantOffice
@@ -65,13 +66,16 @@ export const EmployeeWelcomeBanner: React.FC<EmployeeWelcomeBannerProps> = ({ fu
         </div>
       </div>
 
-      <button
-        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm border border-slate-200/90 rounded-xl transition-colors cursor-pointer w-full sm:w-auto shrink-0 shadow-2xs mt-1 sm:mt-0"
-        onClick={() => navigate('/profile')}
-      >
-        <User size={16} />
-        <span>My Profile</span>
-      </button>
+      <div className="shrink-0 mt-1 sm:mt-0">
+        <Button
+          variant="outline"
+          size="md"
+          onClick={() => navigate('/profile')}
+        >
+          <User size={15} className="mr-1.5" />
+          <span>My Profile</span>
+        </Button>
+      </div>
     </div>
   );
 };

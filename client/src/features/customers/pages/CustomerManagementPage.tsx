@@ -20,6 +20,7 @@ import { DestinationModal } from '../components/DestinationModal';
 import { useAuthStore } from '../../../stores/authStore';
 import { toast } from '../../../utils/toast';
 import { confirmModal } from '../../../utils/confirmModal';
+import { Button } from '../../../components/ui/Button';
 
 export const CustomerManagementPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -506,34 +507,35 @@ export const CustomerManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-12 animate-fade-in">
+    <div className="space-y-5 max-w-7xl mx-auto pb-10">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 md:p-7 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div className="flex flex-col gap-2 max-w-3xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-xl border border-border shadow-xs">
+        <div className="flex flex-col gap-1 max-w-3xl">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 border border-blue-200/60 text-blue-700 text-[11px] font-bold uppercase tracking-wider">
-              <Building2 size={12} className="text-blue-600" /> Customer & Destination Directory
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200/60 text-blue-700 text-[11px] font-semibold uppercase tracking-wider">
+              <Building2 size={12} className="text-blue-600" /> Directory
             </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium text-slate-600 bg-slate-100 border border-slate-200 tabular-nums">
               {totalCount} Total Clients
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
             Customer & Destination Management
           </h1>
-          <p className="text-sm text-slate-500 leading-relaxed">
-            Manage enterprise client accounts, configure multi-facility service destination sites, and coordinate GPS location markers for field dispatch.
+          <p className="text-[13px] text-slate-500 leading-normal">
+            Manage enterprise client accounts, configure multi-facility service destination sites, and coordinate GPS location markers.
           </p>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="md"
+          leftIcon={<Plus size={16} />}
           onClick={handleOpenCreateCustomer}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-900/20 hover:shadow-lg transition-all active:scale-[0.98] shrink-0 cursor-pointer"
+          className="shrink-0"
         >
-          <Plus size={16} />
-          <span>Add New Customer</span>
-        </button>
+          Add Customer
+        </Button>
       </div>
 
       {/* Metrics Header Cards */}

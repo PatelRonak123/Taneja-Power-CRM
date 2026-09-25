@@ -22,6 +22,7 @@ import {
   Flame,
 } from 'lucide-react';
 import { StatusPill } from '../../../components/ui/StatusPill';
+import { Button } from '../../../components/ui/Button';
 import { useWhatsApp } from '../../whatsapp/hooks/useWhatsApp';
 import { taskService } from '../../tasks/services/taskService';
 import { TaskItem, TaskPriority, TaskStatus } from '../../tasks/types/task.types';
@@ -261,13 +262,13 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   return (
-    <div className="w-full space-y-6 animate-fade-in pb-12">
+    <div className="w-full space-y-5 max-w-7xl mx-auto pb-10">
       {/* 1. Executive Hero Header */}
-      <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-6 md:p-7">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+      <div className="bg-card rounded-xl border border-border shadow-xs p-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* Welcome & Info */}
-          <div className="space-y-1.5 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
+          <div className="space-y-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-0.5">
               <StatusPill
                 variant="info"
                 size="xs"
@@ -282,67 +283,70 @@ export const AdminDashboardPage: React.FC = () => {
                 • {currentDateFormatted}
               </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight truncate">
+            <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight truncate">
               {getGreeting()}, {user?.fullName?.split(' ')[0] || 'Administrator'}
             </h1>
-            <p className="text-xs md:text-sm text-slate-600 max-w-2xl leading-relaxed">
+            <p className="text-[13px] text-slate-500 max-w-2xl leading-relaxed">
               Industrial operations overview: manage field dispatches, real-time technician duty, corporate client directories, and messaging pipelines.
             </p>
           </div>
 
           {/* Quick Action Toolbar */}
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <button
+            <Button
+              variant="outline"
+              size="md"
               onClick={handleManualRefresh}
               disabled={refreshing}
               title="Refresh live metrics"
-              className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer disabled:opacity-50 flex items-center justify-center shrink-0"
             >
-              <RefreshCw size={15} className={refreshing ? 'animate-spin text-blue-600' : ''} />
-            </button>
+              <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            </Button>
 
-            <button
+            <Button
+              variant="outline"
+              size="md"
               onClick={() => navigate('/customers')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer shrink-0"
             >
-              <Building2 size={15} className="text-slate-600 shrink-0" />
+              <Building2 size={14} className="mr-1.5" />
               <span>Add Customer</span>
-            </button>
+            </Button>
 
-            <button
+            <Button
+              variant="primary"
+              size="md"
               onClick={() => navigate('/tasks')}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer shrink-0"
             >
-              <Plus size={15} className="shrink-0" />
+              <Plus size={15} className="mr-1.5" />
               <span>New Work Order</span>
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
       {/* 2. Executive Key Metric Indicators (KPI Grid) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
         {/* KPI 1: Active Field Tasks */}
         <div
           onClick={() => navigate('/tasks')}
-          className="bg-white rounded-2xl border border-slate-200/90 p-4.5 shadow-2xs hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+          className="bg-card rounded-xl border border-border p-4 shadow-xs hover:border-blue-300 hover:shadow-sm transition-all duration-150 cursor-pointer group flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+            <div className="flex items-center justify-between gap-2 mb-2.5 min-w-0">
+              <span className="text-[12px] font-medium text-slate-600 truncate">
                 Active Tasks
               </span>
-              <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200/60 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-2xs shrink-0">
-                <ClipboardList size={18} />
+              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                <ClipboardList size={16} />
               </div>
             </div>
             <div className="flex items-baseline gap-2 flex-wrap min-w-0">
-              <span className="text-2xl font-black text-slate-900 tracking-tight">
+              <span className="text-[22px] font-bold text-slate-900 tracking-tight tabular-nums">
                 {loading ? '—' : taskCounts.assigned + taskCounts.inProgress}
               </span>
               {taskCounts.inProgress > 0 ? (
                 <StatusPill variant="info" size="xs">
-                  {taskCounts.inProgress} in progress
+                  {taskCounts.inProgress} active
                 </StatusPill>
               ) : (
                 <StatusPill variant="neutral" size="xs">
@@ -351,9 +355,9 @@ export const AdminDashboardPage: React.FC = () => {
               )}
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-600 min-w-0">
-            <span className="truncate mr-1.5 min-w-0 font-medium">{taskCounts.total} total logged</span>
-            <span className="text-blue-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+          <div className="mt-3 pt-2 border-t border-border flex items-center justify-between text-[11px] text-slate-500 min-w-0">
+            <span className="truncate mr-1.5 min-w-0 font-medium tabular-nums">{taskCounts.total} total logged</span>
+            <span className="text-blue-600 font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
               Dispatch <ChevronRight size={12} className="shrink-0" />
             </span>
           </div>
@@ -362,19 +366,19 @@ export const AdminDashboardPage: React.FC = () => {
         {/* KPI 2: On-Duty Workforce */}
         <div
           onClick={() => navigate('/attendance')}
-          className="bg-white rounded-2xl border border-slate-200/90 p-4.5 shadow-2xs hover:border-emerald-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+          className="bg-card rounded-xl border border-border p-4 shadow-xs hover:border-emerald-300 hover:shadow-sm transition-all duration-150 cursor-pointer group flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+            <div className="flex items-center justify-between gap-2 mb-2.5 min-w-0">
+              <span className="text-[12px] font-medium text-slate-600 truncate">
                 On-Duty Today
               </span>
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200/60 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs shrink-0">
-                <UserCheck size={18} />
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                <UserCheck size={16} />
               </div>
             </div>
             <div className="flex items-baseline gap-2 flex-wrap min-w-0">
-              <span className="text-2xl font-black text-slate-900 tracking-tight">
+              <span className="text-[22px] font-bold text-slate-900 tracking-tight tabular-nums">
                 {loading ? '—' : checkedInCount}
               </span>
               {checkedInCount > 0 ? (
@@ -383,14 +387,14 @@ export const AdminDashboardPage: React.FC = () => {
                 </StatusPill>
               ) : (
                 <StatusPill variant="neutral" size="xs">
-                  No active staff
+                  No staff
                 </StatusPill>
               )}
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-600 min-w-0">
-            <span className="truncate mr-1.5 min-w-0 font-medium">{employeeCount} total roster</span>
-            <span className="text-emerald-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+          <div className="mt-3 pt-2 border-t border-border flex items-center justify-between text-[11px] text-slate-500 min-w-0">
+            <span className="truncate mr-1.5 min-w-0 font-medium tabular-nums">{employeeCount} total roster</span>
+            <span className="text-emerald-600 font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
               Roster <ChevronRight size={12} className="shrink-0" />
             </span>
           </div>
@@ -399,19 +403,19 @@ export const AdminDashboardPage: React.FC = () => {
         {/* KPI 3: Corporate Clients */}
         <div
           onClick={() => navigate('/customers')}
-          className="bg-white rounded-2xl border border-slate-200/90 p-4.5 shadow-2xs hover:border-indigo-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+          className="bg-card rounded-xl border border-border p-4 shadow-xs hover:border-indigo-300 hover:shadow-sm transition-all duration-150 cursor-pointer group flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+            <div className="flex items-center justify-between gap-2 mb-2.5 min-w-0">
+              <span className="text-[12px] font-medium text-slate-600 truncate">
                 Client Accounts
               </span>
-              <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200/60 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-2xs shrink-0">
-                <Building2 size={18} />
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                <Building2 size={16} />
               </div>
             </div>
             <div className="flex items-baseline gap-2 flex-wrap min-w-0">
-              <span className="text-2xl font-black text-slate-900 tracking-tight">
+              <span className="text-[22px] font-bold text-slate-900 tracking-tight tabular-nums">
                 {loading ? '—' : customerCount}
               </span>
               <StatusPill variant="purple" size="xs">
@@ -419,9 +423,9 @@ export const AdminDashboardPage: React.FC = () => {
               </StatusPill>
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-600 min-w-0">
+          <div className="mt-3 pt-2 border-t border-border flex items-center justify-between text-[11px] text-slate-500 min-w-0">
             <span className="truncate mr-1.5 min-w-0 font-medium">Enterprise clients</span>
-            <span className="text-indigo-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+            <span className="text-indigo-600 font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
               Manage <ChevronRight size={12} className="shrink-0" />
             </span>
           </div>
@@ -430,24 +434,24 @@ export const AdminDashboardPage: React.FC = () => {
         {/* KPI 4: WhatsApp Gateway */}
         <div
           onClick={() => navigate('/admin/whatsapp')}
-          className="bg-white rounded-2xl border border-slate-200/90 p-4.5 shadow-2xs hover:border-emerald-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+          className="bg-card rounded-xl border border-border p-4 shadow-xs hover:border-emerald-300 hover:shadow-sm transition-all duration-150 cursor-pointer group flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+            <div className="flex items-center justify-between gap-2 mb-2.5 min-w-0">
+              <span className="text-[12px] font-medium text-slate-600 truncate">
                 WhatsApp Gateway
               </span>
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200/60 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs shrink-0">
-                <MessageSquare size={18} />
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                <MessageSquare size={16} />
               </div>
             </div>
             <div className="flex items-center min-w-0">
               {getWhatsAppBadge()}
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-600 min-w-0">
+          <div className="mt-3 pt-2 border-t border-border flex items-center justify-between text-[11px] text-slate-500 min-w-0">
             <span className="truncate mr-1.5 min-w-0 font-medium">{waPhone || 'Alerts Active'}</span>
-            <span className="text-emerald-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+            <span className="text-emerald-600 font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
               Console <ChevronRight size={12} className="shrink-0" />
             </span>
           </div>
@@ -456,19 +460,19 @@ export const AdminDashboardPage: React.FC = () => {
         {/* KPI 5: Equipment Catalog */}
         <div
           onClick={() => navigate('/products')}
-          className="bg-white rounded-2xl border border-slate-200/90 p-4.5 shadow-2xs hover:border-amber-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between sm:col-span-2 lg:col-span-1"
+          className="bg-card rounded-xl border border-border p-4 shadow-xs hover:border-amber-300 hover:shadow-sm transition-all duration-150 cursor-pointer group flex flex-col justify-between sm:col-span-2 lg:col-span-1"
         >
           <div>
-            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+            <div className="flex items-center justify-between gap-2 mb-2.5 min-w-0">
+              <span className="text-[12px] font-medium text-slate-600 truncate">
                 Catalog Items
               </span>
-              <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/60 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors shadow-2xs shrink-0">
-                <Zap size={18} />
+              <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                <Zap size={16} />
               </div>
             </div>
             <div className="flex items-baseline gap-2 flex-wrap min-w-0">
-              <span className="text-2xl font-black text-slate-900 tracking-tight">
+              <span className="text-[22px] font-bold text-slate-900 tracking-tight tabular-nums">
                 {loading ? '—' : productCount}
               </span>
               <StatusPill variant="warning" size="xs">
@@ -476,9 +480,9 @@ export const AdminDashboardPage: React.FC = () => {
               </StatusPill>
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-600 min-w-0">
+          <div className="mt-3 pt-2 border-t border-border flex items-center justify-between text-[11px] text-slate-500 min-w-0">
             <span className="truncate mr-1.5 min-w-0 font-medium">Hardware & parts</span>
-            <span className="text-amber-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+            <span className="text-amber-600 font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
               Catalog <ChevronRight size={12} className="shrink-0" />
             </span>
           </div>
@@ -486,35 +490,35 @@ export const AdminDashboardPage: React.FC = () => {
       </div>
 
       {/* 3. Main Dashboard Operations Layout (Two Columns) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* LEFT COLUMN: Operations & Live Feeds (7 Cols on LG) */}
-        <div className="lg:col-span-7 space-y-6">
+        <div className="lg:col-span-7 space-y-5">
           {/* Active Field Tasks Table Card */}
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+          <div className="bg-card rounded-xl border border-border shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/60 text-blue-600 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                   <ClipboardList size={16} />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-slate-900 leading-tight truncate">
+                  <h3 className="text-[14px] font-semibold text-slate-900 leading-tight truncate">
                     Recent Field Work Orders
                   </h3>
-                  <p className="text-[11px] text-slate-500 truncate">
+                  <p className="text-[12px] text-slate-500 truncate">
                     Latest customer service tasks & scheduled dispatches
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => navigate('/tasks')}
-                className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
               >
                 <span>View All</span> <ArrowUpRight size={13} className="shrink-0" />
               </button>
             </div>
 
             {/* Tasks Content */}
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-border">
               {loading ? (
                 <div className="p-8 text-center text-xs text-slate-400">Loading work orders...</div>
               ) : recentTasks.length === 0 ? (
@@ -530,21 +534,21 @@ export const AdminDashboardPage: React.FC = () => {
                   <div
                     key={task.id}
                     onClick={() => navigate('/tasks')}
-                    className="p-4 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-4 cursor-pointer group"
+                    className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-4 cursor-pointer group"
                   >
                     <div className="flex flex-col min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap min-w-0">
-                        <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate max-w-[240px]">
+                        <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate max-w-60">
                           {task.title}
                         </span>
                         {getPriorityBadge(task.priority)}
                       </div>
                       <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap min-w-0">
-                        <span className="font-medium text-slate-700 truncate max-w-[150px]">
+                        <span className="font-medium text-slate-700 truncate max-w-37.5">
                           {task.customer?.name || task.customer?.companyName || 'Corporate Client'}
                         </span>
                         <span>•</span>
-                        <span className="text-slate-500 truncate max-w-[150px]">
+                        <span className="text-slate-500 truncate max-w-37.5">
                           {task.assignedUser?.fullName ? `Assignee: ${task.assignedUser.fullName}` : 'Unassigned'}
                         </span>
                       </div>
@@ -560,13 +564,13 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
 
             {/* Footer Summary Strip */}
-            <div className="p-3.5 bg-slate-50/70 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
-              <span className="font-medium truncate">
+            <div className="p-3 bg-slate-50/70 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+              <span className="font-medium truncate tabular-nums">
                 {taskCounts.inProgress} active on-site • {taskCounts.assigned} pending dispatch
               </span>
               <button
                 onClick={() => navigate('/tasks')}
-                className="font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+                className="font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer shrink-0 flex items-center gap-1"
               >
                 <span>Go to Task Center</span> <ArrowRight size={13} className="shrink-0" />
               </button>
@@ -574,24 +578,24 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
 
           {/* Today's Active Attendance Roster */}
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+          <div className="bg-card rounded-xl border border-border shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200/60 text-emerald-600 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
                   <CalendarCheck size={16} />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-slate-900 leading-tight truncate">
+                  <h3 className="text-[14px] font-semibold text-slate-900 leading-tight truncate">
                     Technician Duty Roster Today
                   </h3>
-                  <p className="text-[11px] text-slate-500 truncate">
+                  <p className="text-[12px] text-slate-500 truncate">
                     Live check-in timestamps and field duty presence
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => navigate('/attendance')}
-                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+                className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
               >
                 <span>Full Logs</span> <ArrowUpRight size={13} className="shrink-0" />
               </button>
@@ -607,21 +611,21 @@ export const AdminDashboardPage: React.FC = () => {
                   <p className="text-[11px] text-slate-400">Shift check-in timestamps will appear here in real time.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {activeDutyList.map((item) => (
                     <div
                       key={item.id}
-                      className="p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 flex items-center justify-between gap-3 min-w-0"
+                      className="p-3 rounded-lg border border-border bg-slate-50/50 flex items-center justify-between gap-3 min-w-0"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center shrink-0">
                           {item.employeeName.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex flex-col min-w-0">
-                          <span className="text-xs font-bold text-slate-900 truncate">
+                          <span className="text-xs font-semibold text-slate-900 truncate">
                             {item.employeeName}
                           </span>
-                          <span className="text-[10px] text-slate-500 truncate">
+                          <span className="text-[11px] text-slate-500 truncate">
                             {item.employeeRole}
                           </span>
                         </div>
@@ -640,12 +644,12 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
 
         {/* RIGHT COLUMN: Quick Navigation, Integration & Telemetry (5 Cols on LG) */}
-        <div className="lg:col-span-5 space-y-6">
+        <div className="lg:col-span-5 space-y-5">
           {/* Executive Administrative Modules Grid */}
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-4">
+          <div className="bg-card rounded-xl border border-border shadow-xs p-4 space-y-3.5">
             <div className="flex items-center justify-between gap-2 min-w-0">
-              <h3 className="text-sm font-bold text-slate-900 truncate">Administrative Modules</h3>
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
+              <h3 className="text-[14px] font-semibold text-slate-900 truncate">Administrative Modules</h3>
+              <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider shrink-0">
                 Direct Portals
               </span>
             </div>
@@ -748,18 +752,18 @@ export const AdminDashboardPage: React.FC = () => {
           {/* WhatsApp Automation Gateway Card (Restyled to match visual weight) */}
           <div
             onClick={() => navigate('/admin/whatsapp')}
-            className="bg-white rounded-2xl p-5 shadow-2xs border border-slate-200/90 space-y-3.5 cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group"
+            className="bg-card rounded-xl p-4 shadow-xs border border-border space-y-3 cursor-pointer hover:border-emerald-300 hover:shadow-sm transition-all group"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200/70 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 group-hover:bg-emerald-600 group-hover:text-white transition-all">
-                  <MessageSquare size={18} />
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <MessageSquare size={16} />
                 </div>
                 <div className="min-w-0">
-                  <h4 className="text-xs font-bold text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
+                  <h4 className="text-xs font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
                     WhatsApp Dispatch Gateway
                   </h4>
-                  <p className="text-[10px] text-slate-500 truncate">Automated technician & customer alerts</p>
+                  <p className="text-[11px] text-slate-500 truncate">Automated technician & customer alerts</p>
                 </div>
               </div>
               <div className="shrink-0">
@@ -773,50 +777,11 @@ export const AdminDashboardPage: React.FC = () => {
                 : 'WhatsApp session is currently disconnected. Pair your administrative device via QR scan to enable automatic task dispatch alerts.'}
             </p>
 
-            <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-emerald-600 group-hover:text-emerald-700">
+            <div className="pt-2 border-t border-border flex items-center justify-between text-xs font-semibold text-emerald-600 group-hover:text-emerald-700">
               <span>{waStatus === 'connected' ? 'Manage Gateway Console' : 'Open QR Pairing'}</span>
-              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform shrink-0" />
+              <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform shrink-0" />
             </div>
           </div>
-
-          {/* Infrastructure Health Card */}
-          {/* <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <Server size={15} className="text-slate-600 shrink-0" />
-                <h4 className="text-xs font-bold text-slate-900 truncate">System Infrastructure</h4>
-              </div>
-              <StatusPill variant="success" size="xs" dot dotPulse>
-                100% Healthy
-              </StatusPill>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/70 border border-slate-200/70">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="font-semibold text-slate-700 truncate">PostgreSQL Database</span>
-                </div>
-                <span className="text-[11px] font-mono text-slate-600 shrink-0 text-right">Connected (6ms)</span>
-              </div>
-
-              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/70 border border-slate-200/70">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="font-semibold text-slate-700 truncate">REST API Gateway</span>
-                </div>
-                <span className="text-[11px] font-mono text-slate-600 shrink-0 text-right">Normal Throughput</span>
-              </div>
-
-              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/70 border border-slate-200/70">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="font-semibold text-slate-700 truncate">JWT & RBAC Sync</span>
-                </div>
-                <span className="text-[11px] font-mono text-slate-600 shrink-0 text-right">Active</span>
-              </div>
-            </div>
-          </div> */}
         </div>
       </div>
     </div>

@@ -16,6 +16,7 @@ import { QuotationPrintDocument } from '../components/QuotationPrintDocument';
 import { QuotationRevision, QuotationItem } from '../types/quotation.types';
 import { amcContractApi } from '../../amc-contracts/api/amcContractApi';
 import { toast } from '../../../utils/toast';
+import { Button } from '../../../components/ui/Button';
 
 import {
   ArrowLeft,
@@ -194,101 +195,100 @@ export const QuotationDetailPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Breadcrumb & Actions Bar */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+      <div className="bg-card rounded-xl border border-border p-5 shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <button
               onClick={() => navigate('/quotations')}
-              className="flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 mb-2 transition-colors"
+              className="flex items-center text-xs font-medium text-slate-500 hover:text-slate-800 mb-1.5 transition-colors cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4 mr-1" /> Back to Quotations List
+              <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back to Quotations List
             </button>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
                 {quotation.quotationNumber}
               </h1>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                 Rev {activeRev?.revisionNumber ?? quotation.currentRevisionNumber}
               </span>
-              <QuotationStatusBadge status={quotation.status} size="md" />
-              <QuotationTypeBadge type={quotation.quotationType} size="md" />
+              <QuotationStatusBadge status={quotation.status} size="sm" />
+              <QuotationTypeBadge type={quotation.quotationType} size="sm" />
 
               {quotation.status === 'REJECTED' && rejectionComment && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-200 rounded-lg text-xs font-semibold text-rose-700 max-w-md truncate" title={`Rejection Reason: ${rejectionComment}`}>
-                  <span className="font-bold text-rose-800">Reason:</span> "{rejectionComment}"
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-rose-50 border border-rose-200 rounded-md text-xs font-medium text-rose-700 max-w-md truncate" title={`Rejection Reason: ${rejectionComment}`}>
+                  <span className="font-semibold text-rose-800">Reason:</span> "{rejectionComment}"
                 </span>
               )}
             </div>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-[13px] text-slate-500">
               Created on {formatDate(quotation.createdAt)} • Valid until {formatDate(activeRev?.validUntil)}
             </p>
-
-
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             {canEdit && (
-              <button
+              <Button
+                variant="outline"
+                size="md"
+                leftIcon={<Edit size={14} />}
                 onClick={() => navigate(`/quotations/${quotation.id}/edit`)}
-                className="inline-flex items-center px-3.5 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm transition-colors"
               >
-                <Edit className="w-4 h-4 mr-1.5 text-gray-500" />
                 Edit
-              </button>
+              </Button>
             )}
 
             {canSubmitApproval && (
-              <button
+              <Button
+                variant="primary"
+                size="md"
+                leftIcon={<Send size={14} />}
+                isLoading={submitApprovalMutation.isPending}
                 onClick={() => submitApprovalMutation.mutate()}
-                disabled={submitApprovalMutation.isPending}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-colors disabled:opacity-50"
               >
-                {submitApprovalMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4 mr-1.5" />
-                )}
                 Submit for Approval
-              </button>
+              </Button>
             )}
 
             {canWithdrawApproval && (
-              <button
+              <Button
+                variant="outline"
+                size="md"
+                leftIcon={<RotateCcw size={14} />}
+                isLoading={withdrawApprovalMutation.isPending}
                 onClick={() => withdrawApprovalMutation.mutate()}
-                disabled={withdrawApprovalMutation.isPending}
-                className="inline-flex items-center px-3.5 py-2 border border-amber-300 rounded-lg text-sm font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 shadow-sm transition-colors disabled:opacity-50"
               >
-                {withdrawApprovalMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                ) : (
-                  <RotateCcw className="w-4 h-4 mr-1.5" />
-                )}
                 Withdraw
-              </button>
+              </Button>
             )}
 
             {canApproveOrReject && (
               <>
-                <button
+                <Button
+                  variant="primary"
+                  size="md"
+                  leftIcon={<CheckCircle2 size={14} />}
                   onClick={() => setApprovalModalAction('APPROVE')}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors"
+                  className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800"
                 >
-                  <CheckCircle2 className="w-4 h-4 mr-1.5" />
                   Approve
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="md"
+                  leftIcon={<XCircle size={14} />}
                   onClick={() => setApprovalModalAction('REJECT')}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 shadow-sm transition-colors"
                 >
-                  <XCircle className="w-4 h-4 mr-1.5" />
                   Reject
-                </button>
+                </Button>
               </>
             )}
 
             {quotation.quotationType === 'AMC' && (
-              <button
+              <Button
+                variant="primary"
+                size="md"
+                leftIcon={<ShieldCheck size={14} />}
                 onClick={async () => {
                   try {
                     const res = await amcContractApi.createFromQuotation(quotation.id);
@@ -300,65 +300,70 @@ export const QuotationDetailPage: React.FC = () => {
                     toast.error('Failed to create AMC Contract', err?.message);
                   }
                 }}
-                className="inline-flex items-center px-4 py-2 border border-emerald-300 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors cursor-pointer"
+                className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800"
                 title="Create AMC Contract from this AMC proposal"
               >
-                <ShieldCheck className="w-4 h-4 mr-1.5" />
                 Create AMC Contract
-              </button>
+              </Button>
             )}
 
             {canCreateRevision && (
-              <button
+              <Button
+                variant="outline"
+                size="md"
+                leftIcon={<GitBranch size={14} />}
                 onClick={() => setIsRevisionModalOpen(true)}
-                className="inline-flex items-center px-4 py-2 border border-indigo-200 rounded-lg text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 shadow-sm transition-colors"
               >
-                <GitBranch className="w-4 h-4 mr-1.5" />
                 Create Revision (Rev {(activeRev?.revisionNumber ?? quotation.currentRevisionNumber) + 1})
-              </button>
+              </Button>
             )}
 
             {canSendEmail && (
-              <button
+              <Button
+                variant="primary"
+                size="md"
+                leftIcon={<Mail size={14} />}
                 onClick={() => setIsEmailModalOpen(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-colors cursor-pointer"
                 title="Send quotation PDF directly to customer email via Resend"
               >
-                <Mail className="w-4 h-4 mr-1.5" />
                 Send Email to Customer
-              </button>
+              </Button>
             )}
 
             {/* Document & Print Actions */}
-            <button
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<FileText size={14} className="text-blue-600" />}
               onClick={() => {
                 setPdfModalRevision(activeRev || null);
                 setIsPdfModalOpen(true);
               }}
-              className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 shadow-sm transition-colors"
               title="Preview official commercial proposal PDF"
             >
-              <FileText className="w-4 h-4 mr-1.5 text-blue-600" />
               Preview PDF
-            </button>
+            </Button>
 
-            <button
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<Download size={14} />}
               onClick={() => quotationService.downloadQuotationPdf(quotation.id, quotation.quotationNumber, activeRev?.revisionNumber)}
-              className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 shadow-sm transition-colors"
               title="Download official PDF document directly"
             >
-              <Download className="w-4 h-4 mr-1.5 text-slate-600" />
               Download PDF
-            </button>
+            </Button>
 
-            <button
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<Printer size={14} />}
               onClick={() => window.print()}
-              className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 shadow-sm transition-colors"
               title="Print quotation document"
+              className="px-3"
             >
-              <Printer className="w-4 h-4 mr-1.5 text-slate-600" />
               Print
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -531,7 +536,7 @@ export const QuotationDetailPage: React.FC = () => {
             <thead className="bg-gray-100/70 text-xs uppercase font-semibold text-gray-600 border-b border-gray-200">
               <tr>
                 <th className="py-3 px-4 w-12 text-center">#</th>
-                <th className="py-3 px-4 min-w-[240px]">Equipment / Description</th>
+                <th className="py-3 px-4 min-w-60">Equipment / Description</th>
                 <th className="py-3 px-4 w-20 text-right">Qty</th>
                 <th className="py-3 px-4 w-32 text-right">
                   {quotation.quotationType === 'AMC' ? 'AMC Amount / Unit' : 'Unit Price'}

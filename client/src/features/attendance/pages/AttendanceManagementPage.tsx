@@ -197,18 +197,18 @@ export const AttendanceManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-350 mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 animate-fade-in space-y-4 sm:space-y-6 overflow-x-hidden">
+    <div className="space-y-5 max-w-7xl mx-auto pb-10">
       {/* Header Banner */}
-      <div className="bg-white p-5 sm:p-7 rounded-2xl border border-slate-200/80 shadow-xs">
+      <div className="bg-card p-5 rounded-xl border border-border shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/60 tracking-wide uppercase">
-              <CalendarCheck size={13} className="text-blue-600" /> Workforce Attendance
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/60">
+              <CalendarCheck size={12} className="text-blue-600" /> Workforce Attendance
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+            <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
               Employee Attendance Management
             </h1>
-            <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+            <p className="text-[13px] text-slate-500 max-w-2xl leading-relaxed">
               Monitor verified employee daily attendance sessions, check-in/out timestamps, duty durations, and GPS coordinates in real time.
             </p>
           </div>

@@ -9,6 +9,15 @@ import { productService } from '../../products/services/productService';
 import { attendanceService } from '../../attendance/services/attendanceService';
 import { navigate } from '../../../app/router/navigation';
 import { QuotationStatusBadge } from '../../quotations/components/QuotationStatusBadge';
+import { Button } from '../../../components/ui/Button';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '../../../components/ui/table/Table';
 import {
   Building2,
   Layers,
@@ -20,7 +29,6 @@ import {
   Clock,
   ArrowRight,
   TrendingUp,
-  Receipt,
   FileCheck,
   RefreshCw,
 } from 'lucide-react';
@@ -165,174 +173,166 @@ export const AccountantDashboardPage: React.FC = () => {
   const isCheckedInToday = attendanceData?.status === 'CHECKED_IN';
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-16 animate-fade-in">
-      {/* 1. Welcome & Role Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-linear-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 md:p-8 rounded-3xl text-white shadow-xl border border-slate-700/60 relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-        <div className="relative z-10 flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-              <Receipt size={13} />
-              ACCOUNTANT OFFICE
-            </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              OFFICE WORKTYPE
-            </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-              ROLE: USER
+    <div className="flex flex-col gap-5 max-w-7xl mx-auto pb-12 animate-fade-in">
+      {/* 1. Standard Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[11px] font-semibold tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full uppercase">
+              Accountant Office
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+          <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
             Commercial & Accounting Dashboard
           </h1>
-          <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
-            Welcome back, <strong className="text-white">{user?.fullName || 'Accountant'}</strong>. Real-time visibility into customer accounts, deals pipeline, commercial proposals, and active AMC agreements.
+          <p className="text-[13px] text-slate-500 leading-relaxed mt-0.5">
+            Welcome back, {user?.fullName || 'Accountant'}. Real-time visibility into customer accounts, deals pipeline, commercial proposals, and active AMC agreements.
           </p>
         </div>
 
-        <div className="relative z-10 flex items-center gap-3 shrink-0">
-          <button
-            type="button"
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="md"
             onClick={refetchAll}
             disabled={isGlobalLoading}
-            className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer shadow-sm flex items-center gap-2 text-xs font-semibold"
             title="Refresh All Metrics"
           >
-            <RefreshCw size={16} className={isGlobalLoading ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">Refresh Data</span>
-          </button>
+            <RefreshCw size={14} className={isGlobalLoading ? 'animate-spin mr-1.5' : 'mr-1.5'} />
+            <span>Refresh Data</span>
+          </Button>
         </div>
       </div>
 
       {/* 2. Core Financial & Operational Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Approved Quotations Value */}
-        <div className="p-5 bg-white rounded-2xl border border-slate-200/90 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="p-4 bg-card rounded-xl border border-border shadow-xs flex flex-col justify-between hover:border-emerald-300 hover:shadow-sm transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-[12px] font-medium text-slate-600">
               Approved Proposals
             </span>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-              <FileCheck size={20} />
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+              <FileCheck size={16} />
             </div>
           </div>
-          <div className="mt-4">
-            <div className="text-2xl font-extrabold text-slate-900">
+          <div className="mt-3">
+            <div className="text-[22px] font-bold text-slate-900 tracking-tight tabular-nums">
               {formatINR(approvedValue)}
             </div>
-            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-              <span className="font-semibold text-emerald-600">{approvedQuotes.length} approved</span>
+            <p className="text-[12px] text-slate-500 mt-1 flex items-center gap-1">
+              <span className="font-semibold text-emerald-600 tabular-nums">{approvedQuotes.length} approved</span>
               <span>across all sales reps</span>
             </p>
           </div>
         </div>
 
         {/* Pipeline Value in Negotiation */}
-        <div className="p-5 bg-white rounded-2xl border border-slate-200/90 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="p-4 bg-card rounded-xl border border-border shadow-xs flex flex-col justify-between hover:border-blue-300 hover:shadow-sm transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-[12px] font-medium text-slate-600">
               Deals Pipeline Value
             </span>
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-              <TrendingUp size={20} />
+            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+              <TrendingUp size={16} />
             </div>
           </div>
-          <div className="mt-4">
-            <div className="text-2xl font-extrabold text-slate-900">
+          <div className="mt-3">
+            <div className="text-[22px] font-bold text-slate-900 tracking-tight tabular-nums">
               {formatINR(totalPipelineValueRaw)}
             </div>
-            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-              <span className="font-semibold text-blue-600">{totalDealsCount} deals</span>
+            <p className="text-[12px] text-slate-500 mt-1 flex items-center gap-1">
+              <span className="font-semibold text-blue-600 tabular-nums">{totalDealsCount} deals</span>
               <span>in active pipeline</span>
             </p>
           </div>
         </div>
 
         {/* Active AMC Portfolio */}
-        <div className="p-5 bg-white rounded-2xl border border-slate-200/90 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="p-4 bg-card rounded-xl border border-border shadow-xs flex flex-col justify-between hover:border-purple-300 hover:shadow-sm transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-[12px] font-medium text-slate-600">
               Active AMC Portfolio
             </span>
-            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
-              <ShieldCheck size={20} />
+            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+              <ShieldCheck size={16} />
             </div>
           </div>
-          <div className="mt-4">
-            <div className="text-2xl font-extrabold text-slate-900">
+          <div className="mt-3">
+            <div className="text-[22px] font-bold text-slate-900 tracking-tight tabular-nums">
               {formatINR(totalAmcValue)}
             </div>
-            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-              <span className="font-semibold text-purple-600">{activeAmcCount} active</span>
+            <p className="text-[12px] text-slate-500 mt-1 flex items-center gap-1">
+              <span className="font-semibold text-purple-600 tabular-nums">{activeAmcCount} active</span>
               {expiringSoonCount > 0 && (
-                <span className="text-amber-600 font-semibold">({expiringSoonCount} expiring soon)</span>
+                <span className="text-amber-600 font-semibold tabular-nums">({expiringSoonCount} expiring)</span>
               )}
             </p>
           </div>
         </div>
 
         {/* Registered Customers */}
-        <div className="p-5 bg-white rounded-2xl border border-slate-200/90 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="p-4 bg-card rounded-xl border border-border shadow-xs flex flex-col justify-between hover:border-indigo-300 hover:shadow-sm transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-[12px] font-medium text-slate-600">
               Customer Accounts
             </span>
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-              <Building2 size={20} />
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+              <Building2 size={16} />
             </div>
           </div>
-          <div className="mt-4">
-            <div className="text-2xl font-extrabold text-slate-900">{customers.length}</div>
-            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-              <span className="font-semibold text-emerald-600">{activeCustomersCount} active accounts</span>
+          <div className="mt-3">
+            <div className="text-[22px] font-bold text-slate-900 tracking-tight tabular-nums">{customers.length}</div>
+            <p className="text-[12px] text-slate-500 mt-1 flex items-center gap-1">
+              <span className="font-semibold text-emerald-600 tabular-nums">{activeCustomersCount} active accounts</span>
             </p>
           </div>
         </div>
       </div>
 
       {/* 3. Secondary Metrics: Pending Quotes, Inventory & Attendance */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
         {/* Pending Management Approval */}
-        <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+        <div className="p-3.5 bg-card rounded-xl border border-border shadow-xs flex items-center justify-between">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[12px] font-medium text-slate-500 truncate">
               Pending Approval Proposals
             </span>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl font-bold text-amber-600">{pendingQuotes.length}</span>
-              <span className="text-xs text-slate-400 font-medium">({formatINR(pendingValue)})</span>
+              <span className="text-lg font-bold text-amber-600 tabular-nums">{pendingQuotes.length}</span>
+              <span className="text-xs text-slate-500 font-medium tabular-nums">({formatINR(pendingValue)})</span>
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <Clock size={18} />
+          <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            <Clock size={16} />
           </div>
         </div>
 
         {/* Inventory / Equipment Lines */}
-        <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+        <div className="p-3.5 bg-card rounded-xl border border-border shadow-xs flex items-center justify-between">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[12px] font-medium text-slate-500 truncate">
               Equipment / SKU Lines
             </span>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl font-bold text-slate-900">{products.length}</span>
-              <span className="text-xs text-emerald-600 font-medium">({activeProductsCount} active)</span>
+              <span className="text-lg font-bold text-slate-900 tabular-nums">{products.length}</span>
+              <span className="text-xs text-emerald-600 font-medium tabular-nums">({activeProductsCount} active)</span>
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <Zap size={18} />
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <Zap size={16} />
           </div>
         </div>
 
         {/* Self Attendance Status */}
-        <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+        <div className="p-3.5 bg-card rounded-xl border border-border shadow-xs flex items-center justify-between">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[12px] font-medium text-slate-500 truncate">
               My Attendance Today
             </span>
             <div className="flex items-center gap-2">
               <span
-                className={`text-xs font-bold px-2 py-0.5 rounded-md ${
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
                   isCheckedInToday
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                     : 'bg-slate-100 text-slate-600 border border-slate-200'
@@ -343,100 +343,100 @@ export const AccountantDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/employee/attendance')}
-                className="text-[11px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                className="text-[12px] text-blue-600 hover:underline font-semibold cursor-pointer"
               >
                 Manage
               </button>
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <CalendarCheck size={18} />
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <CalendarCheck size={16} />
           </div>
         </div>
       </div>
 
       {/* 4. Quick Navigation Modules */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <h2 className="text-base font-bold text-slate-900 mb-4 tracking-tight flex items-center gap-2">
+      <div className="bg-card p-4 sm:p-5 rounded-xl border border-border shadow-xs">
+        <h2 className="text-[14px] font-semibold text-slate-900 mb-3.5 tracking-tight flex items-center gap-2">
           <span>Accountant Authorized Modules</span>
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <button
             type="button"
             onClick={() => navigate('/customers')}
-            className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
+            className="p-3 rounded-lg border border-border bg-slate-50/50 hover:border-blue-400 hover:bg-blue-50/40 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
           >
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <Building2 size={20} />
+            <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <Building2 size={18} />
             </div>
-            <span className="text-xs font-bold text-slate-700 group-hover:text-blue-700">Customers</span>
+            <span className="text-xs font-semibold text-slate-700 group-hover:text-blue-700">Customers</span>
           </button>
 
           <button
             type="button"
             onClick={() => navigate('/pipeline')}
-            className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
+            className="p-3 rounded-lg border border-border bg-slate-50/50 hover:border-blue-400 hover:bg-blue-50/40 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
           >
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <Layers size={20} />
+            <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+              <Layers size={18} />
             </div>
-            <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-700">Pipeline & Deals</span>
+            <span className="text-xs font-semibold text-slate-700 group-hover:text-indigo-700">Pipeline & Deals</span>
           </button>
 
           <button
             type="button"
             onClick={() => navigate('/quotations')}
-            className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
+            className="p-3 rounded-lg border border-border bg-slate-50/50 hover:border-blue-400 hover:bg-blue-50/40 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
           >
-            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <FileSpreadsheet size={20} />
+            <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors">
+              <FileSpreadsheet size={18} />
             </div>
-            <span className="text-xs font-bold text-slate-700 group-hover:text-purple-700">Quotations</span>
+            <span className="text-xs font-semibold text-slate-700 group-hover:text-purple-700">Quotations</span>
           </button>
 
           <button
             type="button"
             onClick={() => navigate('/amc-contracts')}
-            className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
+            className="p-3 rounded-lg border border-border bg-slate-50/50 hover:border-blue-400 hover:bg-blue-50/40 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
           >
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <ShieldCheck size={20} />
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+              <ShieldCheck size={18} />
             </div>
-            <span className="text-xs font-bold text-slate-700 group-hover:text-emerald-700">AMC Contracts</span>
+            <span className="text-xs font-semibold text-slate-700 group-hover:text-emerald-700">AMC Contracts</span>
           </button>
 
           <button
             type="button"
             onClick={() => navigate('/products')}
-            className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
+            className="p-3 rounded-lg border border-border bg-slate-50/50 hover:border-blue-400 hover:bg-blue-50/40 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
           >
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <Zap size={20} />
+            <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors">
+              <Zap size={18} />
             </div>
-            <span className="text-xs font-bold text-slate-700 group-hover:text-amber-700">Equipment Catalog</span>
+            <span className="text-xs font-semibold text-slate-700 group-hover:text-amber-700">Equipment Catalog</span>
           </button>
 
           <button
             type="button"
             onClick={() => navigate('/employee/attendance')}
-            className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
+            className="p-3 rounded-lg border border-border bg-slate-50/50 hover:border-blue-400 hover:bg-blue-50/40 transition-all flex flex-col items-center text-center gap-2 cursor-pointer group"
           >
-            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <CalendarCheck size={20} />
+            <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center group-hover:bg-slate-700 group-hover:text-white transition-colors">
+              <CalendarCheck size={18} />
             </div>
-            <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900">My Attendance</span>
+            <span className="text-xs font-semibold text-slate-700 group-hover:text-slate-900">My Attendance</span>
           </button>
         </div>
       </div>
 
       {/* 5. Tables Grid: Recent Quotations & AMC Expiry Schedule */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Recent Quotations Table (7 cols) */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="lg:col-span-7 bg-card rounded-xl border border-border shadow-xs overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-border flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Recent Commercial Quotations</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Authoritative view of active customer proposals</p>
+              <h3 className="text-[14px] font-semibold text-slate-900">Recent Commercial Quotations</h3>
+              <p className="text-[12px] text-slate-500 mt-0.5">Authoritative view of active customer proposals</p>
             </div>
             <button
               type="button"
@@ -444,66 +444,66 @@ export const AccountantDashboardPage: React.FC = () => {
               className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
             >
               <span>View All</span>
-              <ArrowRight size={14} />
+              <ArrowRight size={13} />
             </button>
           </div>
 
           <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                  <th className="py-3 px-4">Quotation #</th>
-                  <th className="py-3 px-4">Customer</th>
-                  <th className="py-3 px-4 text-right">Grand Total</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-30">Quotation #</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead className="text-right">Grand Total</TableHead>
+                  <TableHead className="w-25">Status</TableHead>
+                  <TableHead className="w-15 text-center">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {quotations.slice(0, 6).map((q) => (
-                  <tr key={q.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-4 font-bold text-slate-900">{q.quotationNumber}</td>
-                    <td className="py-3 px-4 max-w-[150px] truncate">
+                  <TableRow key={q.id}>
+                    <TableCell className="font-semibold text-slate-900">{q.quotationNumber}</TableCell>
+                    <TableCell className="max-w-37.5 truncate">
                       {q.customer?.name || q.customer?.companyName || '—'}
-                    </td>
-                    <td className="py-3 px-4 text-right font-semibold text-slate-900">
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-slate-900 tabular-nums">
                       {q.currentRevision?.grandTotal
                         ? formatINR(q.currentRevision.grandTotal)
                         : '—'}
-                    </td>
-                    <td className="py-3 px-4">
+                    </TableCell>
+                    <TableCell>
                       <QuotationStatusBadge status={q.status} size="sm" />
-                    </td>
-                    <td className="py-3 px-4 text-center">
+                    </TableCell>
+                    <TableCell className="text-center">
                       <button
                         type="button"
                         onClick={() => navigate(`/quotations/${q.id}`)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                        className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                         title="View Quotation Details"
                       >
-                        <Eye size={15} />
+                        <Eye size={14} />
                       </button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
                 {quotations.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-slate-400">
                       No quotations found in system.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </div>
 
         {/* AMC Contracts & Expiry (5 cols) */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="lg:col-span-5 bg-card rounded-xl border border-border shadow-xs overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-border flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">AMC Portfolio & Expiry</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Active maintenance agreements overview</p>
+              <h3 className="text-[14px] font-semibold text-slate-900">AMC Portfolio & Expiry</h3>
+              <p className="text-[12px] text-slate-500 mt-0.5">Active maintenance agreements overview</p>
             </div>
             <button
               type="button"
@@ -511,46 +511,46 @@ export const AccountantDashboardPage: React.FC = () => {
               className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
             >
               <span>View All</span>
-              <ArrowRight size={14} />
+              <ArrowRight size={13} />
             </button>
           </div>
 
           <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                  <th className="py-3 px-4">Contract #</th>
-                  <th className="py-3 px-4">Customer</th>
-                  <th className="py-3 px-4">End Date</th>
-                  <th className="py-3 px-4 text-right">Value</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-27.5">Contract #</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead className="w-25">End Date</TableHead>
+                  <TableHead className="text-right">Value</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {amcContracts.slice(0, 6).map((c) => (
-                  <tr
+                  <TableRow
                     key={c.id}
                     onClick={() => navigate(`/amc-contracts/${c.id}`)}
-                    className="hover:bg-slate-50/70 transition-colors cursor-pointer"
+                    className="cursor-pointer"
                   >
-                    <td className="py-3 px-4 font-bold text-slate-900">{c.contractNumber}</td>
-                    <td className="py-3 px-4 max-w-[120px] truncate">{c.customerName}</td>
-                    <td className="py-3 px-4 text-slate-600">
+                    <TableCell className="font-semibold text-slate-900">{c.contractNumber}</TableCell>
+                    <TableCell className="max-w-30 truncate">{c.customerName}</TableCell>
+                    <TableCell className="text-slate-600 tabular-nums">
                       {c.contractEndDate ? new Date(c.contractEndDate).toLocaleDateString('en-IN') : '—'}
-                    </td>
-                    <td className="py-3 px-4 text-right font-semibold text-slate-900">
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-slate-900 tabular-nums">
                       {c.totalAmount ? formatINR(c.totalAmount) : '—'}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
                 {amcContracts.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="py-8 text-center text-slate-400">
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-8 text-center text-slate-400">
                       No AMC contracts found.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </div>
       </div>

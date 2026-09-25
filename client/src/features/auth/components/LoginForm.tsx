@@ -283,7 +283,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
   // View: FORGOT_EMAIL (Matches user's screenshot layout)
   if (viewState === 'FORGOT_EMAIL') {
     return (
-      <div className="w-full max-w-[420px] mx-auto flex flex-col gap-5 p-6 sm:p-8 bg-white border border-slate-100 rounded-[32px] shadow-2xl shadow-blue-900/10 animate-fade-in">
+      <div className="w-full max-w-105 mx-auto flex flex-col gap-5 p-6 sm:p-8 bg-white border border-slate-100 rounded-4xl shadow-2xl shadow-blue-900/10 animate-fade-in">
         <div className="flex flex-col gap-1.5">
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
             Forgot password?
@@ -368,7 +368,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
   // View: VERIFY_OTP (Step 2: 4-Digit OTP Code Verification)
   if (viewState === 'VERIFY_OTP') {
     return (
-      <div className="w-full max-w-[420px] mx-auto flex flex-col gap-5 p-6 sm:p-8 bg-white border border-slate-100 rounded-[32px] shadow-2xl shadow-blue-900/10 animate-fade-in">
+      <div className="w-full max-w-105 mx-auto flex flex-col gap-5 p-6 sm:p-8 bg-white border border-slate-100 rounded-4xl shadow-2xl shadow-blue-900/10 animate-fade-in">
         <div className="flex flex-col gap-1.5 text-center">
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
             Verify OTP
@@ -491,7 +491,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
   // View: RESET_PASSWORD (Step 3: New Password Entry)
   if (viewState === 'RESET_PASSWORD') {
     return (
-      <div className="w-full max-w-[420px] mx-auto flex flex-col gap-5 p-6 sm:p-8 bg-white border border-slate-100 rounded-[32px] shadow-2xl shadow-blue-900/10 animate-fade-in">
+      <div className="w-full max-w-105 mx-auto flex flex-col gap-5 p-6 sm:p-8 bg-white border border-slate-100 rounded-4xl shadow-2xl shadow-blue-900/10 animate-fade-in">
         <div className="flex flex-col gap-1.5">
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
             Set New Password
@@ -591,7 +591,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
 
   // View: LOGIN (Default view)
   return (
-    <div className="w-full max-w-[420px] mx-auto flex flex-col gap-5 p-6 sm:p-8 bg-white border border-slate-100 rounded-[32px] shadow-2xl shadow-blue-900/10">
+    <div className="w-full max-w-105 mx-auto flex flex-col gap-5 p-6 sm:p-8 bg-white border border-slate-100 rounded-4xl shadow-2xl shadow-blue-900/10">
       <div className="flex flex-col gap-1.5">
         <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
           Welcome <span className="text-blue-600">Back</span>
@@ -689,7 +689,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
 
         <button
           type="submit"
-          className="w-full h-12 mt-2 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 active:scale-[0.99] text-white font-bold rounded-2xl text-sm shadow-lg shadow-blue-600/25 transition-all cursor-pointer border border-blue-500/30 disabled:opacity-50"
+          className="w-full h-12 mt-2 flex items-center justify-center gap-2 bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 active:scale-[0.99] text-white font-bold rounded-2xl text-sm shadow-lg shadow-blue-600/25 transition-all cursor-pointer border border-blue-500/30 disabled:opacity-50"
           disabled={disabled}
         >
           {disabled ? (

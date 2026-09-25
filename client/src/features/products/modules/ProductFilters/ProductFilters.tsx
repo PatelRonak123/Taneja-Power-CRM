@@ -1,6 +1,7 @@
 import React from 'react';
 import { Search, X, RotateCcw, List, LayoutGrid } from 'lucide-react';
 import { getCategoryIcon } from '../../utils/categoryIcons';
+import { Button } from '@/components/ui/Button';
 
 interface ProductFiltersProps {
   searchQuery: string;
@@ -35,24 +36,24 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
   ];
 
   const statuses = [
-    { label: 'All Telemetry Statuses', value: '' },
-    { label: 'Operational (Active)', value: 'ACTIVE' },
-    { label: 'Maintenance (Inactive)', value: 'INACTIVE' },
-    { label: 'Depleted (Out of Stock)', value: 'OUT_OF_STOCK' },
+    { label: 'All Statuses', value: '' },
+    { label: 'Active', value: 'ACTIVE' },
+    { label: 'Inactive', value: 'INACTIVE' },
+    { label: 'Out of Stock', value: 'OUT_OF_STOCK' },
   ];
 
   const hasActiveFilters = Boolean(searchQuery || selectedCategory || selectedStatus);
 
   return (
-    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+    <div className="bg-card p-3 rounded-xl border border-border shadow-xs space-y-3">
       {/* Primary Control Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Search Field with Icon and Clear */}
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={17} />
+        <div className="relative flex-1 min-w-70">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
           <input
             type="text"
-            className="w-full h-11 pl-12 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all"
+            className="w-full h-9 pl-9 pr-9 bg-slate-50 border border-slate-200 rounded-lg text-[13px] text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-colors"
             placeholder="Search equipment by name, model or SKU..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
@@ -60,78 +61,74 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
           {searchQuery && (
             <button
               type="button"
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-md transition-colors cursor-pointer"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
               onClick={() => onSearchChange('')}
               aria-label="Clear search"
             >
-              <X size={15} />
+              <X size={14} />
             </button>
           )}
         </div>
 
         {/* Filter Selects & View Toggle */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative">
-            <select
-              className="pl-3.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
-              value={selectedCategory}
-              onChange={(e) => onCategoryChange(e.target.value)}
-            >
-              {categories.map((cat) => (
-                <option key={cat.label} value={cat.value}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
+            value={selectedCategory}
+            onChange={(e) => onCategoryChange(e.target.value)}
+          >
+            {categories.map((cat) => (
+              <option key={cat.label} value={cat.value}>
+                {cat.label}
+              </option>
+            ))}
+          </select>
 
-          <div className="relative">
-            <select
-              className="pl-3.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
-              value={selectedStatus}
-              onChange={(e) => onStatusChange(e.target.value)}
-            >
-              {statuses.map((st) => (
-                <option key={st.label} value={st.value}>
-                  {st.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
+            value={selectedStatus}
+            onChange={(e) => onStatusChange(e.target.value)}
+          >
+            {statuses.map((st) => (
+              <option key={st.label} value={st.value}>
+                {st.label}
+              </option>
+            ))}
+          </select>
 
           {hasActiveFilters && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<RotateCcw size={13} />}
               onClick={onReset}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
             >
-              <RotateCcw size={13} />
-              <span>Reset</span>
-            </button>
+              Reset
+            </Button>
           )}
 
           {/* View Mode Toggle */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 h-9">
             <button
               type="button"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'table' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                viewMode === 'table' ? 'bg-white text-blue-700 shadow-2xs font-semibold' : 'text-slate-500 hover:text-slate-800'
               }`}
               onClick={() => onViewModeChange('table')}
               title="Table View"
             >
-              <List size={15} />
+              <List size={14} />
               <span>Table</span>
             </button>
             <button
               type="button"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'grid' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                viewMode === 'grid' ? 'bg-white text-blue-700 shadow-2xs font-semibold' : 'text-slate-500 hover:text-slate-800'
               }`}
               onClick={() => onViewModeChange('grid')}
               title="Grid View"
             >
-              <LayoutGrid size={15} />
+              <LayoutGrid size={14} />
               <span>Grid</span>
             </button>
           </div>
@@ -139,17 +136,17 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
       </div>
 
       {/* Category Quick-Filter Chips */}
-      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+      <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
         {categories.map((cat) => {
           const isSelected = selectedCategory === cat.value;
           return (
             <button
               key={cat.label}
               type="button"
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 isSelected
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
               }`}
               onClick={() => onCategoryChange(cat.value)}
             >

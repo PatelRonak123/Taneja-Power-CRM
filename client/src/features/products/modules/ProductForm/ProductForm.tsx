@@ -30,12 +30,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {generalError && (
-        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-medium">
+        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-medium">
           {generalError}
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
         <Input
           label="Equipment Name *"
           placeholder="e.g. Cummins Diesel Generator 500kVA"
@@ -53,11 +53,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-700">Category *</label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">Category *</label>
           <select
-            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+            className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-[13px] text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
             value={formData.category}
             onChange={(e) => handleChange('category', e.target.value)}
           >
@@ -67,13 +67,13 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             <option value="Switchgear">Switchgear</option>
             <option value="Solar Panels">Solar Panels</option>
           </select>
-          {errors.category && <p className="text-xs text-rose-500">{errors.category}</p>}
+          {errors.category && <p className="text-xs text-rose-500 mt-1">{errors.category}</p>}
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-700">Operational Status *</label>
+        <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">Operational Status *</label>
           <select
-            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+            className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-[13px] text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
             value={formData.status}
             onChange={(e) => handleChange('status', e.target.value as any)}
           >
@@ -81,13 +81,13 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             <option value="INACTIVE">Maintenance / Inactive</option>
             <option value="OUT_OF_STOCK">Depleted / Out of Stock</option>
           </select>
-          {errors.status && <p className="text-xs text-rose-500">{errors.status}</p>}
+          {errors.status && <p className="text-xs text-rose-500 mt-1">{errors.status}</p>}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
         <Input
-          label="Unit Price ($ USD) *"
+          label="Unit Price (₹) *"
           type="number"
           step="0.01"
           placeholder="0.00"
@@ -106,10 +106,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         />
       </div>
 
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-700">Technical Description</label>
+      <div>
+        <label className="block text-xs font-medium text-slate-700 mb-1">Technical Description</label>
         <textarea
-          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+          className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-[13px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-colors"
           rows={3}
           placeholder="Detailed engineering specifications, warranty, ratings..."
           value={formData.description || ''}
@@ -117,11 +117,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         />
       </div>
 
-      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-        <Button type="button" variant="ghost" onClick={onCancel}>
+      <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+        <Button type="button" variant="outline" size="md" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" isLoading={isSubmitting}>
+        <Button type="submit" variant="primary" size="md" isLoading={isSubmitting}>
           {product ? 'Save Changes' : 'Deploy Asset'}
         </Button>
       </div>

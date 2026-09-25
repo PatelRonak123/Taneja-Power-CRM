@@ -24,6 +24,7 @@ import { TaskDetailModal } from '../components/TaskDetailModal';
 import { TaskCancelModal } from '../components/TaskCancelModal';
 import { LiveRouteTrackingDrawer } from '../components/LiveRouteTrackingDrawer';
 import { toast } from '../../../utils/toast';
+import { Button } from '../../../components/ui/Button';
 
 export const TaskManagementPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -346,23 +347,23 @@ export const TaskManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-12 animate-fade-in">
+    <div className="space-y-5 max-w-7xl mx-auto pb-10">
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 md:p-7 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div className="flex flex-col gap-2 max-w-3xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-xl border border-border shadow-xs">
+        <div className="flex flex-col gap-1 max-w-3xl">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 border border-orange-200/60">
-              <ClipboardList size={12} className="text-orange-600" />{' '}
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/60">
+              <ClipboardList size={12} className="text-blue-600" />
               {isManagement ? 'Field Work Order Dispatch' : 'My Assigned Tasks'}
             </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 tabular-nums">
               {totalCount} Total Orders
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
             {isManagement ? 'Field Task & Dispatch Management' : 'My Tasks & Work Orders'}
           </h1>
-          <p className="text-sm text-slate-500 leading-relaxed">
+          <p className="text-[13px] text-slate-500 leading-relaxed">
             {isManagement
               ? 'Schedule customer service visits, dispatch technicians to customer destination sites, and monitor real-time work order fulfillment with SLA tracking.'
               : 'Review your scheduled customer visits, complete assigned work orders, and track task resolution progress.'}
@@ -370,27 +371,28 @@ export const TaskManagementPage: React.FC = () => {
         </div>
 
         {isManagement && (
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              type="button"
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Button
+              variant="outline"
+              size="md"
               onClick={() => {
                 setSelectedTaskIdForTracking(null);
                 setIsTrackingDrawerOpen(true);
               }}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded-xl font-bold text-xs transition-all active:scale-[0.98] cursor-pointer shadow-2xs"
+              className="text-orange-700 border-orange-200 bg-orange-50/60 hover:bg-orange-100"
             >
-              <Radio size={15} className="animate-pulse text-orange-600" />
+              <Radio size={14} className="animate-pulse text-orange-600 mr-1.5" />
               <span>Live Route Dispatch ({metrics.inProgress} Active)</span>
-            </button>
+            </Button>
 
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="md"
               onClick={handleOpenCreateTask}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-900/20 hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer"
             >
-              <Plus size={16} />
+              <Plus size={15} className="mr-1.5" />
               <span>Create Field Task</span>
-            </button>
+            </Button>
           </div>
         )}
       </div>

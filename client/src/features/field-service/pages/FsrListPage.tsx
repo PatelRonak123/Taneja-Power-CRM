@@ -33,13 +33,23 @@ import {
   UserCheck,
   Eye,
   Edit3,
-  ChevronLeft,
-  ChevronRight,
   RefreshCw,
   Download,
   Loader2,
   X,
 } from 'lucide-react';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TablePagination,
+  TableLoadingState,
+  TableEmptyState,
+} from '../../../components/ui/table';
+import { Button } from '../../../components/ui/Button';
 
 export const FsrListPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -205,49 +215,52 @@ export const FsrListPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-5 max-w-7xl mx-auto pb-10">
       {/* Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-xl border border-border shadow-xs">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/60 mb-2">
-            <Wrench className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/60 mb-1">
+            <Wrench size={12} className="text-blue-600" />
             <span>Field Service & Inspections</span>
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
             Field Service Reports
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-[13px] text-slate-500 leading-relaxed mt-0.5">
             Track, filter, and inspect all customer site visit reports and battery logs
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
+        <div className="flex items-center gap-2.5 shrink-0">
+          <Button
+            variant="outline"
+            size="md"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
             title="Refresh list"
           >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin text-blue-600' : ''}`} />
-          </button>
+            <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
+          </Button>
 
           {canCreateFsr(user) && (
-            <button
+            <Button
+              variant="primary"
+              size="md"
               onClick={() => navigate('/field-service/new')}
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/30 flex items-center gap-2 transition-all cursor-pointer"
             >
-              <Plus className="w-4 h-4" /> Create FSR
-            </button>
+              <Plus size={15} className="mr-1.5" />
+              <span>Create FSR</span>
+            </Button>
           )}
         </div>
       </div>
 
       {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="bg-card p-3.5 rounded-xl border border-border shadow-xs space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Search Input */}
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search size={15} className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Search FSR #, customer, serial..."
@@ -256,188 +269,181 @@ export const FsrListPage: React.FC = () => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="w-full pl-10 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition-all"
+              className="w-full h-9 pl-9 pr-8 bg-white border border-border rounded-lg text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
             />
             {search && (
               <button
+                type="button"
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                <X className="w-3.5 h-3.5" />
+                <X size={14} />
               </button>
             )}
           </div>
 
           {/* Status Filter */}
-          <div>
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition-all"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="DRAFT">Draft</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="CLOSED">Closed</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-          </div>
+          <select
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(1);
+            }}
+            className="h-9 px-2.5 bg-white border border-border rounded-lg text-[13px] font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 cursor-pointer"
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="DRAFT">Draft</option>
+            <option value="IN_PROGRESS">In Progress</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="CLOSED">Closed</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
 
           {/* Call Type Filter */}
-          <div>
-            <select
-              value={callType}
-              onChange={(e) => {
-                setCallType(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition-all"
-            >
-              <option value="ALL">All Call Types</option>
-              <option value="BD">Breakdown (BD)</option>
-              <option value="PM">Preventive Maintenance (PM)</option>
-              <option value="INSTALLATION">Installation</option>
-              <option value="COURTESY">Courtesy</option>
-            </select>
-          </div>
+          <select
+            value={callType}
+            onChange={(e) => {
+              setCallType(e.target.value);
+              setPage(1);
+            }}
+            className="h-9 px-2.5 bg-white border border-border rounded-lg text-[13px] font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 cursor-pointer"
+          >
+            <option value="ALL">All Call Types</option>
+            <option value="BD">Breakdown (BD)</option>
+            <option value="PM">Preventive Maintenance (PM)</option>
+            <option value="INSTALLATION">Installation</option>
+            <option value="COURTESY">Courtesy</option>
+          </select>
 
           {/* Engineer Filter (Admin/Manager) */}
           {isAdminOrManager && (
-            <div>
-              <select
-                value={serviceEngineerId}
-                onChange={(e) => {
-                  setServiceEngineerId(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition-all"
-              >
-                <option value="ALL">All Field Engineers</option>
-                {engineers?.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.fullName}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={serviceEngineerId}
+              onChange={(e) => {
+                setServiceEngineerId(e.target.value);
+                setPage(1);
+              }}
+              className="h-9 px-2.5 bg-white border border-border rounded-lg text-[13px] font-medium text-slate-700 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 cursor-pointer truncate"
+            >
+              <option value="ALL">All Field Engineers</option>
+              {engineers?.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.fullName}
+                </option>
+              ))}
+            </select>
           )}
         </div>
       </div>
 
       {/* Main FSR Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        {isLoading ? (
-          <div className="p-16 text-center">
-            <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
-            <p className="text-xs text-slate-500">Loading service reports...</p>
-          </div>
-        ) : fsrs.length === 0 ? (
-          <div className="p-16 text-center">
-            <Wrench className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-sm font-bold text-slate-800">
-              No matching service reports found
-            </h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-5">
-              Try adjusting your search query, status filters, or create a new Field Service Report.
-            </p>
-            <button
-              onClick={() => navigate('/field-service/new')}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl inline-flex items-center gap-2 shadow-sm cursor-pointer"
-            >
-              <Plus className="w-4 h-4" /> Create FSR
-            </button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                <tr>
-                  <th className="px-5 py-3.5 font-bold uppercase tracking-wider text-[11px]">FSR #</th>
-                  <th className="px-4 py-3.5 font-bold uppercase tracking-wider text-[11px]">Customer</th>
-                  <th className="px-4 py-3.5 font-bold uppercase tracking-wider text-[11px]">Product / Serial</th>
-                  <th className="px-4 py-3.5 font-bold uppercase tracking-wider text-[11px]">Call Type</th>
-                  <th className="px-4 py-3.5 font-bold uppercase tracking-wider text-[11px]">Assigned FSE</th>
-                  <th className="px-4 py-3.5 font-bold uppercase tracking-wider text-[11px]">Visit Date</th>
-                  <th className="px-4 py-3.5 font-bold uppercase tracking-wider text-[11px]">Status</th>
-                  <th className="px-5 py-3.5 text-right font-bold uppercase tracking-wider text-[11px]">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {fsrs.map((item) => (
-                  <tr
+      <div className="bg-card rounded-xl border border-border shadow-xs overflow-hidden flex flex-col w-full">
+        <div className="w-full overflow-x-auto">
+          <Table density="standard" className="min-w-225 md:min-w-0 md:table-fixed">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="md:w-[12%]">FSR #</TableHead>
+                <TableHead className="md:w-[18%]">Customer</TableHead>
+                <TableHead className="md:w-[18%]">Product / Serial</TableHead>
+                <TableHead align="center" className="md:w-[10%]">Call Type</TableHead>
+                <TableHead className="md:w-[14%]">Assigned FSE</TableHead>
+                <TableHead className="md:w-[10%]">Visit Date</TableHead>
+                <TableHead align="center" className="md:w-[9%]">Status</TableHead>
+                <TableHead align="right" className="md:w-[9%]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableLoadingState columns={8} rows={6} />
+              ) : fsrs.length === 0 ? (
+                <TableEmptyState
+                  colSpan={8}
+                  icon={<Wrench size={24} />}
+                  title="No matching service reports found"
+                  description="Try adjusting your search query, status filters, or create a new Field Service Report."
+                  action={
+                    canCreateFsr(user) ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate('/field-service/new')}
+                        className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium cursor-pointer shadow-xs"
+                      >
+                        Create FSR
+                      </button>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                fsrs.map((item) => (
+                  <TableRow
                     key={item.fsr.id}
                     onClick={() => navigate(`/field-service/${item.fsr.id}`)}
                     className="hover:bg-slate-50/80 cursor-pointer transition-colors group"
                   >
-                    <td className="px-5 py-4 font-bold text-slate-900">
+                    <TableCell className="align-middle font-semibold text-slate-900 text-xs">
                       {item.fsr.fsrNumber}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-4">
-                      <div className="font-semibold text-slate-900">
+                    <TableCell className="align-middle">
+                      <div className="font-medium text-slate-900 text-xs truncate">
                         {item.customer?.name || item.fsr.customerName}
                       </div>
                       {(item.destination?.name || item.fsr.customerAddress) && (
-                        <div className="text-[11px] text-slate-500 truncate max-w-xs">
+                        <div className="text-[11px] text-slate-500 truncate mt-0.5">
                           {item.destination?.name || item.fsr.customerAddress}
                         </div>
                       )}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-4">
-                      <div className="text-slate-800 font-medium">
+                    <TableCell className="align-middle">
+                      <div className="text-slate-800 font-medium text-xs truncate">
                         {item.fsr.productModel || item.product?.name || 'UPS Unit'}
                       </div>
                       {item.fsr.productSerialNumber && (
-                        <div className="text-[11px] text-slate-400 font-mono">
+                        <div className="text-[11px] text-slate-400 font-mono mt-0.5">
                           S/N: {item.fsr.productSerialNumber}
                         </div>
                       )}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-4">
+                    <TableCell align="center" className="align-middle">
                       <FsrCallTypeBadge callType={item.fsr.callType} />
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-4">
+                    <TableCell className="align-middle">
                       {item.serviceEngineer?.fullName ? (
-                        <div className="font-medium text-slate-700">
+                        <div className="font-medium text-slate-700 text-xs truncate">
                           {item.serviceEngineer.fullName}
                         </div>
                       ) : (
                         <span className="text-[11px] italic text-slate-400">Unassigned</span>
                       )}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-4 text-slate-600">
+                    <TableCell className="align-middle text-slate-600 text-xs whitespace-nowrap tabular-nums">
                       {new Date(item.fsr.visitDate).toLocaleDateString()}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-4">
+                    <TableCell align="center" className="align-middle">
                       <FsrStatusBadge status={item.fsr.status} />
-                    </td>
+                    </TableCell>
 
-                    <td className="px-5 py-4 text-right">
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex items-center justify-end gap-1.5"
-                      >
+                    <TableCell align="right" className="align-middle whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
                         {/* View */}
                         <button
+                          type="button"
                           onClick={() => navigate(`/field-service/${item.fsr.id}`)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
                           title="View Details"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye size={13} />
                         </button>
 
                         {/* Download PDF */}
                         {canDownloadFsr(user, item.fsr) && (
                           <button
+                            type="button"
                             onClick={(e) =>
                               handleDownloadPdf(
                                 e,
@@ -446,13 +452,13 @@ export const FsrListPage: React.FC = () => {
                               )
                             }
                             disabled={downloadingId === item.fsr.id}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+                            className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-50"
                             title="Download Official PDF"
                           >
                             {downloadingId === item.fsr.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                              <Loader2 size={13} className="animate-spin text-blue-600" />
                             ) : (
-                              <Download className="w-4 h-4" />
+                              <Download size={13} />
                             )}
                           </button>
                         )}
@@ -460,96 +466,84 @@ export const FsrListPage: React.FC = () => {
                         {/* Edit */}
                         {canEditFsr(user, item.fsr) && (
                           <button
+                            type="button"
                             onClick={() => navigate(`/field-service/${item.fsr.id}/edit`)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
                             title="Edit Report"
                           >
-                            <Edit3 className="w-4 h-4" />
+                            <Edit3 size={13} />
                           </button>
                         )}
 
                         {/* Start Visit */}
                         {canStartFsr(user, item.fsr) && (
                           <button
+                            type="button"
                             onClick={() => startMutation.mutate(item.fsr.id)}
                             disabled={startMutation.isPending}
-                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors cursor-pointer"
                             title="Start Service Visit"
                           >
-                            <Play className="w-4 h-4" />
+                            <Play size={13} />
                           </button>
                         )}
 
                         {/* Complete Visit */}
                         {canCompleteFsr(user, item.fsr) && (
                           <button
+                            type="button"
                             onClick={() => completeMutation.mutate(item.fsr.id)}
                             disabled={completeMutation.isPending}
-                            className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer"
                             title="Complete Visit"
                           >
-                            <CheckCircle className="w-4 h-4" />
+                            <CheckCircle size={13} />
                           </button>
                         )}
 
                         {/* Close FSR (Admin) */}
                         {canCloseFsr(user, item.fsr) && (
                           <button
+                            type="button"
                             onClick={() => closeMutation.mutate(item.fsr.id)}
                             disabled={closeMutation.isPending}
-                            className="p-1.5 rounded-lg text-purple-600 hover:bg-purple-50 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors cursor-pointer"
                             title="Close Report"
                           >
-                            <FileCheck className="w-4 h-4" />
+                            <FileCheck size={13} />
                           </button>
                         )}
 
                         {/* Reassign (Admin/Manager) */}
                         {canAssignFse(user, item.fsr) && (
                           <button
+                            type="button"
                             onClick={() => setAssignModalFsr(item)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
                             title="Assign / Reassign Engineer"
                           >
-                            <UserCheck className="w-4 h-4" />
+                            <UserCheck size={13} />
                           </button>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
 
         {/* Pagination Bar */}
-        {totalPages > 1 && (
-          <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>
-              Showing Page {page} of {totalPages} ({meta?.total || 0} total reports)
-            </span>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="p-2 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="font-bold text-slate-800">
-                {page}
-              </span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="p-2 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+        {!isLoading && totalPages > 1 && (
+          <TablePagination
+            page={page}
+            totalPages={totalPages}
+            totalCount={meta?.total || 0}
+            limit={limit}
+            onPageChange={setPage}
+            entityName="reports"
+          />
         )}
       </div>
 
