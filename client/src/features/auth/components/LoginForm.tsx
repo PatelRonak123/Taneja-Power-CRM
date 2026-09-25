@@ -474,9 +474,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
               id="email-input"
               type="email"
               style={{ paddingLeft: '46px' }}
-              className={`w-full h-12 pr-4 bg-slate-50 border rounded-2xl text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition-all font-medium ${
-                error ? 'border-rose-400' : 'border-slate-200/80 hover:border-slate-300'
-              }`}
+              className={`w-full h-12 pr-4 bg-slate-50 border rounded-2xl text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition-all font-medium ${error ? 'border-rose-400' : 'border-slate-200/80 hover:border-slate-300'
+                }`}
               placeholder="admin@tanejapower.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -497,9 +496,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
               id="password-input"
               type={showPassword ? 'text' : 'password'}
               style={{ paddingLeft: '46px', paddingRight: '46px' }}
-              className={`w-full h-12 bg-slate-50 border rounded-2xl text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition-all font-medium ${
-                error ? 'border-rose-400' : 'border-slate-200/80 hover:border-slate-300'
-              }`}
+              className={`w-full h-12 bg-slate-50 border rounded-2xl text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition-all font-medium ${error ? 'border-rose-400' : 'border-slate-200/80 hover:border-slate-300'
+                }`}
               placeholder="••••••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

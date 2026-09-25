@@ -107,12 +107,14 @@ async function runAmcPdfVerificationTest() {
   };
 
   // TEST 1: Generate AMC PDF Buffer
-  console.log('📋 Test 1: Generating AMC Quotation PDF (5-Page Layout)...');
+  console.log('📋 Test 1: Generating AMC Quotation PDF (4-Page Layout)...');
   const amcPdfBuffer = await QuotationPdfService.generatePdf(amcSampleData as any);
 
   if (!amcPdfBuffer || amcPdfBuffer.length === 0) {
     throw new Error('FAILED: AMC PDF buffer is empty.');
   }
+  const fs = await import('fs');
+  fs.writeFileSync('test_amc_out.pdf', amcPdfBuffer);
   console.log(`✅ AMC PDF Generated Successfully! Size: ${amcPdfBuffer.length} bytes.`);
 
   // TEST 2: Generate Non-AMC PRODUCT PDF for Regression Check

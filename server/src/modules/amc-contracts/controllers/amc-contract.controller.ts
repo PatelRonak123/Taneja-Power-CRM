@@ -4,6 +4,10 @@ import { AmcContractService } from '../services/amc-contract.service.js';
 export class AmcContractController {
   private service = new AmcContractService();
 
+  private getUserId(req: Request): string | undefined {
+    return (req as any).user?.userId || (req as any).user?.id;
+  }
+
   /**
    * POST /api/v1/amc-contracts/from-quotation/:quotationId
    * Convert an accepted AMC quotation into an AMC Contract
@@ -11,7 +15,7 @@ export class AmcContractController {
   public createFromQuotation = async (req: Request, res: Response): Promise<void> => {
     try {
       const { quotationId } = req.params;
-      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const userId = this.getUserId(req);
 
       if (!userId) {
         res.status(401).json({ success: false, error: 'Unauthorized user context.' });
@@ -68,7 +72,7 @@ export class AmcContractController {
         data: contract,
       });
     } catch (error: any) {
-      res.status(444).json({ success: false, error: error.message || 'AMC Contract not found.' });
+      res.status(404).json({ success: false, error: error.message || 'AMC Contract not found.' });
     }
   };
 
@@ -79,7 +83,7 @@ export class AmcContractController {
   public activateContract = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const userId = (req as any).user?.id;
+      const userId = this.getUserId(req);
       const contract = await this.service.activateContract(id, userId);
       res.status(200).json({
         success: true,
@@ -98,7 +102,7 @@ export class AmcContractController {
   public updateContract = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const userId = this.getUserId(req);
       const contract = await this.service.updateContract(id, req.body, userId);
       res.status(200).json({
         success: true,
@@ -118,7 +122,7 @@ export class AmcContractController {
     try {
       const { id } = req.params;
       const { reason, terminationNoticeDate, terminationDate } = req.body;
-      const userId = (req as any).user?.id;
+      const userId = this.getUserId(req);
 
       if (!reason?.trim()) {
         res.status(400).json({ success: false, error: 'Termination reason is required.' });
@@ -152,7 +156,7 @@ export class AmcContractController {
     try {
       const { id } = req.params;
       const { equipmentId, issueDescription, priority, escalationLevel, requestedAt, notes } = req.body;
-      const userId = (req as any).user?.id;
+      const userId = this.getUserId(req);
 
       if (!issueDescription?.trim()) {
         res.status(400).json({ success: false, error: 'Issue description is required.' });
@@ -190,7 +194,7 @@ export class AmcContractController {
     try {
       const { id, requestId } = req.params;
       const { newLevel, notes } = req.body;
-      const userId = (req as any).user?.id;
+      const userId = this.getUserId(req);
 
       if (!newLevel || !['LEVEL_1', 'LEVEL_2', 'LEVEL_3'].includes(newLevel)) {
         res.status(400).json({ success: false, error: 'Valid escalation newLevel (LEVEL_1, LEVEL_2, or LEVEL_3) is required.' });
@@ -235,7 +239,7 @@ export class AmcContractController {
     try {
       const { visitId } = req.params;
       const { assignedEmployeeId } = req.body;
-      const userId = (req as any).user?.id;
+      const userId = this.getUserId(req);
 
       const visit = await this.service.createTaskForVisit(visitId, assignedEmployeeId, userId);
       res.status(200).json({
@@ -255,8 +259,8 @@ export class AmcContractController {
   public startVisit = async (req: Request, res: Response): Promise<void> => {
     try {
       const { visitId } = req.params;
-      const userId = (req as any).user?.id;
-      const visit = await this.service.startVisit(visitId, userId);
+      const userId = this.getUserId(req);
+      const visit = await this.service.startVisit(visitId, userId || '');
       res.status(200).json({
         success: true,
         message: 'Service Visit started.',
@@ -275,8 +279,8 @@ export class AmcContractController {
     try {
       const { visitId } = req.params;
       const { reason } = req.body;
-      const userId = (req as any).user?.id;
-      const visit = await this.service.cancelVisit(visitId, reason || 'Cancelled', userId);
+      const userId = this.getUserId(req);
+      const visit = await this.service.cancelVisit(visitId, reason || 'Cancelled', userId || '');
       res.status(200).json({
         success: true,
         message: 'Service Visit cancelled.',
@@ -294,8 +298,8 @@ export class AmcContractController {
   public getOrCreateServiceReport = async (req: Request, res: Response): Promise<void> => {
     try {
       const { visitId } = req.params;
-      const userId = (req as any).user?.id;
-      const report = await this.service.getOrCreateServiceReport(visitId, userId);
+      const userId = this.getUserId(req);
+      const report = await this.service.getOrCreateServiceReport(visitId, userId || '');
       res.status(200).json({
         success: true,
         data: report,
@@ -312,14 +316,14 @@ export class AmcContractController {
   public updateServiceReport = async (req: Request, res: Response): Promise<void> => {
     try {
       const { reportId } = req.body;
-      const userId = (req as any).user?.id;
+      const userId = this.getUserId(req);
 
       if (!reportId) {
         res.status(400).json({ success: false, error: 'reportId is required.' });
         return;
       }
 
-      const report = await this.service.updateServiceReport(reportId, req.body, userId);
+      const report = await this.service.updateServiceReport(reportId, req.body, userId || '');
       res.status(200).json({
         success: true,
         message: 'Service Report draft updated.',
@@ -337,8 +341,8 @@ export class AmcContractController {
   public completeServiceVisit = async (req: Request, res: Response): Promise<void> => {
     try {
       const { visitId } = req.params;
-      const userId = (req as any).user?.id;
-      const result = await this.service.completeServiceVisitAndReport(visitId, req.body, userId);
+      const userId = this.getUserId(req);
+      const result = await this.service.completeServiceVisitAndReport(visitId, req.body, userId || '');
       res.status(200).json({
         success: true,
         message: 'Service Visit & Report completed successfully.',
@@ -390,7 +394,7 @@ export class AmcContractController {
   public renewContract = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const userId = (req as any).user?.id;
+      const userId = this.getUserId(req);
 
       if (!userId) {
         res.status(401).json({ success: false, error: 'Unauthorized user context.' });

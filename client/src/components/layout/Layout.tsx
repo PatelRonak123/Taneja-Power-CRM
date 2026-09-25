@@ -27,6 +27,9 @@ import { CreateFsrPage } from '../../features/field-service/pages/CreateFsrPage'
 import { EditFsrPage } from '../../features/field-service/pages/EditFsrPage';
 import { FsrDetailPage } from '../../features/field-service/pages/FsrDetailPage';
 
+import { CustomerManagementPage } from '../../features/customers/pages/CustomerManagementPage';
+import { LeadManagementPage } from '../../features/leads/pages/LeadManagementPage';
+import { PipelinePage } from '../../features/leads/pages/PipelinePage';
 import { ToastContainer } from '../ui/ToastContainer';
 
 interface LayoutProps {
@@ -53,6 +56,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     if ((currentPath === '/employees' || currentPath === '/admin/employees') && (isAdmin || isHrOffice)) {
       return <EmployeeManagementPage />;
+    }
+
+    if (currentPath === '/customers' || currentPath === '/admin/customers') {
+      return <CustomerManagementPage />;
+    }
+
+    if (currentPath === '/leads' || currentPath === '/admin/leads') {
+      return <LeadManagementPage />;
+    }
+
+    if (currentPath === '/pipeline' || currentPath === '/admin/pipeline' || currentPath === '/deals') {
+      return <PipelinePage />;
     }
 
     if (currentPath.startsWith('/field-service')) {

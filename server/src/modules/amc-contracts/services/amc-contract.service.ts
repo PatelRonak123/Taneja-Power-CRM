@@ -947,7 +947,7 @@ export class AmcContractService {
       requestedAt?: string;
       notes?: string;
     },
-    userId: string
+    userId?: string
   ) {
     const contract = await this.getContractById(contractId);
     if (!contract) {
@@ -1008,7 +1008,7 @@ export class AmcContractService {
           description: `AMC Breakdown Request ${requestNumber} for ${contract.customerName} (${contract.contractNumber})\n\nIssue Details:\n${data.issueDescription}`,
           priority: data.priority || 'HIGH',
           status: 'CREATED',
-          createdBy: userId,
+          createdBy: (userId || contract.createdById)!,
         })
         .returning();
 
@@ -1044,7 +1044,7 @@ export class AmcContractService {
         taskId,
         amcServiceVisitId: visit.id,
         notes: data.notes || null,
-        createdById: userId,
+        createdById: (userId || contract.createdById)!,
       })
       .returning();
 
@@ -1058,7 +1058,7 @@ export class AmcContractService {
     contractId: string,
     requestId: string,
     data: { newLevel: string; notes?: string },
-    userId: string
+    userId?: string
   ) {
     const contract = await this.getContractById(contractId);
     if (!contract) {
@@ -1249,7 +1249,7 @@ export class AmcContractService {
   /**
    * Start AMC Service Visit (SCHEDULED / ASSIGNED -> IN_PROGRESS)
    */
-  public async startVisit(visitId: string, userId: string) {
+  public async startVisit(visitId: string, userId?: string) {
     const [visit] = await db
       .select()
       .from(amcServiceVisits)
@@ -1270,7 +1270,7 @@ export class AmcContractService {
       .set({
         status: 'IN_PROGRESS',
         actualStartAt: visit.actualStartAt || now,
-        technicianEmployeeId: userId,
+        technicianEmployeeId: userId || visit.technicianEmployeeId || visit.assignedEmployeeId || null,
         updatedAt: now,
       })
       .where(eq(amcServiceVisits.id, visitId))
@@ -1294,7 +1294,7 @@ export class AmcContractService {
   /**
    * Cancel AMC Service Visit
    */
-  public async cancelVisit(visitId: string, reason: string, userId: string) {
+  public async cancelVisit(visitId: string, reason: string, userId?: string) {
     const [visit] = await db
       .select()
       .from(amcServiceVisits)
@@ -1339,7 +1339,7 @@ export class AmcContractService {
   /**
    * Get existing Service Report or initialize a DRAFT report pre-populated with contract scope items & equipment
    */
-  public async getOrCreateServiceReport(visitId: string, userId: string) {
+  public async getOrCreateServiceReport(visitId: string, userId?: string) {
     const [existingReport] = await db
       .select()
       .from(amcServiceReports)
@@ -1422,9 +1422,9 @@ export class AmcContractService {
           serviceType: visit.serviceType,
           status: 'DRAFT',
           inspectionDate: new Date(),
-          technicianEmployeeId: userId,
+          technicianEmployeeId: userId || contract.createdById || null,
           customerName: contract.customerName,
-          createdById: userId,
+          createdById: userId || contract.createdById,
         })
         .returning();
 
@@ -1481,7 +1481,7 @@ export class AmcContractService {
   /**
    * Update DRAFT Service Report
    */
-  public async updateServiceReport(reportId: string, data: any, userId: string) {
+  public async updateServiceReport(reportId: string, data: any, userId?: string) {
     const [report] = await db
       .select()
       .from(amcServiceReports)
@@ -1593,7 +1593,7 @@ export class AmcContractService {
               coverageType: matData.coverageType || 'AMC_INCLUDED',
               remarks: matData.remarks || null,
               sortOrder: matData.sortOrder || 0,
-              createdById: userId,
+              createdById: (userId || report.createdById)!,
             });
           }
         }
@@ -1632,7 +1632,7 @@ export class AmcContractService {
   public async completeServiceVisitAndReport(
     visitId: string,
     reportData: any,
-    userId: string
+    userId?: string
   ) {
     return await db.transaction(async (tx) => {
       // 1. Fetch Visit & Contract
@@ -1680,7 +1680,7 @@ export class AmcContractService {
             serviceType: visit.serviceType,
             status: 'COMPLETED',
             inspectionDate: now,
-            technicianEmployeeId: userId,
+            technicianEmployeeId: userId || contract.createdById || null,
             serviceSummary: reportData?.serviceSummary || 'Preventive maintenance completed satisfactorily.',
             observations: reportData?.observations || 'All stabilizer voltage & electrical parameters verified.',
             recommendations: reportData?.recommendations || 'Regular servicing recommended.',
@@ -1688,7 +1688,7 @@ export class AmcContractService {
             customerRemarks: reportData?.customerRemarks || 'Satisfactory work.',
             acknowledgementStatus: 'ACKNOWLEDGED',
             acknowledgedAt: now,
-            createdById: userId,
+            createdById: userId || contract.createdById,
           })
           .returning();
       } else {
@@ -1703,7 +1703,7 @@ export class AmcContractService {
             customerRemarks: reportData?.customerRemarks !== undefined ? reportData.customerRemarks : report.customerRemarks,
             acknowledgementStatus: 'ACKNOWLEDGED',
             acknowledgedAt: now,
-            updatedById: userId,
+            updatedById: userId || contract.createdById,
             updatedAt: now,
           })
           .where(eq(amcServiceReports.id, report.id))
@@ -1747,7 +1747,7 @@ export class AmcContractService {
           status: 'COMPLETED',
           actualEndAt: visit.actualEndAt || now,
           completedAt: now,
-          completedBy: userId,
+          completedBy: userId || contract.createdById,
           technicianEmployeeId: userId,
           technicianNotes: reportData?.serviceSummary || visit.technicianNotes,
           customerRemarks: reportData?.customerRemarks || visit.customerRemarks,

@@ -239,7 +239,25 @@ export const FsrForm: React.FC<FsrFormProps> = ({
             setProducts(pRes.value.data);
           }
           if (eRes.status === 'fulfilled' && (eRes.value as any)?.data) {
-            setEngineers((eRes.value as any).data);
+            const rawList: Employee[] = (eRes.value as any).data || [];
+            const filteredEngineers = rawList.filter((e) => {
+              if (e.id === fsr?.serviceEngineerId) return true;
+              if (e.status !== 'ACTIVE') return false;
+              if (e.workType === 'FIELD') return true;
+              if (e.workType === 'OFFICE') return false;
+              const des = (e.designation || '').toLowerCase();
+              if (
+                des.includes('office') ||
+                des.includes('hr') ||
+                des.includes('accountant') ||
+                des.includes('admin') ||
+                des.includes('operations')
+              ) {
+                return false;
+              }
+              return true;
+            });
+            setEngineers(filteredEngineers);
           }
         }
       } catch (err) {
@@ -901,12 +919,12 @@ export const FsrForm: React.FC<FsrFormProps> = ({
                   <select
                     value={serviceEngineerId}
                     onChange={(e) => setServiceEngineerId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition-all"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition-all font-medium cursor-pointer"
                   >
-                    <option value="">-- Assign Service Engineer --</option>
+                    <option value="" className="text-slate-500 bg-white">-- Assign Field Service Engineer --</option>
                     {engineers.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.fullName} ({emp.email || emp.designation || 'Engineer'})
+                      <option key={emp.id} value={emp.id} className="text-slate-900 bg-white">
+                        {emp.fullName} {emp.designation ? `(${emp.designation})` : ''} - {emp.email}
                       </option>
                     ))}
                   </select>

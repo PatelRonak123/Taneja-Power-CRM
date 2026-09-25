@@ -35,7 +35,7 @@ interface TaskModalProps {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => void;
   customers: Customer[];
-  employees: { id: string; fullName: string; designation?: string | null }[];
+  employees: { id: string; fullName: string; designation?: string | null; workType?: string }[];
   formSubmitting: boolean;
   formError: string | null;
   onCustomerChange: (customerId: string) => void;
@@ -55,6 +55,27 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 }) => {
   const [destinations, setDestinations] = useState<CustomerDestination[]>([]);
   const [loadingDestinations, setLoadingDestinations] = useState<boolean>(false);
+
+  // Filter employees to only Field Engineers (Sales, Services, etc. with FIELD workType / designations)
+  const fieldEngineers = employees.filter((emp) => {
+    // Keep currently assigned employee visible if already selected in edit mode
+    if (formData.assignedTo && emp.id === formData.assignedTo) {
+      return true;
+    }
+    // Explicit workType checking
+    if (emp.workType === 'FIELD') {
+      return true;
+    }
+    if (emp.workType === 'OFFICE') {
+      return false;
+    }
+    // Fallback designation check
+    const des = (emp.designation || '').toLowerCase();
+    if (des.includes('office') || des.includes('hr') || des.includes('accountant') || des.includes('admin') || des.includes('operations')) {
+      return false;
+    }
+    return true;
+  });
 
   useEffect(() => {
     if (formData.customerId) {
@@ -229,7 +250,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   className="w-full h-11 pl-10 pr-8 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
                 >
                   <option value="">Unassigned (Pending Allocation)</option>
-                  {employees.map((emp) => (
+                  {fieldEngineers.map((emp) => (
                     <option key={emp.id} value={emp.id}>
                       {emp.fullName} {emp.designation ? `(${emp.designation})` : ''}
                     </option>

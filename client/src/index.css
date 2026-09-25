@@ -36,6 +36,12 @@ body {
   flex-direction: column;
 }
 
+select,
+select option {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+
 /* Hide scrollbar for Chrome, Safari, Opera, Edge, and Firefox while retaining scroll function */
 .custom-scrollbar::-webkit-scrollbar,
 .no-scrollbar::-webkit-scrollbar,
