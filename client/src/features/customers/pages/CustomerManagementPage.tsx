@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Building2,
   Plus,
-  CheckCircle2,
-  AlertCircle,
 } from 'lucide-react';
 import { customerService } from '../services/customerService';
 import {
@@ -20,14 +18,14 @@ import { CustomerModal } from '../components/CustomerModal';
 import { DestinationsDrawer } from '../components/DestinationsDrawer';
 import { DestinationModal } from '../components/DestinationModal';
 import { useAuthStore } from '../../../stores/authStore';
+import { toast } from '../../../utils/toast';
+import { confirmModal } from '../../../utils/confirmModal';
 
 export const CustomerManagementPage: React.FC = () => {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN';
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -123,7 +121,6 @@ export const CustomerManagementPage: React.FC = () => {
   // Load Customers
   const fetchCustomers = async (targetPage: number = page) => {
     setLoading(true);
-    setError(null);
     try {
       const response = await customerService.getCustomers({
         search: searchQuery.trim() || undefined,
@@ -146,7 +143,7 @@ export const CustomerManagementPage: React.FC = () => {
         setCustomers([]);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load customers');
+      toast.error('Failed to load customers', err?.message);
     } finally {
       setLoading(false);
     }
@@ -168,7 +165,7 @@ export const CustomerManagementPage: React.FC = () => {
         setDestinations([]);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load destinations for customer');
+      toast.error('Failed to load destinations', err?.message || 'Failed to load destinations for customer');
     } finally {
       setLoadingDestinations(false);
     }
@@ -254,10 +251,9 @@ export const CustomerManagementPage: React.FC = () => {
         });
 
         if (response.success) {
-          setSuccessMessage(`Customer "${response.data.name}" created successfully!`);
+          toast.success(`Customer "${response.data.name}" created successfully!`);
           setCustomerModalMode(null);
           fetchCustomers(1);
-          setTimeout(() => setSuccessMessage(null), 4000);
         }
       } else if (customerModalMode === 'edit' && editingCustomerId) {
         const response = await customerService.updateCustomer(editingCustomerId, {
@@ -274,13 +270,12 @@ export const CustomerManagementPage: React.FC = () => {
         });
 
         if (response.success) {
-          setSuccessMessage(`Customer "${response.data.name}" updated successfully!`);
+          toast.success(`Customer "${response.data.name}" updated successfully!`);
           setCustomerModalMode(null);
           fetchCustomers(page);
           if (selectedCustomerForDestinations?.id === editingCustomerId) {
             setSelectedCustomerForDestinations(response.data);
           }
-          setTimeout(() => setSuccessMessage(null), 4000);
         }
       }
     } catch (err: any) {
@@ -300,21 +295,26 @@ export const CustomerManagementPage: React.FC = () => {
         ? `Are you sure you want to delete customer "${customer.name}"? This will also remove ${customer.destinationCount} associated destination(s).`
         : `Are you sure you want to delete customer "${customer.name}"?`;
 
-    if (!window.confirm(confirmMsg)) return;
+    const isConfirmed = await confirmModal.danger(
+      'Delete Customer',
+      confirmMsg,
+      'Delete Customer'
+    );
+
+    if (!isConfirmed) return;
 
     setDeletingCustomerId(customer.id);
     try {
       const response = await customerService.deleteCustomer(customer.id);
       if (response.success) {
-        setSuccessMessage(`Customer "${customer.name}" removed successfully.`);
+        toast.success(`Customer "${customer.name}" removed successfully.`);
         if (selectedCustomerForDestinations?.id === customer.id) {
           setSelectedCustomerForDestinations(null);
         }
         fetchCustomers(page);
-        setTimeout(() => setSuccessMessage(null), 4000);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete customer.');
+      toast.error('Failed to delete customer', err?.message);
     } finally {
       setDeletingCustomerId(null);
     }
@@ -433,11 +433,10 @@ export const CustomerManagementPage: React.FC = () => {
         );
 
         if (response.success) {
-          setSuccessMessage(`Destination "${response.data.name}" added successfully!`);
+          toast.success(`Destination "${response.data.name}" added successfully!`);
           setDestinationModalMode(null);
           fetchDestinations(selectedCustomerForDestinations.id);
           fetchCustomers(page);
-          setTimeout(() => setSuccessMessage(null), 4000);
         }
       } else if (destinationModalMode === 'edit' && editingDestinationId) {
         const response = await customerService.updateDestination(
@@ -460,11 +459,10 @@ export const CustomerManagementPage: React.FC = () => {
         );
 
         if (response.success) {
-          setSuccessMessage(`Destination "${response.data.name}" updated successfully!`);
+          toast.success(`Destination "${response.data.name}" updated successfully!`);
           setDestinationModalMode(null);
           fetchDestinations(selectedCustomerForDestinations.id);
           fetchCustomers(page);
-          setTimeout(() => setSuccessMessage(null), 4000);
         }
       }
     } catch (err: any) {
@@ -480,10 +478,14 @@ export const CustomerManagementPage: React.FC = () => {
   // Delete Destination
   const handleDeleteDestination = async (destination: CustomerDestination) => {
     if (!selectedCustomerForDestinations) return;
-    if (
-      !window.confirm(`Are you sure you want to remove destination "${destination.name}"?`)
-    )
-      return;
+
+    const isConfirmed = await confirmModal.danger(
+      'Remove Destination',
+      `Are you sure you want to remove destination "${destination.name}"? This destination will be permanently deleted.`,
+      'Remove'
+    );
+
+    if (!isConfirmed) return;
 
     setDeletingDestinationId(destination.id);
     try {
@@ -492,13 +494,12 @@ export const CustomerManagementPage: React.FC = () => {
         destination.id
       );
       if (response.success) {
-        setSuccessMessage(`Destination "${destination.name}" removed successfully.`);
+        toast.success(`Destination "${destination.name}" removed successfully.`);
         fetchDestinations(selectedCustomerForDestinations.id);
         fetchCustomers(page);
-        setTimeout(() => setSuccessMessage(null), 4000);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete destination.');
+      toast.error('Failed to delete destination', err?.message);
     } finally {
       setDeletingDestinationId(null);
     }
@@ -534,21 +535,6 @@ export const CustomerManagementPage: React.FC = () => {
           <span>Add New Customer</span>
         </button>
       </div>
-
-      {/* Alert Notifications */}
-      {successMessage && (
-        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold animate-in fade-in">
-          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold animate-in fade-in">
-          <AlertCircle size={18} className="text-rose-600 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
 
       {/* Metrics Header Cards */}
       <CustomerMetricsCards metrics={metrics} />

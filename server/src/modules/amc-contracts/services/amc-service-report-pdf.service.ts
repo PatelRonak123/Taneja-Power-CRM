@@ -70,17 +70,29 @@ export interface ServiceReportPdfData {
 }
 
 export class AmcServiceReportPdfService {
+  private static readonly MARGIN_LEFT = 36;
+  private static readonly MARGIN_RIGHT = 36;
+  private static readonly PAGE_WIDTH = 595.28;
+  private static readonly PAGE_HEIGHT = 841.89;
+  private static readonly CONTENT_WIDTH = 523; // 595.28 - 72
+
   public static async generatePdf(data: ServiceReportPdfData): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({
           size: 'A4',
-          margin: 36,
+          margins: {
+            top: 30,
+            bottom: 30,
+            left: 36,
+            right: 36,
+          },
           bufferPages: true,
+          autoFirstPage: true,
           info: {
             Title: `AMC Service Report ${data.reportNumber}`,
-            Author: 'Taneja Power CRM',
-            Subject: `Service Report for Contract ${data.contractNumber}`,
+            Author: 'Taneja Power Controls',
+            Subject: `Field Service Report for Contract ${data.contractNumber}`,
           },
         });
 
@@ -92,16 +104,33 @@ export class AmcServiceReportPdfService {
         });
         doc.on('error', (err) => reject(err));
 
-        // Render Report Document
-        this.renderHeader(doc, data);
-        this.renderOverviewGrid(doc, data);
-        this.renderEquipmentSection(doc, data);
-        this.renderChecklistSection(doc, data);
-        this.renderObservationsSection(doc, data);
-        this.renderMaterialsSection(doc, data);
-        this.renderSignatures(doc, data);
-        this.addFooters(doc);
+        let currentY = 30;
 
+        // 1. Header
+        currentY = this.renderHeader(doc, data, currentY);
+
+        // 2. Metadata Overview Grid
+        currentY = this.renderOverviewGrid(doc, data, currentY);
+
+        // 3. Equipment Section
+        currentY = this.renderEquipmentSection(doc, data, currentY);
+
+        // 4. Checklist Section
+        currentY = this.renderChecklistSection(doc, data, currentY);
+
+        // 5. Observations & Recommendations Section
+        currentY = this.renderObservationsSection(doc, data, currentY);
+
+        // 6. Materials / Spares Consumed (if any)
+        if (data.materials && data.materials.length > 0) {
+          currentY = this.renderMaterialsSection(doc, data, currentY);
+        }
+
+        // 7. Signatures
+        this.renderSignatures(doc, data, currentY);
+
+        // 8. Global Footers
+        this.addFooters(doc);
 
         doc.end();
       } catch (err) {
@@ -110,191 +139,268 @@ export class AmcServiceReportPdfService {
     });
   }
 
-  private static renderHeader(doc: PDFKit.PDFDocument, data: ServiceReportPdfData) {
+  private static checkPageBreak(doc: PDFKit.PDFDocument, currentY: number, neededHeight: number): number {
+    const bottomLimit = 780;
+    if (currentY + neededHeight > bottomLimit) {
+      doc.addPage();
+      return 40;
+    }
+    return currentY;
+  }
+
+  private static renderHeader(doc: PDFKit.PDFDocument, data: ServiceReportPdfData, startY: number): number {
     const logoPath = path.resolve(process.cwd(), 'client/public/logo.png');
     if (fs.existsSync(logoPath)) {
       try {
-        doc.image(logoPath, 36, 30, { width: 130 });
+        doc.image(logoPath, this.MARGIN_LEFT, startY, { width: 130 });
       } catch {
-        // Fallback title
+        // Fallback if logo fails
       }
     }
 
     doc
       .fillColor('#0F172A')
-      .fontSize(16)
+      .fontSize(15)
       .font('Helvetica-Bold')
-      .text('TANEJA POWER CONTROLS', 220, 32, { align: 'right' });
+      .text('TANEJA POWER CONTROLS', 220, startY + 2, { align: 'right', width: 339 });
 
     doc
       .fillColor('#475569')
-      .fontSize(8)
+      .fontSize(7.5)
       .font('Helvetica')
-      .text('ISO 9001:2015 & ISO 14001 CERTIFIED COMPANY', 220, 50, { align: 'right' })
-      .text('Industrial Voltage Stabilizers & AMC Technical Services', 220, 60, { align: 'right' });
+      .text('ISO 9001:2015 & ISO 14001 CERTIFIED COMPANY', 220, startY + 19, { align: 'right', width: 339 })
+      .text('Industrial Voltage Stabilizers & AMC Technical Services', 220, startY + 29, { align: 'right', width: 339 });
 
-    doc.moveTo(36, 75).lineTo(559, 75).lineWidth(1).strokeColor('#CBD5E1').stroke();
+    const dividerY = startY + 44;
+    doc.moveTo(this.MARGIN_LEFT, dividerY).lineTo(this.MARGIN_LEFT + this.CONTENT_WIDTH, dividerY).lineWidth(1).strokeColor('#CBD5E1').stroke();
 
     // Report Title Banner
-    doc
-      .rect(36, 85, 523, 26)
-      .fillAndStroke('#0F172A', '#0F172A');
+    const bannerY = dividerY + 6;
+    const bannerHeight = 22;
+    doc.rect(this.MARGIN_LEFT, bannerY, this.CONTENT_WIDTH, bannerHeight).fillAndStroke('#0F172A', '#0F172A');
 
     doc
       .fillColor('#FFFFFF')
-      .fontSize(11)
-      .font('Helvetica-Bold')
-      .text(`FIELD AMC SERVICE REPORT — ${data.reportNumber}`, 44, 92, { align: 'left' });
-
-    doc
       .fontSize(10)
       .font('Helvetica-Bold')
-      .text(`STATUS: ${data.status.toUpperCase()}`, 400, 92, { align: 'right' });
+      .text(`FIELD AMC SERVICE REPORT — ${data.reportNumber}`, this.MARGIN_LEFT + 8, bannerY + 6, {
+        width: 320,
+        lineBreak: false,
+      });
+
+    const statusText = `STATUS: ${(data.status || 'DRAFT').toUpperCase()}`;
+    doc
+      .fillColor('#93C5FD')
+      .fontSize(9.5)
+      .font('Helvetica-Bold')
+      .text(statusText, this.MARGIN_LEFT + 320, bannerY + 6, {
+        width: this.CONTENT_WIDTH - 328,
+        align: 'right',
+        lineBreak: false,
+      });
+
+    return bannerY + bannerHeight + 8;
   }
 
-  private static renderOverviewGrid(doc: PDFKit.PDFDocument, data: ServiceReportPdfData) {
-    let y = 120;
+  private static renderOverviewGrid(doc: PDFKit.PDFDocument, data: ServiceReportPdfData, startY: number): number {
+    const boxHeight = 58;
+    doc.rect(this.MARGIN_LEFT, startY, this.CONTENT_WIDTH, boxHeight).fillAndStroke('#F8FAFC', '#E2E8F0');
 
-    doc.rect(36, y, 523, 70).fillAndStroke('#F8FAFC', '#E2E8F0');
+    const leftColLabelX = this.MARGIN_LEFT + 8;
+    const leftColValX = this.MARGIN_LEFT + 115;
+    const rightColLabelX = this.MARGIN_LEFT + 280;
+    const rightColValX = this.MARGIN_LEFT + 380;
 
-    // Left Column
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('CONTRACT NUMBER:', 44, y + 8);
-    doc.fillColor('#0F172A').fontSize(9).font('Helvetica-Bold').text(data.contractNumber, 140, y + 8);
+    const rowSpacing = 13;
+    let rY = startY + 6;
 
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('CUSTOMER NAME:', 44, y + 22);
-    doc.fillColor('#0F172A').fontSize(9).font('Helvetica-Bold').text(data.companyName || data.customerName, 140, y + 22);
+    // Row 1
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('CONTRACT NUMBER:', leftColLabelX, rY);
+    doc.fillColor('#0F172A').fontSize(8.5).font('Helvetica-Bold').text(data.contractNumber || '—', leftColValX, rY, { width: 155 });
 
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('SITE / END USER:', 44, y + 36);
-    doc.fillColor('#0F172A').fontSize(8).font('Helvetica').text(data.endUser || data.branch || '—', 140, y + 36);
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('INSPECTION DATE:', rightColLabelX, rY);
+    doc.fillColor('#0F172A').fontSize(8).font('Helvetica').text(formatDate(data.inspectionDate), rightColValX, rY, { width: 135 });
 
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('AMC PLAN TIER:', 44, y + 50);
-    doc.fillColor('#4338CA').fontSize(8).font('Helvetica-Bold').text(data.amcPlan, 140, y + 50);
+    rY += rowSpacing;
 
-    // Right Column
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('INSPECTION DATE:', 320, y + 8);
-    doc.fillColor('#0F172A').fontSize(8).font('Helvetica').text(formatDate(data.inspectionDate), 420, y + 8);
+    // Row 2
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('CUSTOMER NAME:', leftColLabelX, rY);
+    doc.fillColor('#0F172A').fontSize(8.5).font('Helvetica-Bold').text(data.companyName || data.customerName || '—', leftColValX, rY, { width: 155 });
 
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('SERVICE TYPE:', 320, y + 22);
-    doc.fillColor('#1E40AF').fontSize(8).font('Helvetica-Bold').text(data.serviceType, 420, y + 22);
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('SERVICE TYPE:', rightColLabelX, rY);
+    doc.fillColor('#1E40AF').fontSize(8).font('Helvetica-Bold').text(data.serviceType || 'PREVENTIVE', rightColValX, rY, { width: 135 });
 
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('VISIT NUMBER:', 320, y + 36);
-    doc.fillColor('#0F172A').fontSize(8).font('Helvetica-Bold').text(`Visit #${data.visitNumber}`, 420, y + 36);
+    rY += rowSpacing;
 
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('TECHNICIAN:', 320, y + 50);
-    doc.fillColor('#0F172A').fontSize(8).font('Helvetica').text(data.technicianName || 'Taneja Engineer', 420, y + 50);
+    // Row 3
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('SITE / END USER:', leftColLabelX, rY);
+    doc.fillColor('#0F172A').fontSize(8).font('Helvetica').text(data.endUser || data.branch || '—', leftColValX, rY, { width: 155 });
+
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('VISIT NUMBER:', rightColLabelX, rY);
+    doc.fillColor('#0F172A').fontSize(8).font('Helvetica-Bold').text(`Visit #${data.visitNumber || 1}`, rightColValX, rY, { width: 135 });
+
+    rY += rowSpacing;
+
+    // Row 4
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('AMC PLAN TIER:', leftColLabelX, rY);
+    doc.fillColor('#4338CA').fontSize(8).font('Helvetica-Bold').text(data.amcPlan || '—', leftColValX, rY, { width: 155 });
+
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('TECHNICIAN:', rightColLabelX, rY);
+    doc.fillColor('#0F172A').fontSize(8).font('Helvetica').text(data.technicianName || 'Taneja Engineer', rightColValX, rY, { width: 135 });
+
+    return startY + boxHeight + 10;
   }
 
-  private static renderEquipmentSection(doc: PDFKit.PDFDocument, data: ServiceReportPdfData) {
-    let y = 202;
+  private static renderEquipmentSection(doc: PDFKit.PDFDocument, data: ServiceReportPdfData, startY: number): number {
+    let y = this.checkPageBreak(doc, startY, 40);
 
-    doc.fillColor('#0F172A').fontSize(10).font('Helvetica-Bold').text('1. COVERED EQUIPMENT INSPECTION', 36, y);
-    y += 14;
+    doc.fillColor('#0F172A').fontSize(9).font('Helvetica-Bold').text('1. COVERED EQUIPMENT INSPECTION', this.MARGIN_LEFT, y);
+    y += 12;
 
-    // Table Header
-    doc.rect(36, y, 523, 18).fillAndStroke('#1E293B', '#1E293B');
-    doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold');
-    doc.text('EQUIPMENT NAME', 42, y + 5);
-    doc.text('CONFIGURATION', 200, y + 5);
-    doc.text('RATING', 310, y + 5);
-    doc.text('CONDITION STATUS', 410, y + 5);
+    const headerHeight = 16;
+    doc.rect(this.MARGIN_LEFT, y, this.CONTENT_WIDTH, headerHeight).fillAndStroke('#1E293B', '#1E293B');
+    doc.fillColor('#FFFFFF').fontSize(7.5).font('Helvetica-Bold');
+    doc.text('EQUIPMENT NAME', this.MARGIN_LEFT + 6, y + 4.5, { width: 180 });
+    doc.text('CONFIGURATION', this.MARGIN_LEFT + 190, y + 4.5, { width: 110 });
+    doc.text('RATING', this.MARGIN_LEFT + 305, y + 4.5, { width: 95 });
+    doc.text('CONDITION STATUS', this.MARGIN_LEFT + 405, y + 4.5, { width: 112, align: 'right' });
 
-    y += 18;
+    y += headerHeight;
 
-    (data.equipment || []).forEach((item, idx) => {
+    const items = data.equipment && data.equipment.length > 0 ? data.equipment : [
+      {
+        equipmentName: 'Servo Voltage Stabilizer',
+        configuration: 'Standard',
+        rating: '—',
+        conditionStatus: 'OPERATIONAL',
+      }
+    ];
+
+    items.forEach((item, idx) => {
+      y = this.checkPageBreak(doc, y, 16);
+      const rowHeight = 16;
       const bg = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
-      doc.rect(36, y, 523, 18).fillAndStroke(bg, '#E2E8F0');
+      doc.rect(this.MARGIN_LEFT, y, this.CONTENT_WIDTH, rowHeight).fillAndStroke(bg, '#E2E8F0');
 
-      doc.fillColor('#0F172A').fontSize(8).font('Helvetica-Bold').text(item.equipmentName, 42, y + 5);
-      doc.fillColor('#334155').fontSize(8).font('Helvetica').text(item.configuration || '—', 200, y + 5);
-      doc.fillColor('#334155').fontSize(8).font('Helvetica').text(item.rating || '—', 310, y + 5);
+      doc.fillColor('#0F172A').fontSize(7.5).font('Helvetica-Bold').text(item.equipmentName, this.MARGIN_LEFT + 6, y + 4, { width: 180 });
+      doc.fillColor('#334155').fontSize(7.5).font('Helvetica').text(item.configuration || '—', this.MARGIN_LEFT + 190, y + 4, { width: 110 });
+      doc.fillColor('#334155').fontSize(7.5).font('Helvetica').text(item.rating || '—', this.MARGIN_LEFT + 305, y + 4, { width: 95 });
 
       const isOp = item.conditionStatus === 'OPERATIONAL';
-      doc.fillColor(isOp ? '#047857' : '#B91C1C').fontSize(8).font('Helvetica-Bold').text(item.conditionStatus, 410, y + 5);
+      const statusColor = isOp ? '#047857' : (item.conditionStatus === 'MAINTENANCE_REQUIRED' ? '#D97706' : '#B91C1C');
+      doc.fillColor(statusColor).fontSize(7.5).font('Helvetica-Bold').text(item.conditionStatus || 'OPERATIONAL', this.MARGIN_LEFT + 405, y + 4, {
+        width: 112,
+        align: 'right',
+      });
 
-      y += 18;
+      y += rowHeight;
     });
+
+    return y + 10;
   }
 
-  private static renderChecklistSection(doc: PDFKit.PDFDocument, data: ServiceReportPdfData) {
-    let y = doc.y + 16;
-    if (y > 650) {
-      doc.addPage();
-      y = 40;
-    }
+  private static renderChecklistSection(doc: PDFKit.PDFDocument, data: ServiceReportPdfData, startY: number): number {
+    let y = this.checkPageBreak(doc, startY, 40);
 
-    doc.fillColor('#0F172A').fontSize(10).font('Helvetica-Bold').text('2. PREVENTIVE SCOPE CHECKLIST EVALUATION', 36, y);
-    y += 14;
+    doc.fillColor('#0F172A').fontSize(9).font('Helvetica-Bold').text('2. PREVENTIVE SCOPE CHECKLIST EVALUATION', this.MARGIN_LEFT, y);
+    y += 12;
 
-    // Table Header
-    doc.rect(36, y, 523, 18).fillAndStroke('#1E293B', '#1E293B');
-    doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold');
-    doc.text('#', 42, y + 5);
-    doc.text('SCOPE ITEM DESCRIPTION', 60, y + 5);
-    doc.text('STATUS', 360, y + 5);
-    doc.text('REMARKS', 440, y + 5);
+    const headerHeight = 16;
+    doc.rect(this.MARGIN_LEFT, y, this.CONTENT_WIDTH, headerHeight).fillAndStroke('#1E293B', '#1E293B');
+    doc.fillColor('#FFFFFF').fontSize(7.5).font('Helvetica-Bold');
+    doc.text('#', this.MARGIN_LEFT + 6, y + 4.5, { width: 16 });
+    doc.text('SCOPE ITEM DESCRIPTION', this.MARGIN_LEFT + 26, y + 4.5, { width: 240 });
+    doc.text('STATUS', this.MARGIN_LEFT + 270, y + 4.5, { width: 85 });
+    doc.text('REMARKS / OBSERVATIONS', this.MARGIN_LEFT + 360, y + 4.5, { width: 157 });
 
-    y += 18;
+    y += headerHeight;
 
-    (data.checklist || []).forEach((item, idx) => {
-      if (y > 750) {
-        doc.addPage();
-        y = 40;
-      }
+    const checklist = data.checklist || [];
 
+    checklist.forEach((item, idx) => {
+      y = this.checkPageBreak(doc, y, 16);
+      const rowHeight = 16;
       const bg = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
-      doc.rect(36, y, 523, 18).fillAndStroke(bg, '#E2E8F0');
+      doc.rect(this.MARGIN_LEFT, y, this.CONTENT_WIDTH, rowHeight).fillAndStroke(bg, '#E2E8F0');
 
-      doc.fillColor('#64748B').fontSize(8).font('Helvetica').text(`${idx + 1}`, 42, y + 5);
-      doc.fillColor('#0F172A').fontSize(8).font('Helvetica-Bold').text(item.scopeDescription, 60, y + 5, { width: 290 });
+      doc.fillColor('#64748B').fontSize(7.5).font('Helvetica').text(`${idx + 1}`, this.MARGIN_LEFT + 6, y + 4, { width: 16 });
+      doc.fillColor('#0F172A').fontSize(7.5).font('Helvetica-Bold').text(item.scopeDescription, this.MARGIN_LEFT + 26, y + 4, {
+        width: 240,
+        height: 12,
+        ellipsis: true,
+      });
 
       const isDone = item.status === 'COMPLETED';
-      doc.fillColor(isDone ? '#047857' : '#D97706').fontSize(8).font('Helvetica-Bold').text(item.status, 360, y + 5);
-      doc.fillColor('#334155').fontSize(8).font('Helvetica').text(item.remarks || 'Ok', 440, y + 5, { width: 110 });
+      doc.fillColor(isDone ? '#047857' : '#D97706').fontSize(7.5).font('Helvetica-Bold').text(item.status || 'COMPLETED', this.MARGIN_LEFT + 270, y + 4, {
+        width: 85,
+      });
 
-      y += 18;
+      doc.fillColor('#334155').fontSize(7.5).font('Helvetica').text(item.remarks || 'Checked and found satisfactory', this.MARGIN_LEFT + 360, y + 4, {
+        width: 157,
+        height: 12,
+        ellipsis: true,
+      });
+
+      y += rowHeight;
     });
+
+    return y + 10;
   }
 
-  private static renderObservationsSection(doc: PDFKit.PDFDocument, data: ServiceReportPdfData) {
-    let y = doc.y + 16;
-    if (y > 620) {
-      doc.addPage();
-      y = 40;
-    }
+  private static renderObservationsSection(doc: PDFKit.PDFDocument, data: ServiceReportPdfData, startY: number): number {
+    let y = this.checkPageBreak(doc, startY, 90);
 
-    doc.fillColor('#0F172A').fontSize(10).font('Helvetica-Bold').text('3. TECHNICAL OBSERVATIONS & RECOMMENDATIONS', 36, y);
-    y += 14;
+    doc.fillColor('#0F172A').fontSize(9).font('Helvetica-Bold').text('3. TECHNICAL OBSERVATIONS & RECOMMENDATIONS', this.MARGIN_LEFT, y);
+    y += 12;
 
-    doc.rect(36, y, 523, 60).fillAndStroke('#F8FAFC', '#E2E8F0');
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('OBSERVATIONS:', 44, y + 8);
-    doc.fillColor('#0F172A').fontSize(8).font('Helvetica').text(data.observations || 'All stabilizer voltage and current parameters found within standard operating thresholds.', 130, y + 8, { width: 420 });
+    const boxHeight = 78;
+    doc.rect(this.MARGIN_LEFT, y, this.CONTENT_WIDTH, boxHeight).fillAndStroke('#F8FAFC', '#E2E8F0');
 
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('RECOMMENDATIONS:', 44, y + 32);
-    doc.fillColor('#0F172A').fontSize(8).font('Helvetica').text(data.recommendations || 'Regular preventive maintenance schedule to be maintained.', 130, y + 32, { width: 420 });
+    const labelX = this.MARGIN_LEFT + 8;
+    const valX = this.MARGIN_LEFT + 145;
+    const valWidth = this.CONTENT_WIDTH - 153;
 
-    y += 70;
-    if (y > 680) {
-      doc.addPage();
-      y = 40;
-    }
+    // Row 1: Observations
+    const obsY = y + 6;
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('OBSERVATIONS:', labelX, obsY);
+    doc.fillColor('#0F172A').fontSize(7.5).font('Helvetica').text(
+      data.observations || 'All stabilizer voltage and current parameters found within standard operating thresholds.',
+      valX,
+      obsY,
+      { width: valWidth, height: 18 }
+    );
 
-    doc.rect(36, y, 523, 40).fillAndStroke('#F8FAFC', '#E2E8F0');
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('CUSTOMER REMARKS:', 44, y + 8);
-    doc.fillColor('#0F172A').fontSize(8).font('Helvetica').text(data.customerRemarks || 'Satisfactory preventive servicing completed.', 130, y + 8, { width: 420 });
+    // Row 2: Recommendations
+    const recY = y + 28;
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('RECOMMENDATIONS:', labelX, recY);
+    doc.fillColor('#0F172A').fontSize(7.5).font('Helvetica').text(
+      data.recommendations || 'Regular preventive maintenance schedule to be maintained.',
+      valX,
+      recY,
+      { width: valWidth, height: 18 }
+    );
+
+    // Row 3: Customer Remarks
+    const remY = y + 50;
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('CUSTOMER REMARKS:', labelX, remY);
+    doc.fillColor('#0F172A').fontSize(7.5).font('Helvetica').text(
+      data.customerRemarks || 'Satisfactory preventive servicing completed.',
+      valX,
+      remY,
+      { width: valWidth, height: 18 }
+    );
+
+    return y + boxHeight + 10;
   }
 
-  private static renderMaterialsSection(doc: PDFKit.PDFDocument, data: ServiceReportPdfData) {
+  private static renderMaterialsSection(doc: PDFKit.PDFDocument, data: ServiceReportPdfData, startY: number): number {
     const mats = data.materials || [];
-    if (mats.length === 0) return;
+    if (mats.length === 0) return startY;
 
-    let y = doc.y + 16;
-    if (y > 650) {
-      doc.addPage();
-      y = 40;
-    }
+    let y = this.checkPageBreak(doc, startY, 40);
 
-    doc.fillColor('#0F172A').fontSize(10).font('Helvetica-Bold').text('4. MATERIALS / SPARES CONSUMED', 36, y);
-    y += 14;
+    doc.fillColor('#0F172A').fontSize(9).font('Helvetica-Bold').text('4. MATERIALS / SPARES CONSUMED', this.MARGIN_LEFT, y);
+    y += 12;
 
     const coverageColors: Record<string, string> = {
       AMC_INCLUDED: '#047857',
@@ -302,80 +408,89 @@ export class AmcServiceReportPdfService {
       CUSTOMER_SUPPLIED: '#D97706',
     };
 
-    // Table Header
-    doc.rect(36, y, 523, 18).fillAndStroke('#1E293B', '#1E293B');
-    doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold');
-    doc.text('ITEM / PRODUCT', 42, y + 5);
-    doc.text('ITEM CODE', 215, y + 5);
-    doc.text('QTY', 310, y + 5);
-    doc.text('UNIT', 350, y + 5);
-    doc.text('COVERAGE', 390, y + 5);
-    doc.text('REMARKS', 470, y + 5);
-    y += 18;
+    const headerHeight = 16;
+    doc.rect(this.MARGIN_LEFT, y, this.CONTENT_WIDTH, headerHeight).fillAndStroke('#1E293B', '#1E293B');
+    doc.fillColor('#FFFFFF').fontSize(7.5).font('Helvetica-Bold');
+    doc.text('ITEM / PRODUCT', this.MARGIN_LEFT + 6, y + 4.5, { width: 170 });
+    doc.text('ITEM CODE', this.MARGIN_LEFT + 180, y + 4.5, { width: 75 });
+    doc.text('QTY', this.MARGIN_LEFT + 260, y + 4.5, { width: 35 });
+    doc.text('UNIT', this.MARGIN_LEFT + 300, y + 4.5, { width: 35 });
+    doc.text('COVERAGE', this.MARGIN_LEFT + 340, y + 4.5, { width: 85 });
+    doc.text('REMARKS', this.MARGIN_LEFT + 430, y + 4.5, { width: 87 });
+    y += headerHeight;
 
     mats.forEach((mat, idx) => {
-      if (y > 750) {
-        doc.addPage();
-        y = 40;
-        // Reprint header on new page
-        doc.rect(36, y, 523, 18).fillAndStroke('#1E293B', '#1E293B');
-        doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold');
-        doc.text('ITEM / PRODUCT', 42, y + 5);
-        doc.text('ITEM CODE', 215, y + 5);
-        doc.text('QTY', 310, y + 5);
-        doc.text('UNIT', 350, y + 5);
-        doc.text('COVERAGE', 390, y + 5);
-        doc.text('REMARKS', 470, y + 5);
-        y += 18;
-      }
-
+      y = this.checkPageBreak(doc, y, 16);
+      const rowHeight = 16;
       const bg = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
-      doc.rect(36, y, 523, 18).fillAndStroke(bg, '#E2E8F0');
+      doc.rect(this.MARGIN_LEFT, y, this.CONTENT_WIDTH, rowHeight).fillAndStroke(bg, '#E2E8F0');
 
-      doc.fillColor('#0F172A').fontSize(8).font('Helvetica-Bold').text(mat.productNameSnapshot, 42, y + 5, { width: 165 });
-      doc.fillColor('#334155').fontSize(8).font('Helvetica').text(mat.skuSnapshot || '—', 215, y + 5, { width: 85 });
-      doc.fillColor('#0F172A').fontSize(8).font('Helvetica-Bold').text(String(mat.quantity), 310, y + 5, { width: 32 });
-      doc.fillColor('#334155').fontSize(8).font('Helvetica').text(mat.unitSnapshot || 'PCS', 350, y + 5, { width: 32 });
+      doc.fillColor('#0F172A').fontSize(7.5).font('Helvetica-Bold').text(mat.productNameSnapshot, this.MARGIN_LEFT + 6, y + 4, { width: 170, ellipsis: true });
+      doc.fillColor('#334155').fontSize(7.5).font('Helvetica').text(mat.skuSnapshot || '—', this.MARGIN_LEFT + 180, y + 4, { width: 75 });
+      doc.fillColor('#0F172A').fontSize(7.5).font('Helvetica-Bold').text(String(mat.quantity), this.MARGIN_LEFT + 260, y + 4, { width: 35 });
+      doc.fillColor('#334155').fontSize(7.5).font('Helvetica').text(mat.unitSnapshot || 'PCS', this.MARGIN_LEFT + 300, y + 4, { width: 35 });
 
       const coverageColor = coverageColors[mat.coverageType] || '#334155';
       const coverageLabel = mat.coverageType.replace(/_/g, ' ');
-      doc.fillColor(coverageColor).fontSize(7).font('Helvetica-Bold').text(coverageLabel, 390, y + 5, { width: 70 });
-      doc.fillColor('#475569').fontSize(7).font('Helvetica').text(mat.remarks || '—', 470, y + 5, { width: 85 });
+      doc.fillColor(coverageColor).fontSize(7).font('Helvetica-Bold').text(coverageLabel, this.MARGIN_LEFT + 340, y + 4, { width: 85 });
+      doc.fillColor('#475569').fontSize(7).font('Helvetica').text(mat.remarks || '—', this.MARGIN_LEFT + 430, y + 4, { width: 87, ellipsis: true });
 
-      y += 18;
+      y += rowHeight;
     });
+
+    return y + 10;
   }
 
-  private static renderSignatures(doc: PDFKit.PDFDocument, data: ServiceReportPdfData) {
+  private static renderSignatures(doc: PDFKit.PDFDocument, data: ServiceReportPdfData, currentY: number) {
+    // Pin signatures neatly above footer or place right below content
+    let y = currentY + 12;
+    const boxHeight = 52;
+    const boxWidth = 246;
 
-    let y = doc.y + 60;
-    if (y > 720) {
+    if (y + boxHeight > 780) {
       doc.addPage();
-      y = doc.page.height - 120;
+      y = 680;
+    } else if (y < 680) {
+      // If there's plenty of space on a single page, place signatures neatly at bottom (y=715)
+      y = Math.max(y, 715);
     }
 
-    // Technician Signature Box
-    doc.rect(40, y, 220, 50).fillAndStroke('#F8FAFC', '#CBD5E1');
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('TECHNICIAN / SERVICE ENGINEER', 48, y + 8);
-    doc.fillColor('#0F172A').fontSize(9).font('Helvetica-Bold').text(data.technicianName || 'Taneja Authorized Engineer', 48, y + 32);
+    // Technician Signature Box (Left)
+    const leftBoxX = this.MARGIN_LEFT;
+    doc.rect(leftBoxX, y, boxWidth, boxHeight).fillAndStroke('#F8FAFC', '#CBD5E1');
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('TECHNICIAN / SERVICE ENGINEER', leftBoxX + 8, y + 6);
+    doc.fillColor('#0F172A').fontSize(9).font('Helvetica-Bold').text(data.technicianName || 'Taneja Authorized Engineer', leftBoxX + 8, y + 22);
+    doc.fillColor('#64748B').fontSize(7).font('Helvetica').text('Signature & Date Verified', leftBoxX + 8, y + 36);
 
-    // Customer Acceptance Box
-    doc.rect(330, y, 220, 50).fillAndStroke('#F8FAFC', '#CBD5E1');
-    doc.fillColor('#475569').fontSize(8).font('Helvetica-Bold').text('CUSTOMER ACKNOWLEDGEMENT & SEAL', 338, y + 8);
-    doc.fillColor('#0F172A').fontSize(9).font('Helvetica-Bold').text(data.customerName, 338, y + 32);
+    // Customer Acceptance Box (Right)
+    const rightBoxX = this.MARGIN_LEFT + this.CONTENT_WIDTH - boxWidth;
+    doc.rect(rightBoxX, y, boxWidth, boxHeight).fillAndStroke('#F8FAFC', '#CBD5E1');
+    doc.fillColor('#475569').fontSize(7.5).font('Helvetica-Bold').text('CUSTOMER ACKNOWLEDGEMENT & SEAL', rightBoxX + 8, y + 6);
+    doc.fillColor('#0F172A').fontSize(9).font('Helvetica-Bold').text(data.customerName || data.companyName || 'Customer Representative', rightBoxX + 8, y + 22);
+    doc.fillColor('#64748B').fontSize(7).font('Helvetica').text('Authorized Seal / Signature', rightBoxX + 8, y + 36);
   }
 
   private static addFooters(doc: PDFKit.PDFDocument) {
     const pages = doc.bufferedPageRange();
     for (let i = 0; i < pages.count; i++) {
       doc.switchToPage(i);
-      const bottomY = 800;
+      doc.page.margins.bottom = 0;
+      const bottomY = 808;
 
-      doc.moveTo(36, bottomY - 10).lineTo(559, bottomY - 10).lineWidth(0.5).strokeColor('#E2E8F0').stroke();
+      doc.moveTo(this.MARGIN_LEFT, bottomY - 8).lineTo(this.MARGIN_LEFT + this.CONTENT_WIDTH, bottomY - 8).lineWidth(0.5).strokeColor('#E2E8F0').stroke();
 
       doc.fillColor('#94A3B8').fontSize(7).font('Helvetica');
-      doc.text('Taneja Power Controls — Official Field AMC Service Report', 36, bottomY, { align: 'left' });
-      doc.text(`Page ${i + 1} of ${pages.count}`, 500, bottomY, { align: 'right' });
+      doc.text('Taneja Power Controls — Official Field AMC Service Report', this.MARGIN_LEFT, bottomY, {
+        width: 320,
+        align: 'left',
+        lineBreak: false,
+      });
+      doc.text(`Page ${i + 1} of ${pages.count}`, this.MARGIN_LEFT + 320, bottomY, {
+        width: this.CONTENT_WIDTH - 320,
+        align: 'right',
+        lineBreak: false,
+      });
     }
   }
 }
+

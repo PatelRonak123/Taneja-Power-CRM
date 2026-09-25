@@ -1,28 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
+import { Users, Plus } from "lucide-react";
+import { employeeService } from "../services/employeeService";
 import {
-  Users,
-  Plus,
-  CheckCircle2,
-  AlertCircle,
-} from 'lucide-react';
-import { employeeService } from '../services/employeeService';
-import { Employee, EmployeeRole, EmployeeStatus, EmployeeMetrics, WorkType } from '../types/employee.types';
-import { EmployeeMetricsCards } from '../components/EmployeeMetricsCards';
-import { EmployeeToolbar } from '../components/EmployeeToolbar';
-import { EmployeeTable } from '../components/EmployeeTable';
-import { EmployeeModal } from '../components/EmployeeModal';
+  Employee,
+  EmployeeRole,
+  EmployeeStatus,
+  EmployeeMetrics,
+  WorkType,
+} from "../types/employee.types";
+import { toast } from "../../../utils/toast";
+import { confirmModal } from "../../../utils/confirmModal";
+import { EmployeeMetricsCards } from "../components/EmployeeMetricsCards";
+import { EmployeeToolbar } from "../components/EmployeeToolbar";
+import { EmployeeTable } from "../components/EmployeeTable";
+import { EmployeeModal } from "../components/EmployeeModal";
 
 export const EmployeeManagementPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Filters & Pagination
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [roleFilter, setRoleFilter] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [workTypeFilter, setWorkTypeFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [roleFilter, setRoleFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [workTypeFilter, setWorkTypeFilter] = useState<string>("ALL");
   const [page, setPage] = useState<number>(1);
   const [limit] = useState<number>(10);
   const [totalPages, setTotalPages] = useState<number>(1);
@@ -39,8 +40,10 @@ export const EmployeeManagementPage: React.FC = () => {
   });
 
   // Modal State ('create' | 'edit' | null)
-  const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
-  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+  const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
+  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(
+    null,
+  );
   const [formSubmitting, setFormSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -56,29 +59,31 @@ export const EmployeeManagementPage: React.FC = () => {
     designation: string;
     status: EmployeeStatus;
   }>({
-    fullName: '',
-    email: '',
-    password: '',
-    role: 'USER',
-    workType: 'OFFICE',
-    phone: '',
-    designation: 'Sales Office',
-    status: 'ACTIVE',
+    fullName: "",
+    email: "",
+    password: "",
+    role: "USER",
+    workType: "OFFICE",
+    phone: "",
+    designation: "Sales Office",
+    status: "ACTIVE",
   });
 
   const [statusTogglingId, setStatusTogglingId] = useState<string | null>(null);
-  const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(null);
+  const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(
+    null,
+  );
 
   // Load Employees
   const fetchEmployees = async (targetPage: number = page) => {
     setLoading(true);
-    setError(null);
     try {
       const response = await employeeService.getEmployees({
         search: searchQuery.trim() || undefined,
-        role: roleFilter !== 'ALL' ? (roleFilter as EmployeeRole) : undefined,
-        status: statusFilter !== 'ALL' ? (statusFilter as EmployeeStatus) : undefined,
-        workType: workTypeFilter !== 'ALL' ? workTypeFilter : undefined,
+        role: roleFilter !== "ALL" ? (roleFilter as EmployeeRole) : undefined,
+        status:
+          statusFilter !== "ALL" ? (statusFilter as EmployeeStatus) : undefined,
+        workType: workTypeFilter !== "ALL" ? workTypeFilter : undefined,
         page: targetPage,
         limit,
       });
@@ -97,7 +102,7 @@ export const EmployeeManagementPage: React.FC = () => {
         setEmployees([]);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load employees');
+      toast.error("Failed to load employees", err?.message);
     } finally {
       setLoading(false);
     }
@@ -117,57 +122,57 @@ export const EmployeeManagementPage: React.FC = () => {
 
   // Open Create Modal
   const handleOpenCreate = () => {
-    setModalMode('create');
+    setModalMode("create");
     setEditingEmployeeId(null);
     setFormError(null);
     setShowPassword(false);
     setFormData({
-      fullName: '',
-      email: '',
-      password: '',
-      role: 'USER',
-      workType: 'OFFICE',
-      phone: '',
-      designation: 'Sales Office',
-      status: 'ACTIVE',
+      fullName: "",
+      email: "",
+      password: "",
+      role: "USER",
+      workType: "OFFICE",
+      phone: "",
+      designation: "Sales Office",
+      status: "ACTIVE",
     });
   };
 
   // Open Edit Modal
   const handleOpenEdit = (emp: Employee) => {
-    setModalMode('edit');
+    setModalMode("edit");
     setEditingEmployeeId(emp.id);
     setFormError(null);
 
     let initialDesignation = emp.designation;
-    if (emp.workType === 'FIELD') {
+    if (emp.workType === "FIELD") {
       if (
-        emp.designation?.toLowerCase().includes('service') ||
-        emp.designation?.toLowerCase().includes('technician') ||
-        emp.designation?.toLowerCase().includes('engineer')
+        emp.designation?.toLowerCase().includes("service") ||
+        emp.designation?.toLowerCase().includes("technician") ||
+        emp.designation?.toLowerCase().includes("engineer")
       ) {
-        initialDesignation = 'Service';
+        initialDesignation = "Service";
       } else {
-        initialDesignation = 'Sales';
+        initialDesignation = "Sales";
       }
     } else {
-      initialDesignation = emp.designation || 'Sales Office';
+      initialDesignation = emp.designation || "Sales Office";
     }
 
     setFormData({
-      fullName: emp.fullName || '',
-      email: emp.email || '',
-      role: emp.role || 'USER',
-      workType: emp.workType || 'OFFICE',
-      phone: emp.phone || '',
+      fullName: emp.fullName || "",
+      email: emp.email || "",
+      role: emp.role || "USER",
+      workType: emp.workType || "OFFICE",
+      phone: emp.phone || "",
       designation: initialDesignation,
-      status: emp.status || 'ACTIVE',
+      status: emp.status || "ACTIVE",
     });
   };
 
   // Form Input Change
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -177,7 +182,7 @@ export const EmployeeManagementPage: React.FC = () => {
   // Work Type Switching with Auto-reconciliation of Designation
   const handleWorkTypeChange = (newWorkType: WorkType) => {
     setFormData((prev) => {
-      const defaultDesig = newWorkType === 'OFFICE' ? 'Sales Office' : 'Sales';
+      const defaultDesig = newWorkType === "OFFICE" ? "Sales Office" : "Sales";
       return {
         ...prev,
         workType: newWorkType,
@@ -193,25 +198,25 @@ export const EmployeeManagementPage: React.FC = () => {
     setFormError(null);
 
     if (!formData.fullName.trim() || formData.fullName.trim().length < 2) {
-      setFormError('Full legal name must be at least 2 characters.');
+      setFormError("Full legal name must be at least 2 characters.");
       return;
     }
 
-    if (!formData.email.trim() || !formData.email.includes('@')) {
-      setFormError('Please enter a valid corporate email address.');
+    if (!formData.email.trim() || !formData.email.includes("@")) {
+      setFormError("Please enter a valid corporate email address.");
       return;
     }
 
-    if (modalMode === 'create') {
+    if (modalMode === "create") {
       if (!formData.password || formData.password.length < 6) {
-        setFormError('Initial password must be at least 6 characters long.');
+        setFormError("Initial password must be at least 6 characters long.");
         return;
       }
     }
 
     setFormSubmitting(true);
     try {
-      if (modalMode === 'create') {
+      if (modalMode === "create") {
         const response = await employeeService.createEmployee({
           fullName: formData.fullName.trim(),
           email: formData.email.trim(),
@@ -224,32 +229,37 @@ export const EmployeeManagementPage: React.FC = () => {
         });
 
         if (response.success) {
-          setSuccessMessage(`Employee "${response.data.fullName}" created successfully!`);
+          toast.success(
+            `Employee "${response.data.fullName}" created successfully!`,
+          );
           setModalMode(null);
           fetchEmployees(1);
-          setTimeout(() => setSuccessMessage(null), 4000);
         }
-      } else if (modalMode === 'edit' && editingEmployeeId) {
-        const response = await employeeService.updateEmployee(editingEmployeeId, {
-          fullName: formData.fullName.trim(),
-          role: formData.role,
-          workType: formData.workType,
-          phone: formData.phone.trim() || undefined,
-          designation: formData.designation.trim() || undefined,
-          status: formData.status,
-        });
+      } else if (modalMode === "edit" && editingEmployeeId) {
+        const response = await employeeService.updateEmployee(
+          editingEmployeeId,
+          {
+            fullName: formData.fullName.trim(),
+            role: formData.role,
+            workType: formData.workType,
+            phone: formData.phone.trim() || undefined,
+            designation: formData.designation.trim() || undefined,
+            status: formData.status,
+          },
+        );
 
         if (response.success) {
-          setSuccessMessage(`Employee "${response.data.fullName}" updated successfully!`);
+          toast.success(
+            `Employee "${response.data.fullName}" updated successfully!`,
+          );
           setModalMode(null);
           fetchEmployees(page);
-          setTimeout(() => setSuccessMessage(null), 4000);
         }
       }
     } catch (err: any) {
       setFormError(
         err?.message ||
-          `Failed to ${modalMode === 'create' ? 'create' : 'update'} employee record.`
+          `Failed to ${modalMode === "create" ? "create" : "update"} employee record.`,
       );
     } finally {
       setFormSubmitting(false);
@@ -258,10 +268,20 @@ export const EmployeeManagementPage: React.FC = () => {
 
   // Toggle Employee Status
   const handleToggleStatus = async (emp: Employee) => {
-    const newStatus: EmployeeStatus = emp.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-    const actionName = newStatus === 'ACTIVE' ? 'activate' : 'deactivate';
+    const newStatus: EmployeeStatus =
+      emp.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    const actionName = newStatus === "ACTIVE" ? "activate" : "deactivate";
 
-    if (!window.confirm(`Are you sure you want to ${actionName} employee "${emp.fullName}"?`)) {
+    const isConfirmed = await confirmModal({
+      title: `${actionName.charAt(0).toUpperCase() + actionName.slice(1)} Employee`,
+      message: `Are you sure you want to ${actionName} employee "${emp.fullName}"?${
+        newStatus === 'INACTIVE' ? ' They will no longer be able to log in to the portal.' : ''
+      }`,
+      confirmText: actionName.charAt(0).toUpperCase() + actionName.slice(1),
+      variant: newStatus === 'INACTIVE' ? 'warning' : 'primary',
+    });
+
+    if (!isConfirmed) {
       return;
     }
 
@@ -272,12 +292,13 @@ export const EmployeeManagementPage: React.FC = () => {
       });
 
       if (response.success) {
-        setSuccessMessage(`Employee "${emp.fullName}" ${actionName}d successfully.`);
+        toast.success(
+          `Employee "${emp.fullName}" ${actionName}d successfully.`,
+        );
         fetchEmployees(page);
-        setTimeout(() => setSuccessMessage(null), 4000);
       }
     } catch (err: any) {
-      setError(err?.message || `Failed to ${actionName} employee.`);
+      toast.error(`Failed to ${actionName} employee`, err?.message);
     } finally {
       setStatusTogglingId(null);
     }
@@ -285,11 +306,13 @@ export const EmployeeManagementPage: React.FC = () => {
 
   // Delete Employee
   const handleDeleteEmployee = async (emp: Employee) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to permanently remove employee "${emp.fullName}"? This action cannot be undone.`
-      )
-    ) {
+    const isConfirmed = await confirmModal.danger(
+      'Remove Employee',
+      `Are you sure you want to permanently remove employee "${emp.fullName}"? This action cannot be undone.`,
+      'Delete Employee'
+    );
+
+    if (!isConfirmed) {
       return;
     }
 
@@ -297,12 +320,11 @@ export const EmployeeManagementPage: React.FC = () => {
     try {
       const response = await employeeService.deleteEmployee(emp.id);
       if (response.success) {
-        setSuccessMessage(`Employee "${emp.fullName}" removed successfully.`);
+        toast.success(`Employee "${emp.fullName}" removed successfully.`);
         fetchEmployees(page);
-        setTimeout(() => setSuccessMessage(null), 4000);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to remove employee record.');
+      toast.error("Failed to remove employee record", err?.message);
     } finally {
       setDeletingEmployeeId(null);
     }
@@ -317,9 +339,12 @@ export const EmployeeManagementPage: React.FC = () => {
             <Users size={24} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Staff Management</h1>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              Staff Management
+            </h1>
             <p className="text-xs font-medium text-slate-500 mt-0.5">
-              Manage office and field personnel, configure designations, and administer credentials.
+              Manage office and field personnel, configure designations, and
+              administer credentials.
             </p>
           </div>
         </div>
@@ -333,21 +358,6 @@ export const EmployeeManagementPage: React.FC = () => {
           <span>Add New Employee</span>
         </button>
       </div>
-
-      {/* Alert Notifications */}
-      {successMessage && (
-        <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-medium">
-          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-center gap-3 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-sm font-medium">
-          <AlertCircle size={18} className="text-rose-600 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
 
       {/* Metrics Header Cards */}
       <EmployeeMetricsCards metrics={metrics} />
@@ -364,7 +374,7 @@ export const EmployeeManagementPage: React.FC = () => {
         setWorkTypeFilter={setWorkTypeFilter}
         onSearchSubmit={handleSearchSubmit}
         onClearSearch={() => {
-          setSearchQuery('');
+          setSearchQuery("");
           setPage(1);
           fetchEmployees(1);
         }}

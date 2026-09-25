@@ -3,77 +3,91 @@ import { ShieldCheck, Activity, Cpu } from 'lucide-react';
 
 export const LoginBrandPanel: React.FC = () => {
   return (
-    <div className="flex flex-col justify-between h-full space-y-12 relative z-10">
-      {/* Background Decorative Ambient Radial Glows */}
-      <div className="absolute -top-32 -left-32 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute top-1/2 -right-32 w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none" />
+    <div className="flex flex-col justify-between h-full relative z-10 w-full">
+      {/* Background Image (Clean without blue overlays) */}
+      <div className="absolute -top-6 sm:-top-10 lg:-top-12 -bottom-6 sm:-bottom-10 lg:-bottom-12 -right-6 sm:-right-10 lg:-right-12 left-0 pointer-events-none overflow-hidden select-none">
+        {/* Power Plant Image Container */}
+        <div className="absolute top-0 bottom-0 right-0 w-[55%] lg:w-[60%] overflow-hidden">
+          <img
+            src="/industrial_power_plant_bg.jpg"
+            alt="Industrial Power Plant"
+            className="w-full h-full object-cover object-center"
+          />
+          {/* Subtle gradient blend on left side of image into background canvas */}
+          <div className="absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-[#edf4fc] via-[#edf4fc]/60 to-transparent" />
+        </div>
+      </div>
 
       {/* Brand Header */}
-      <div className="flex items-center gap-4">
-        <div className="w-12 h- rounded- bg-blue-600/15 border border-blue-500/20  flex items-center justify-center shadow-lg shadow-blue-900/30">
+      <div className="flex items-center gap-4 relative z-20">
+        <div className="h-14 px- bg-[#edf4fc] rounded-2xl flex items-center justify-center shrink-0 shadow-  border-blue-200/50">
           <img
             src="/logo.png"
             alt="Taneja Power Logo"
-            className="h-full w-full object-contain"
+            className="h-9 w-auto object-contain mix-blend-multiply"
             onError={(e) => {
               (e.currentTarget as HTMLElement).style.display = 'none';
             }}
           />
         </div>
-        <div className="flex flex-col">
-          <h1 className="text-xl font-black tracking-wider text-white">TANEJA POWER</h1>
-          <span className="text-[11px] font-bold tracking-widest text-blue-400 uppercase">Enterprise CRM</span>
+        <div className="flex flex-col gap-0.5">
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-none">TANEJA POWER</h1>
+          <span className="text-xs font-bold tracking-wider text-blue-600 uppercase">ENTERPRISE CRM</span>
         </div>
       </div>
 
-      {/* Brand Hero Content */}
-      <div className="space-y-8 my-auto">
-        <div className="space-y-4 max-w-xl">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15]">
-            Run your workforce with clarity.
-          </h2>
-          <p className="text-base sm:text-lg text-slate-400 leading-relaxed font-normal">
-            Taneja Power delivers comprehensive industrial solution tools built to accelerate grid management, equipment control, field staff routing, and telemetry diagnostics.
-          </p>
+      {/* Hero Content */}
+      <div className="my-auto py-4 relative z-20 max-w-xl">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-5 h-0.5 bg-blue-600 rounded-full" />
+          <span className="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">
+            Powering Industrial Operations
+          </span>
         </div>
 
-        {/* 3 Dark Feature Showcase Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 hover:bg-slate-900 transition-all duration-300 shadow-xl shadow-black/40">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-              <ShieldCheck size={20} />
+        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-[1.08] mb-4">
+          Run your workforce <br />
+          with <span className="text-blue-600">clarity.</span>
+        </h2>
+
+        <p className="text-sm text-slate-600 leading-relaxed font-medium mb-6 max-w-md">
+          Taneja Power delivers comprehensive industrial solution tools built to accelerate grid management, equipment control, field staff routing, and telemetry diagnostics.
+        </p>
+
+        {/* 3 Feature Showcase Cards */}
+        <div className="grid grid-cols-3 gap-3.5 sm:gap-4">
+          {/* Card 1 */}
+          <div className="bg-white/95 backdrop-blur-md border border-white rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mb-3 border border-blue-100">
+              <ShieldCheck size={19} />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-100 tracking-tight">Secure Access</h3>
-              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">Role-protected sign-in for every account.</p>
-            </div>
+            <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">Secure Access</h3>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">Role-protected sign-in for every account.</p>
           </div>
 
-          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 hover:bg-slate-900 transition-all duration-300 shadow-xl shadow-black/40">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-              <Cpu size={20} />
+          {/* Card 2 */}
+          <div className="bg-white/95 backdrop-blur-md border border-white rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 mb-3 border border-amber-100">
+              <Cpu size={19} />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-100 tracking-tight">Role-Based Tools</h3>
-              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">Admin and employee views built for each role.</p>
-            </div>
+            <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">Role-Based Tools</h3>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">Admin and employee views built for each role.</p>
           </div>
 
-          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 hover:bg-slate-900 transition-all duration-300 shadow-xl shadow-black/40">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-              <Activity size={20} />
+          {/* Card 3 */}
+          <div className="bg-white/95 backdrop-blur-md border border-white rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mb-3 border border-emerald-100">
+              <Activity size={19} />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-100 tracking-tight">Real-Time Insight</h3>
-              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">Live telemetry, tasks and reporting at a glance.</p>
-            </div>
+            <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">Real-Time Insight</h3>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">Live telemetry, tasks and reporting at a glance.</p>
           </div>
         </div>
       </div>
 
       {/* Brand Footer */}
-      <div className="text-xs text-slate-500 font-medium">
-        <span>&copy; {new Date().getFullYear()} Taneja Power Systems Inc. All rights reserved.</span>
+      <div className="text-[11px] text-slate-500 font-medium relative z-20">
+        &copy; {new Date().getFullYear()} Taneja Power Systems Inc. All rights reserved.
       </div>
     </div>
   );

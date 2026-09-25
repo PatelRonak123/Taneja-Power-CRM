@@ -5,6 +5,7 @@ import { QuotationForm } from '../components/QuotationForm';
 import { useCurrentPath, navigate } from '../../../app/router/navigation';
 import { CreateQuotationPayload } from '../types/quotation.types';
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
+import { toast } from '../../../utils/toast';
 
 export const EditQuotationPage: React.FC = () => {
   const currentPath = useCurrentPath();
@@ -27,11 +28,12 @@ export const EditQuotationPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
       queryClient.invalidateQueries({ queryKey: ['quotation', quotationId] });
+      toast.success('Quotation updated successfully');
       navigate(`/quotations/${quotationId}`);
     },
     onError: (err: any) => {
       console.error('Failed to update quotation:', err);
-      alert(err.response?.data?.message || err.message || 'Failed to update quotation');
+      toast.error('Failed to update quotation', err.response?.data?.message || err.message);
     },
   });
 

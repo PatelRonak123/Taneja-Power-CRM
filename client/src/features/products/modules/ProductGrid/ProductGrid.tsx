@@ -6,6 +6,7 @@ import { formatDate } from '../../utils/productFormatters';
 import { getCategoryIcon } from '../../utils/categoryIcons';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { Pencil, Trash2, Calendar, Package } from 'lucide-react';
+import { confirmModal } from '@/utils/confirmModal';
 
 interface ProductGridProps {
   products: Product[];
@@ -129,8 +130,13 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                 {canDelete && (
                   <button
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors cursor-pointer"
-                    onClick={() => {
-                      if (confirm(`Are you sure you want to delete ${product.name}?`)) {
+                    onClick={async () => {
+                      const isConfirmed = await confirmModal.danger(
+                        'Delete Equipment Asset',
+                        `Are you sure you want to delete "${product.name}"? This action cannot be undone.`,
+                        'Delete'
+                      );
+                      if (isConfirmed) {
                         onDelete(product.id);
                       }
                     }}

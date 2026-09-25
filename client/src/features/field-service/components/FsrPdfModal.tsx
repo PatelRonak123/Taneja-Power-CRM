@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { fieldService } from '../services/fieldService';
 import { FsrDetailedView } from '../types/field-service.types';
 import { Download, X, Loader2, FileText, AlertCircle } from 'lucide-react';
+import { toast } from '../../../utils/toast';
 
 interface FsrPdfModalProps {
   isOpen: boolean;
@@ -57,8 +58,9 @@ export const FsrPdfModal: React.FC<FsrPdfModalProps> = ({
     try {
       setIsDownloading(true);
       await fieldService.downloadFsrPdf(fsr.id, fsr.fsrNumber);
+      toast.success('FSR PDF downloaded successfully');
     } catch (err: any) {
-      alert(err?.response?.data?.error?.message || err?.message || 'Failed to download PDF.');
+      toast.error('Failed to download PDF', err?.response?.data?.error?.message || err?.message);
     } finally {
       setIsDownloading(false);
     }

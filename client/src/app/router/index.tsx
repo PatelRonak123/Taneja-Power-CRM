@@ -24,8 +24,27 @@ export const AppRouter: React.FC = () => {
         return;
       }
 
+      const designationLower = (user?.designation || '').toLowerCase();
+      const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('sales');
+      const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('accountant');
+      const isHrOffice = (user?.role === 'USER' || (user as any)?.role === 'HR') && user?.workType === 'OFFICE' && (designationLower.includes('hr') || designationLower.includes('human resources'));
+
       if (currentPath === '/login' || currentPath === '/') {
         navigate(defaultHomePath);
+      } else if (isHrOffice) {
+        const allowedHrPaths = [
+          '/employee/dashboard',
+          '/dashboard',
+          '/hr/dashboard',
+          '/attendance',
+          '/employee/attendance',
+          '/employees',
+          '/admin/employees',
+          '/profile',
+        ];
+        if (!allowedHrPaths.includes(currentPath)) {
+          navigate('/employee/dashboard');
+        }
       } else if (
         (currentPath === '/admin/dashboard' ||
           currentPath === '/admin' ||
@@ -42,9 +61,17 @@ export const AppRouter: React.FC = () => {
         navigate('/employee/dashboard');
       } else if (
         currentPath.startsWith('/field-service') &&
-        user?.role === 'USER' &&
-        user?.workType === 'OFFICE' &&
-        (user?.designation || '').toLowerCase().includes('sales')
+        (isSalesOffice || isAccountantOffice)
+      ) {
+        navigate('/employee/dashboard');
+      } else if (
+        isAccountantOffice &&
+        (currentPath === '/quotations/new' || /^\/quotations\/[^/]+\/edit$/.test(currentPath))
+      ) {
+        navigate('/quotations');
+      } else if (
+        isAccountantOffice &&
+        (currentPath === '/tasks' || currentPath === '/admin/tasks')
       ) {
         navigate('/employee/dashboard');
       }

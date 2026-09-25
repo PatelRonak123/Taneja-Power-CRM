@@ -3,6 +3,7 @@ import { quotationService } from '../services/quotationService';
 import { QuotationDetailedView, QuotationRevision } from '../types/quotation.types';
 import { QuotationPrintDocument } from './QuotationPrintDocument';
 import { Download, Printer, X, Loader2, FileText, AlertCircle } from 'lucide-react';
+import { toast } from '../../../utils/toast';
 
 interface Props {
   isOpen: boolean;
@@ -60,8 +61,9 @@ export const QuotationPdfModal: React.FC<Props> = ({
     try {
       setIsDownloading(true);
       await quotationService.downloadQuotationPdf(quotation.id, quotation.quotationNumber, revisionNumber);
+      toast.success('Quotation PDF downloaded successfully');
     } catch (err: any) {
-      alert(err?.message || 'Failed to download PDF.');
+      toast.error('Failed to download PDF', err?.message);
     } finally {
       setIsDownloading(false);
     }

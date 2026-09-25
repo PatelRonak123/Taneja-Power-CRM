@@ -34,6 +34,14 @@ router.put(
   controller.update
 );
 
+router.patch(
+  '/:id',
+  authenticate,
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  validateRequest(updateProductSchema),
+  controller.update
+);
+
 // Admin only routes
 router.delete(
   '/:id',

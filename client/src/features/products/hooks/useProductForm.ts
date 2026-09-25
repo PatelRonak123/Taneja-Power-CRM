@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { productFormSchema, ProductFormData } from '../validators/product.validator';
 import { useProducts } from './useProducts';
 import { Product } from '../types/product.types';
+import { toast } from '../../../utils/toast';
 
 interface UseProductFormProps {
   initialData?: Product | null;
@@ -54,12 +55,16 @@ export const useProductForm = ({ initialData, onSuccess }: UseProductFormProps) 
     try {
       if (initialData?.id) {
         await updateProduct({ id: initialData.id, payload: validation.data });
+        toast.success('Equipment asset updated successfully');
       } else {
         await createProduct(validation.data);
+        toast.success('Equipment asset created successfully');
       }
       onSuccess();
     } catch (err: any) {
-      setGeneralError(err.message || 'Failed to save product');
+      const msg = err.message || 'Failed to save product';
+      setGeneralError(msg);
+      toast.error('Failed to save product', msg);
     }
   };
 

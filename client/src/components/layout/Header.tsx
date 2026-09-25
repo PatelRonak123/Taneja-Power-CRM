@@ -42,6 +42,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
     if (path === '/quotations/new') return 'New Quotation';
     if (path.startsWith('/quotations/') && path.endsWith('/edit')) return 'Edit Quotation';
     if (path.startsWith('/quotations/')) return 'Quotation Details';
+    if (path.startsWith('/amc-contracts') || path.startsWith('/admin/amc-contracts')) return 'AMC Contracts';
     if (path.startsWith('/products')) return 'Equipment & Inventory';
     if (path.startsWith('/analytics')) return 'Energy Telemetry';
     if (path.startsWith('/settings')) return 'System Configuration';

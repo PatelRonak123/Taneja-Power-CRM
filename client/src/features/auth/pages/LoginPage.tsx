@@ -86,14 +86,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   }
 
   return (
-    <div className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-12 bg-slate-950">
-      {/* Left Column: Brand & Info Showcase Panel */}
-      <div className="lg:col-span-6 xl:col-span-7 bg-slate-950 text-white relative overflow-hidden flex flex-col justify-between p-8 sm:p-12 lg:p-16 border-b lg:border-b-0 lg:border-r border-slate-800/80">
+    <div className="h-screen w-full flex items-stretch bg-gradient-to-br from-[#f0f6fd] via-[#e5f0fc] to-[#d6e7fc] text-slate-900 relative overflow-hidden">
+      {/* Left Column: Brand & Showcase Panel */}
+      <div className="hidden lg:flex lg:w-[58%] xl:w-[62%] h-full relative overflow-hidden p-6 sm:p-10 lg:p-12 flex-col justify-between">
         <LoginBrandPanel />
       </div>
 
-      {/* Right Column: Premium Dark Form Panel */}
-      <div className="lg:col-span-6 xl:col-span-5 bg-[#090d16] flex items-center justify-center p-6 sm:p-12 lg:p-14 min-h-screen">
+      {/* Right Column: Premium White Card Panel */}
+      <div className="w-full lg:w-[42%] xl:w-[38%] h-full flex items-center justify-center p-4 sm:p-6 lg:p-8 z-20">
         <LoginForm onSubmit={handleLoginSubmit} isLoading={isLoading} />
       </div>
     </div>

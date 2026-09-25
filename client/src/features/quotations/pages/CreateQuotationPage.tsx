@@ -4,6 +4,7 @@ import { quotationService } from '../services/quotationService';
 import { QuotationForm } from '../components/QuotationForm';
 import { navigate } from '../../../app/router/navigation';
 import { CreateQuotationPayload } from '../types/quotation.types';
+import { toast } from '../../../utils/toast';
 
 export const CreateQuotationPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -12,6 +13,7 @@ export const CreateQuotationPage: React.FC = () => {
     mutationFn: (data: CreateQuotationPayload) => quotationService.createQuotation(data),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
+      toast.success('Quotation created successfully');
       if (response.data && response.data.id) {
         navigate(`/quotations/${response.data.id}`);
       } else {
@@ -20,7 +22,7 @@ export const CreateQuotationPage: React.FC = () => {
     },
     onError: (err: any) => {
       console.error('Failed to create quotation:', err);
-      alert(err.response?.data?.message || err.message || 'Failed to create quotation');
+      toast.error('Failed to create quotation', err.response?.data?.message || err.message);
     },
   });
 

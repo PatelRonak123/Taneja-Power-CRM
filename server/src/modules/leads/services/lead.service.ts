@@ -1,6 +1,7 @@
 import { LeadRepository } from '../repositories/lead.repository.js';
 import { NewLeadEntity } from '../../../database/schema/leads.js';
 import { JwtPayload } from '../../../common/auth/jwt.js';
+import { AppError } from '../../../common/errors/AppError.js';
 
 export class LeadService {
   private repository = new LeadRepository();
@@ -39,6 +40,9 @@ export class LeadService {
   }
 
   async deleteLead(id: string, user?: JwtPayload) {
+    if (user?.designation === 'Accountant Office') {
+      throw AppError.forbidden('Accountant Office is not permitted to delete leads');
+    }
     await this.getLeadById(id, user);
     return this.repository.delete(id, user);
   }

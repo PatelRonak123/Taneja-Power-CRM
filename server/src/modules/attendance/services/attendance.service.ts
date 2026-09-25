@@ -179,4 +179,38 @@ export class AttendanceService {
     const targetDate = date || this.getTodayDateString();
     return this.attendanceRepo.getCurrentlyCheckedIn(targetDate);
   }
+
+  async updateAttendance(id: string, updates: Partial<AttendanceEntity>): Promise<AttendanceEntity> {
+    const existing = await this.attendanceRepo.findById(id);
+    if (!existing) {
+      throw AppError.notFound('Attendance record not found');
+    }
+
+    let checkInAt = updates.checkInAt ? new Date(updates.checkInAt) : new Date(existing.checkInAt);
+    let checkOutAt = updates.checkOutAt !== undefined
+      ? (updates.checkOutAt ? new Date(updates.checkOutAt) : null)
+      : (existing.checkOutAt ? new Date(existing.checkOutAt) : null);
+
+    let totalMinutes = existing.totalMinutes;
+    if (checkInAt && checkOutAt) {
+      const diffMs = Math.max(0, checkOutAt.getTime() - checkInAt.getTime());
+      totalMinutes = Math.round(diffMs / (1000 * 60));
+    } else if (!checkOutAt) {
+      totalMinutes = null;
+    }
+
+    const updated = await this.attendanceRepo.update(id, {
+      status: updates.status || existing.status,
+      checkInAt: updates.checkInAt ? checkInAt : undefined,
+      checkOutAt: updates.checkOutAt !== undefined ? checkOutAt : undefined,
+      totalMinutes,
+      notes: updates.notes !== undefined ? updates.notes : existing.notes,
+    });
+
+    if (!updated) {
+      throw AppError.internal('Failed to update attendance record');
+    }
+
+    return updated;
+  }
 }

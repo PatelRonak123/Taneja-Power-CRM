@@ -33,13 +33,13 @@ export const EmployeeActivityFeed: React.FC<EmployeeActivityFeedProps> = () => {
   };
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
+    <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
       <div className="flex items-center justify-between pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2.5">
           <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
             <Clock size={18} />
           </div>
-          <h3 className="text-base font-bold text-slate-900">Recent Quotation Activity</h3>
+          <h3 className="text-sm sm:text-base font-bold text-slate-900">Recent Quotation Activity</h3>
         </div>
         <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full">
           ACTIVITY

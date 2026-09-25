@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   ClipboardList,
   Plus,
-  CheckCircle2,
-  AlertCircle,
   Radio,
 } from 'lucide-react';
 import { taskService } from '../services/taskService';
@@ -25,6 +23,7 @@ import { TaskModal } from '../components/TaskModal';
 import { TaskDetailModal } from '../components/TaskDetailModal';
 import { TaskCancelModal } from '../components/TaskCancelModal';
 import { LiveRouteTrackingDrawer } from '../components/LiveRouteTrackingDrawer';
+import { toast } from '../../../utils/toast';
 
 export const TaskManagementPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -32,8 +31,6 @@ export const TaskManagementPage: React.FC = () => {
 
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Live Route Tracking Drawer State
   const [isTrackingDrawerOpen, setIsTrackingDrawerOpen] = useState<boolean>(false);
@@ -127,7 +124,6 @@ export const TaskManagementPage: React.FC = () => {
   // Fetch Tasks with filters & pagination
   const fetchTasks = async (targetPage: number = page) => {
     setLoading(true);
-    setError(null);
     try {
       const queryParams = {
         search: searchQuery.trim() || undefined,
@@ -158,7 +154,7 @@ export const TaskManagementPage: React.FC = () => {
         setTasks([]);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load tasks');
+      toast.error('Failed to load tasks', err?.message);
     } finally {
       setLoading(false);
     }
@@ -282,10 +278,9 @@ export const TaskManagementPage: React.FC = () => {
         });
 
         if (response.success) {
-          setSuccessMessage(`Task "${response.data.title}" created successfully!`);
+          toast.success(`Task "${response.data.title}" created successfully!`);
           setTaskModalMode(null);
           fetchTasks(1);
-          setTimeout(() => setSuccessMessage(null), 4000);
         }
       } else if (taskModalMode === 'edit' && editingTaskId) {
         const response = await taskService.updateTask(editingTaskId, {
@@ -301,10 +296,9 @@ export const TaskManagementPage: React.FC = () => {
         });
 
         if (response.success) {
-          setSuccessMessage(`Task "${response.data.title}" updated successfully!`);
+          toast.success(`Task "${response.data.title}" updated successfully!`);
           setTaskModalMode(null);
           fetchTasks(page);
-          setTimeout(() => setSuccessMessage(null), 4000);
         }
       }
     } catch (err: any) {
@@ -320,9 +314,8 @@ export const TaskManagementPage: React.FC = () => {
   const handleConfirmCancelTask = async (taskId: string, cancellationReason: string) => {
     const response = await taskService.cancelTask(taskId, { cancellationReason });
     if (response.success) {
-      setSuccessMessage(`Task cancelled successfully.`);
+      toast.success('Task cancelled successfully.');
       fetchTasks(page);
-      setTimeout(() => setSuccessMessage(null), 4000);
     }
   };
 
@@ -331,12 +324,11 @@ export const TaskManagementPage: React.FC = () => {
     try {
       const response = await taskService.startTask(task.id);
       if (response.success) {
-        setSuccessMessage('Task started successfully. Work order status updated to In Progress.');
+        toast.success('Task Started', 'Work order status updated to In Progress.');
         fetchTasks(page);
-        setTimeout(() => setSuccessMessage(null), 4000);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to start task.');
+      toast.error('Failed to start task', err?.message);
     }
   };
 
@@ -345,12 +337,11 @@ export const TaskManagementPage: React.FC = () => {
     try {
       const response = await taskService.completeTask(task.id);
       if (response.success) {
-        setSuccessMessage('Task marked as completed successfully.');
+        toast.success('Task Completed', 'Task marked as completed successfully.');
         fetchTasks(page);
-        setTimeout(() => setSuccessMessage(null), 4000);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to complete task.');
+      toast.error('Failed to complete task', err?.message);
     }
   };
 
@@ -403,21 +394,6 @@ export const TaskManagementPage: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Alert Notifications */}
-      {successMessage && (
-        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold animate-in fade-in">
-          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold animate-in fade-in">
-          <AlertCircle size={18} className="text-rose-600 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
 
       {/* Metrics Cards */}
       <TaskMetricsCards metrics={metrics} />

@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { EmployeeService } from '../services/employee.service.js';
 import { sendResponse } from '../../../common/utils/responseEnvelope.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
+import { isHrUser } from '../../../common/middleware/auth.middleware.js';
+import { AppError } from '../../../common/errors/AppError.js';
 
 export class EmployeeController {
   constructor(private readonly employeeService: EmployeeService = new EmployeeService()) {}
@@ -35,6 +37,10 @@ export class EmployeeController {
 
   create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      const isHr = isHrUser(req.user);
+      if (isHr && req.body.role && req.body.role !== APP_CONSTANTS.ROLES.USER) {
+        throw AppError.forbidden('HR users can only create employees with the USER role.');
+      }
       const result = await this.employeeService.createEmployee(req.body);
       sendResponse(res, APP_CONSTANTS.HTTP_STATUS.CREATED, result, 'Employee created successfully');
     } catch (error) {
@@ -44,6 +50,10 @@ export class EmployeeController {
 
   update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      const isHr = isHrUser(req.user);
+      if (isHr && req.body.role && req.body.role !== APP_CONSTANTS.ROLES.USER) {
+        throw AppError.forbidden('HR users can only assign the USER role to employees.');
+      }
       const result = await this.employeeService.updateEmployee(req.params.id, req.body);
       sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, result, 'Employee updated successfully');
     } catch (error) {

@@ -97,7 +97,23 @@ export const FsrListPage: React.FC = () => {
     queryKey: ['engineers-list-filter'],
     queryFn: async () => {
       const res = await employeeService.getEmployees({ limit: 100 });
-      return res.data || [];
+      const list = res.data || [];
+      return list.filter((e) => {
+        if (e.status !== 'ACTIVE') return false;
+        if (e.workType === 'FIELD') return true;
+        if (e.workType === 'OFFICE') return false;
+        const des = (e.designation || '').toLowerCase();
+        if (
+          des.includes('office') ||
+          des.includes('hr') ||
+          des.includes('accountant') ||
+          des.includes('admin') ||
+          des.includes('operations')
+        ) {
+          return false;
+        }
+        return true;
+      });
     },
     enabled: isAdminOrManager,
   });

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { CustomerController } from '../controllers/customer.controller.js';
 import { DestinationController } from '../controllers/destination.controller.js';
 import { validateRequest } from '../../../common/middleware/validate.middleware.js';
-import { authenticate, requireRoles } from '../../../common/middleware/auth.middleware.js';
+import { authenticate, requireRoles, requirePermission } from '../../../common/middleware/auth.middleware.js';
 import {
   createCustomerSchema,
   updateCustomerSchema,
@@ -41,13 +41,13 @@ router.get(
 // 2. Customer Mutation Endpoints
 router.post(
   '/',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER, APP_CONSTANTS.ROLES.USER),
+  requirePermission('customers:create'),
   validateRequest(createCustomerSchema),
   customerController.create
 );
 router.put(
   '/:id',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER, APP_CONSTANTS.ROLES.USER),
+  requirePermission('customers:edit'),
   validateRequest(updateCustomerSchema),
   customerController.update
 );

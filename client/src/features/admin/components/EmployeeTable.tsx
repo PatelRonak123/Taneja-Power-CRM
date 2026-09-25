@@ -13,7 +13,10 @@ import {
   Plus,
   Building,
   Smartphone,
+  CalendarCheck,
+  CalendarX,
 } from 'lucide-react';
+import { navigate } from '../../../app/router/navigation';
 import { Employee, EmployeeRole, EmployeeStatus, WorkType } from '../types/employee.types';
 
 interface EmployeeTableProps {
@@ -83,20 +86,20 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
   };
 
   const getStatusBadge = (status: EmployeeStatus) => {
+    let bgClass = 'bg-slate-100 text-slate-600 border border-slate-200';
+    let dotClass = 'bg-slate-400';
+    if (status === 'ACTIVE') {
+      bgClass = 'bg-emerald-50 text-emerald-700 border border-emerald-200/70';
+      dotClass = 'bg-emerald-500';
+    } else if (status === 'ON_LEAVE') {
+      bgClass = 'bg-amber-50 text-amber-700 border border-amber-200/70';
+      dotClass = 'bg-amber-500';
+    }
+
     return (
-      <span
-        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${
-          status === 'ACTIVE'
-            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/70'
-            : 'bg-slate-100 text-slate-600 border border-slate-200'
-        }`}
-      >
-        <span
-          className={`w-1.5 h-1.5 rounded-full ${
-            status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-slate-400'
-          }`}
-        />
-        {status}
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${bgClass}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
+        {status === 'ON_LEAVE' ? 'ON LEAVE' : status}
       </span>
     );
   };
@@ -268,9 +271,36 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
+                            className="p-1.5 rounded-lg border border-slate-200/80 bg-slate-50 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-all cursor-pointer shadow-2xs"
+                            onClick={() => navigate(`/attendance?employeeId=${emp.id}`)}
+                            title="View Employee Attendance"
+                          >
+                            <CalendarCheck size={13} />
+                          </button>
+
+                          {onToggleStatus && (
+                            <button
+                              type="button"
+                              className={`p-1.5 rounded-lg border transition-all cursor-pointer shadow-2xs ${
+                                emp.status === 'ON_LEAVE'
+                                  ? 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600'
+                                  : 'bg-slate-50 border-slate-200/80 text-slate-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200'
+                              }`}
+                              onClick={() => {
+                                const nextStatus = emp.status === 'ON_LEAVE' ? 'ACTIVE' : 'ON_LEAVE';
+                                onToggleStatus({ ...emp, status: nextStatus as any });
+                              }}
+                              title={emp.status === 'ON_LEAVE' ? 'End Leave (Set Active)' : 'Mark On Leave'}
+                            >
+                              <CalendarX size={13} />
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
                             className="p-1.5 rounded-lg border border-slate-200/80 bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all cursor-pointer shadow-2xs"
                             onClick={() => onEditEmployee(emp)}
-                            title="Edit Employee"
+                            title="Edit Employee / Assign Role"
                           >
                             <Edit2 size={13} />
                           </button>

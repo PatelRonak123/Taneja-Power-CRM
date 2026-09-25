@@ -12,6 +12,7 @@ import { AttendanceMetricsCards } from '../components/AttendanceMetricsCards';
 import { AttendanceToolbar, DatePreset } from '../components/AttendanceToolbar';
 import { AttendanceTable } from '../components/AttendanceTable';
 import { AttendanceDetailModal } from '../components/AttendanceDetailModal';
+import { AttendanceEditModal } from '../components/AttendanceEditModal';
 import { CurrentlyCheckedInDrawer } from '../components/CurrentlyCheckedInDrawer';
 
 export const AttendanceManagementPage: React.FC = () => {
@@ -73,6 +74,7 @@ export const AttendanceManagementPage: React.FC = () => {
 
   // Modals & Drawers
   const [selectedRecordForDetail, setSelectedRecordForDetail] = useState<AttendanceItem | null>(null);
+  const [selectedRecordForEdit, setSelectedRecordForEdit] = useState<AttendanceItem | null>(null);
   const [isOnDutyDrawerOpen, setIsOnDutyDrawerOpen] = useState<boolean>(false);
   const [currentlyCheckedInList, setCurrentlyCheckedInList] = useState<AttendanceItem[]>([]);
   const [loadingCheckedIn, setLoadingCheckedIn] = useState<boolean>(false);
@@ -195,15 +197,15 @@ export const AttendanceManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-350 mx-auto px-8 py-6 animate-fade-in space-y-6">
+    <div className="w-full max-w-350 mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 animate-fade-in space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header Banner */}
-      <div className="bg-white p-6 md:p-7 rounded-2xl border border-slate-200/80 shadow-xs">
+      <div className="bg-white p-5 sm:p-7 rounded-2xl border border-slate-200/80 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/60 tracking-wide uppercase">
               <CalendarCheck size={13} className="text-blue-600" /> Workforce Attendance
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               Employee Attendance Management
             </h1>
             <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
@@ -290,6 +292,7 @@ export const AttendanceManagementPage: React.FC = () => {
         totalCount={totalCount}
         onPageChange={(newPage) => setPage(newPage)}
         onViewDetails={(item) => setSelectedRecordForDetail(item)}
+        onEditRecord={(item) => setSelectedRecordForEdit(item)}
       />
 
       {/* Attendance Details Modal */}
@@ -297,6 +300,16 @@ export const AttendanceManagementPage: React.FC = () => {
         record={selectedRecordForDetail}
         isOpen={Boolean(selectedRecordForDetail)}
         onClose={() => setSelectedRecordForDetail(null)}
+      />
+
+      {/* Attendance Edit Modal */}
+      <AttendanceEditModal
+        record={selectedRecordForEdit}
+        isOpen={Boolean(selectedRecordForEdit)}
+        onClose={() => setSelectedRecordForEdit(null)}
+        onSuccess={() => {
+          fetchAttendance();
+        }}
       />
 
       {/* Currently Checked In On-Duty Drawer */}

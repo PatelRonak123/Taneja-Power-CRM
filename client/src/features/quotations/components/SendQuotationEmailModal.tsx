@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { QuotationDetailedView, QuotationRevision } from '../types/quotation.types';
 import { quotationService } from '../services/quotationService';
 import { Mail, Send, X, FileText, CheckCircle2, AlertCircle, Loader2, Building2, User } from 'lucide-react';
+import { toast } from '../../../utils/toast';
 
 interface SendQuotationEmailModalProps {
   isOpen: boolean;
@@ -51,7 +52,9 @@ export const SendQuotationEmailModal: React.FC<SendQuotationEmailModalProps> = (
         customNotes: customNotes,
       });
 
-      setSuccessMessage(res?.data?.message || `Quotation PDF successfully emailed to ${recipientEmail}`);
+      const successText = res?.data?.message || `Quotation PDF successfully emailed to ${recipientEmail}`;
+      setSuccessMessage(successText);
+      toast.success('Email Sent', successText);
       if (onSuccess) {
         onSuccess();
       }
@@ -61,6 +64,7 @@ export const SendQuotationEmailModal: React.FC<SendQuotationEmailModalProps> = (
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Failed to send email via Resend.';
       setErrorMessage(msg);
+      toast.error('Failed to send email', msg);
     } finally {
       setIsSending(false);
     }

@@ -47,7 +47,25 @@ export const FsrAssignModal: React.FC<FsrAssignModalProps> = ({
     try {
       const res = await employeeService.getEmployees({ limit: 100 });
       if (res.data) {
-        setEmployees(res.data.filter((e) => e.status === 'ACTIVE'));
+        setEmployees(
+          res.data.filter((e) => {
+            if (e.id === currentEngineerId) return true;
+            if (e.status !== 'ACTIVE') return false;
+            if (e.workType === 'FIELD') return true;
+            if (e.workType === 'OFFICE') return false;
+            const des = (e.designation || '').toLowerCase();
+            if (
+              des.includes('office') ||
+              des.includes('hr') ||
+              des.includes('accountant') ||
+              des.includes('admin') ||
+              des.includes('operations')
+            ) {
+              return false;
+            }
+            return true;
+          })
+        );
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load employee list');
@@ -126,12 +144,12 @@ export const FsrAssignModal: React.FC<FsrAssignModalProps> = ({
             <select
               value={selectedEngineerId}
               onChange={(e) => setSelectedEngineerId(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              className="w-full px-3.5 py-2.5 text-xs md:text-sm bg-white border border-slate-300 text-slate-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium cursor-pointer"
               required
             >
-              <option value="">-- Choose Field Service Engineer --</option>
+              <option value="" className="text-slate-500 bg-white">-- Choose Field Service Engineer --</option>
               {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
+                <option key={emp.id} value={emp.id} className="text-slate-900 bg-white py-1">
                   {emp.fullName} {emp.designation ? `(${emp.designation})` : ''} - {emp.email}
                 </option>
               ))}
