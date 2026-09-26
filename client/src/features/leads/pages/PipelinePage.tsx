@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { RotateCw, Building2, GripVertical, Search, UserCheck } from 'lucide-react';
+import { RotateCw, Building2, GripVertical, UserCheck } from 'lucide-react';
+import { SearchInput } from '../../../components/ui/SearchInput';
 import { leadsApi } from '../api/leadsApi';
 import { Lead, LeadStatus } from '../types/lead';
 import { LeadDrawer } from '../components/LeadDrawer';
@@ -342,16 +343,12 @@ export const PipelinePage: React.FC = () => {
         )}
 
         {/* Search Field */}
-        <div className="relative flex-1 min-w-50">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-          <input
-            type="text"
-            className="w-full h-9 pl-9 pr-3 bg-white border border-border rounded-lg text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
-            placeholder="Search deals, company, product..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          placeholder="Search deals, company, product..."
+          value={searchQuery}
+          onChange={setSearchQuery}
+          wrapperClassName="flex-1 min-w-50"
+        />
 
         {/* Assignee Filter (Admin/Manager only) */}
         {isAdminOrManager && (

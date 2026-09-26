@@ -23,20 +23,19 @@ import {
   FsrStatus,
   FsrCallType,
 } from '../types/field-service.types';
+import { SearchInput } from '../../../components/ui/SearchInput';
 import {
-  Search,
   Plus,
   Wrench,
   Play,
   CheckCircle,
   FileCheck,
   UserCheck,
-  Eye,
+Eye,
   Edit3,
   RefreshCw,
   Download,
   Loader2,
-  X,
 } from 'lucide-react';
 import {
   Table,
@@ -259,28 +258,13 @@ export const FsrListPage: React.FC = () => {
       <div className="bg-card p-3.5 rounded-xl border border-border shadow-xs space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Search Input */}
-          <div className="relative">
-            <Search size={15} className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search FSR #, customer, serial..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="w-full h-9 pl-9 pr-8 bg-white border border-border rounded-lg text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
+          <SearchInput
+            placeholder="Search FSR #, customer, serial..."
+            value={search}
+            onChange={setSearch}
+            onResetPage={() => setPage(1)}
+            isLoading={isFetching}
+          />
 
           {/* Status Filter */}
           <select

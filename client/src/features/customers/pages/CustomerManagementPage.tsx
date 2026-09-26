@@ -153,7 +153,7 @@ export const CustomerManagementPage: React.FC = () => {
   useEffect(() => {
     setPage(1);
     fetchCustomers(1);
-  }, [statusFilter]);
+  }, [searchQuery, statusFilter]);
 
   // Load Destinations for Selected Customer
   const fetchDestinations = async (customerId: string) => {
@@ -172,9 +172,9 @@ export const CustomerManagementPage: React.FC = () => {
     }
   };
 
-  // Search Submit
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Search Submit (immediate)
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     setPage(1);
     fetchCustomers(1);
   };

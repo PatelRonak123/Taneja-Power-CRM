@@ -134,12 +134,17 @@ export class AuthService {
     const tokenHash = hashRefreshToken(rawRefreshToken);
     const tokenRecord = await this.refreshTokenRepo.findByHash(tokenHash);
 
-    if (
-      !tokenRecord ||
-      tokenRecord.revokedAt ||
-      new Date(tokenRecord.expiresAt) <= new Date()
-    ) {
+    if (!tokenRecord || new Date(tokenRecord.expiresAt) <= new Date()) {
       throw AppError.unauthorized("Invalid or expired refresh token");
+    }
+
+    // Grace period for token rotation (30 seconds) to handle concurrent requests & retries
+    if (tokenRecord.revokedAt) {
+      const revokedTime = new Date(tokenRecord.revokedAt).getTime();
+      const isWithinGraceWindow = Date.now() - revokedTime < 30 * 1000;
+      if (!isWithinGraceWindow) {
+        throw AppError.unauthorized("Refresh token already revoked or expired");
+      }
     }
 
     const user = await this.authRepo.findById(tokenRecord.userId);
@@ -155,8 +160,10 @@ export class AuthService {
       );
     }
 
-    // Revoke old refresh token (Refresh Token Rotation)
-    await this.refreshTokenRepo.revoke(tokenRecord.id);
+    // Revoke old refresh token (Refresh Token Rotation) if not already revoked within grace window
+    if (!tokenRecord.revokedAt) {
+      await this.refreshTokenRepo.revoke(tokenRecord.id);
+    }
 
     // Issue new access JWT and new refresh token session
     const authenticatedUser = AuthMapper.toAuthenticatedUser(user);
@@ -309,4 +316,56 @@ export class AuthService {
         "Password reset successfully! You can now sign in with your new password.",
     };
   }
+
+  /**
+   * 4. Verify current user's password for profile security
+   */
+  async verifyCurrentPassword(
+    userId: string,
+    currentPassword: string,
+  ): Promise<boolean> {
+    const user = await this.authRepo.findById(userId);
+    if (!user) {
+      throw AppError.notFound("User not found");
+    }
+
+    const isValid = await comparePassword(currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw AppError.badRequest("Current password is incorrect. Please try again.");
+    }
+
+    return true;
+  }
+
+  /**
+   * 5. Change user password from profile page after verifying current password
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    const user = await this.authRepo.findById(userId);
+    if (!user) {
+      throw AppError.notFound("User not found");
+    }
+
+    const isValid = await comparePassword(currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw AppError.badRequest("Current password is incorrect. Please try again.");
+    }
+
+    const isSamePassword = await comparePassword(newPassword, user.passwordHash);
+    if (isSamePassword) {
+      throw AppError.badRequest("New password cannot be the same as your current password");
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await this.authRepo.updatePassword(user.id, passwordHash);
+
+    return {
+      message: "Password updated successfully! Next time you sign in, use your new password.",
+    };
+  }
 }
+

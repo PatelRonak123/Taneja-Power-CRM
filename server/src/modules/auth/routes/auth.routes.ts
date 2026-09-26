@@ -8,6 +8,8 @@ import {
   forgotPasswordSchema,
   verifyOtpSchema,
   resetPasswordSchema,
+  verifyCurrentPasswordSchema,
+  changePasswordSchema,
 } from '../validators/auth.validator.js';
 
 const router = Router();
@@ -20,6 +22,8 @@ router.post('/logout', controller.logout);
 router.post('/forgot-password', validateRequest(forgotPasswordSchema), controller.forgotPassword);
 router.post('/verify-otp', validateRequest(verifyOtpSchema), controller.verifyOtp);
 router.post('/reset-password', validateRequest(resetPasswordSchema), controller.resetPassword);
+router.post('/verify-current-password', authenticate, validateRequest(verifyCurrentPasswordSchema), controller.verifyCurrentPassword);
+router.post('/change-password', authenticate, validateRequest(changePasswordSchema), controller.changePassword);
 router.get('/me', authenticate, controller.me);
 
 export default router;

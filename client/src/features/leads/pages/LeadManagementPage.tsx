@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { SearchInput } from '../../../components/ui/SearchInput';
 import {
   Plus,
-  Search,
   Building2,
   Eye,
   Pencil,
@@ -386,16 +386,12 @@ export const LeadManagementPage: React.FC = () => {
         )}
 
         {/* Search Field */}
-        <div className="relative flex-1 min-w-50">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-          <input
-            type="text"
-            className="w-full h-9 pl-9 pr-3 bg-white border border-border rounded-lg text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
-            placeholder="Search customer, company, product..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          placeholder="Search customer, company, product..."
+          value={searchQuery}
+          onChange={setSearchQuery}
+          wrapperClassName="flex-1 min-w-50"
+        />
 
         {/* Status Filter */}
         <select
