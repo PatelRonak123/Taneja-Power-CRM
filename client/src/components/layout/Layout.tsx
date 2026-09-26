@@ -291,7 +291,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         isOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
-      <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
+      <div className="flex-1 flex flex-col min-w-0 pt-16 lg:pt-0 overflow-x-hidden">
         <Header
           onToggleMobileMenu={() =>
             setIsMobileSidebarOpen(!isMobileSidebarOpen)

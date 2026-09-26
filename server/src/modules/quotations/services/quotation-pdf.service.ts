@@ -20,11 +20,11 @@ export interface CompanyProfileConfig {
 export const DEFAULT_COMPANY_CONFIG: CompanyProfileConfig = {
   name: 'TANEJA POWER SYSTEMS',
   division: 'Industrial Heavy Engineering & Energy Division',
-  addressLine1: 'GIDC Industrial Estate, Makarpura',
-  addressLine2: 'Vadodara, Gujarat 390010, India',
+  addressLine1: '29, 4th Floor, Earth Alfa, Vasna - Bhayli Main Rd',
+  addressLine2: 'opp. Nilamber Bunglow, Ashwamegh Nagar, Tandalja, Vadodara, Gujarat 390020',
   gstin: '24AABCT1234F1Z5',
   email: 'sales@tanejapower.com',
-  phone: '+91 98765 43210',
+  phone: '099988 38762',
   website: 'www.tanejapower.com',
 };
 

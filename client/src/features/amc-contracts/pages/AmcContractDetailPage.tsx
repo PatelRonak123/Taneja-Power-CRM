@@ -364,22 +364,22 @@ export const AmcContractDetailPage: React.FC = () => {
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-16">
       {/* Top Navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => navigate('/amc-contracts')}
-          className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs transition-all cursor-pointer"
+          className="inline-flex items-center self-start gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs transition-all cursor-pointer whitespace-nowrap"
         >
           <ArrowLeft size={14} /> Back to AMC Contracts
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2">
           {contract.status !== 'TERMINATED' && contract.status !== 'CANCELLED' && (
             <button
               type="button"
               disabled={actionLoading}
               onClick={handleOpenEditModal}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
             >
               <FileEdit size={14} />
               Edit Contract
@@ -391,7 +391,7 @@ export const AmcContractDetailPage: React.FC = () => {
               type="button"
               disabled={actionLoading}
               onClick={handleActivate}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
             >
               <CheckCircle2 size={14} />
               Activate Contract &amp; Generate Schedule
@@ -403,7 +403,7 @@ export const AmcContractDetailPage: React.FC = () => {
               type="button"
               disabled={actionLoading}
               onClick={handleInitiateRenewal}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer whitespace-nowrap"
             >
               <RotateCcw size={14} />
               Renew Contract
@@ -415,7 +415,7 @@ export const AmcContractDetailPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsBreakdownModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer whitespace-nowrap"
               >
                 <AlertOctagon size={14} />
                 Report Breakdown Request
@@ -425,7 +425,7 @@ export const AmcContractDetailPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsTerminateModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
                 >
                   <Ban size={14} />
                   Terminate
@@ -440,10 +440,10 @@ export const AmcContractDetailPage: React.FC = () => {
       <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200/70 rounded-full text-xs font-black tracking-tight">
+            <span className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200/70 rounded-full text-xs font-black tracking-tight whitespace-nowrap">
               {contract.contractNumber}
             </span>
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${
               contract.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
               contract.status === 'EXPIRING_SOON' ? 'bg-amber-50 text-amber-700 border-amber-200' :
               contract.status === 'PENDING_ACTIVATION' ? 'bg-blue-50 text-blue-700 border-blue-200' :
@@ -453,11 +453,11 @@ export const AmcContractDetailPage: React.FC = () => {
             }`}>
               {contract.status}
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap">
               {contract.amcPlan}
             </span>
             {contract.renewedFromContractId && (
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200 inline-flex items-center gap-1 whitespace-nowrap">
                 <Link size={11} /> Renewal Contract
               </span>
             )}
@@ -539,9 +539,9 @@ export const AmcContractDetailPage: React.FC = () => {
         </h3>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs min-w-[680px]">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase">
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase whitespace-nowrap">
                 <th className="px-4 py-2.5">Equipment Name / Description</th>
                 <th className="px-4 py-2.5">Type</th>
                 <th className="px-4 py-2.5">Configuration</th>
@@ -591,9 +591,9 @@ export const AmcContractDetailPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[720px]">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase whitespace-nowrap">
                   <th className="px-4 py-2.5">Visit #</th>
                   <th className="px-4 py-2.5">Scheduled Date</th>
                   <th className="px-4 py-2.5">Service Type</th>
@@ -605,15 +605,15 @@ export const AmcContractDetailPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {contract.serviceVisits.map((visit) => (
                   <tr key={visit.id} className="hover:bg-slate-50/60">
-                    <td className="px-4 py-3 font-bold text-slate-900">Visit #{visit.visitNumber}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-800">{formatDate(visit.scheduledDate)}</td>
+                    <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">Visit #{visit.visitNumber}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{formatDate(visit.scheduledDate)}</td>
                     <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">
+                      <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold whitespace-nowrap">
                         {visit.serviceType}
                       </span>
                     </td>
                     <td className="px-4 py-3 font-bold">
-                      <span className={`px-2 py-0.5 rounded text-[10px] ${
+                      <span className={`px-2 py-0.5 rounded text-[10px] whitespace-nowrap ${
                         visit.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                         visit.status === 'ASSIGNED' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
                         'bg-amber-50 text-amber-700 border border-amber-200'
@@ -621,7 +621,7 @@ export const AmcContractDetailPage: React.FC = () => {
                         {visit.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       {visit.taskId ? (
                         <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
                           <ClipboardList size={12} /> Task Linked
@@ -630,14 +630,14 @@ export const AmcContractDetailPage: React.FC = () => {
                         <span className="text-slate-400 text-[11px]">No task created</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         {(visit.status === 'SCHEDULED' || visit.status === 'ASSIGNED') && (
                           <button
                             type="button"
                             disabled={actionLoading}
                             onClick={() => handleStartVisit(visit.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold cursor-pointer transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
                           >
                             <Play size={11} /> Start Visit
                           </button>
@@ -647,7 +647,7 @@ export const AmcContractDetailPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setActiveReportVisitId(visit.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
                           >
                             <FileText size={11} /> Service Report
                           </button>
@@ -658,7 +658,7 @@ export const AmcContractDetailPage: React.FC = () => {
                             type="button"
                             disabled={actionLoading}
                             onClick={() => handleCreateTaskForVisit(visit.id)}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer transition-colors"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer transition-colors whitespace-nowrap"
                           >
                             <Plus size={11} /> Task
                           </button>
@@ -696,7 +696,7 @@ export const AmcContractDetailPage: React.FC = () => {
                 setRequestedAt(new Date().toISOString().slice(0, 16));
                 setIsBreakdownModalOpen(true);
               }}
-              className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs whitespace-nowrap"
             >
               <Plus size={13} /> Report Breakdown
             </button>
@@ -709,9 +709,9 @@ export const AmcContractDetailPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[760px]">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase whitespace-nowrap">
                   <th className="px-4 py-2.5">SR Number</th>
                   <th className="px-4 py-2.5">Reported At</th>
                   <th className="px-4 py-2.5">Equipment</th>
@@ -762,8 +762,8 @@ export const AmcContractDetailPage: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-bold">
-                      <span className={`px-2 py-0.5 rounded text-[10px] ${
+                    <td className="px-4 py-3 font-bold whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded text-[10px] whitespace-nowrap ${
                         reqItem.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                         reqItem.status === 'ASSIGNED' || reqItem.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
                         reqItem.status === 'CANCELLED' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
@@ -772,7 +772,7 @@ export const AmcContractDetailPage: React.FC = () => {
                         {reqItem.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         {reqItem.status !== 'RESOLVED' && reqItem.status !== 'CANCELLED' && (
                           <button
@@ -786,7 +786,7 @@ export const AmcContractDetailPage: React.FC = () => {
                               setEscalationNotes('');
                               setIsEscalateModalOpen(true);
                             }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold cursor-pointer transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
                           >
                             <AlertTriangle size={11} /> Escalate
                           </button>
@@ -796,7 +796,7 @@ export const AmcContractDetailPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setActiveReportVisitId(reqItem.amcServiceVisitId!)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
                           >
                             <FileText size={11} /> Service Report
                           </button>
@@ -805,7 +805,7 @@ export const AmcContractDetailPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setSelectedBreakdownReqDetail(reqItem)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer transition-colors"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer transition-colors whitespace-nowrap"
                         >
                           Details
                         </button>

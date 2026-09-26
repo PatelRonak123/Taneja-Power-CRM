@@ -104,23 +104,22 @@ export class FieldServiceService {
         .where(eq(users.id, authUser.userId))
         .limit(1);
 
-      const workType = currentUser?.workType || APP_CONSTANTS.WORK_TYPES.OFFICE;
-      const designation = (currentUser?.designation || '').toLowerCase();
+      const workType = currentUser?.workType || (authUser as any).workType || APP_CONSTANTS.WORK_TYPES.OFFICE;
+      const designation = (currentUser?.designation || (authUser as any).designation || '').toLowerCase();
       const salesKeywords = ['sales', 'representative', 'executive', 'business dev', 'account manager', 'account exec', 'bd'];
       const engineeringKeywords = ['engineer', 'tech', 'service', 'fse', 'electrician', 'technician'];
-      const isEngineer =
-        workType === APP_CONSTANTS.WORK_TYPES.FIELD &&
-        (designation === 'service' || engineeringKeywords.some((k) => designation.includes(k)));
+      const isService =
+        designation === 'service' ||
+        engineeringKeywords.some((k) => designation.includes(k));
       const isSales =
         designation.includes('sales') ||
-        salesKeywords.some((k) => designation.includes(k)) ||
-        (workType === APP_CONSTANTS.WORK_TYPES.OFFICE && !isEngineer);
+        salesKeywords.some((k) => designation.includes(k));
 
-      if (isSales || !isEngineer) {
-        throw AppError.forbidden('Sales representatives cannot create Field Service Reports');
+      if (isSales || !isService) {
+        throw AppError.forbidden('Sales representatives and unauthorized staff cannot create Field Service Reports');
       }
 
-      if (input.serviceEngineerId && input.serviceEngineerId !== authUser.userId) {
+      if (workType === APP_CONSTANTS.WORK_TYPES.FIELD && input.serviceEngineerId && input.serviceEngineerId !== authUser.userId) {
         throw AppError.forbidden('Field Service Engineers can only create reports assigned to themselves');
       }
     }
@@ -349,37 +348,49 @@ export class FieldServiceService {
       return;
     }
 
-    // Check if user is a salesperson allowed to read completed/closed FSRs
+    // Check user profile for department/designation
     const [currentUser] = await db
       .select()
       .from(users)
       .where(eq(users.id, authUser.userId))
       .limit(1);
 
-    const workType = currentUser?.workType || APP_CONSTANTS.WORK_TYPES.OFFICE;
-    const designation = (currentUser?.designation || '').toLowerCase();
+    const workType = currentUser?.workType || (authUser as any).workType || APP_CONSTANTS.WORK_TYPES.OFFICE;
+    const designation = (currentUser?.designation || (authUser as any).designation || '').toLowerCase();
+
+    // Explicitly excluded designations (Accountant, HR)
     const isExcluded =
-      workType === APP_CONSTANTS.WORK_TYPES.OFFICE ||
       designation.includes('accountant') ||
       designation.includes('accounting') ||
       designation.includes('finance') ||
-      designation.includes('hr') ||
-      designation.includes('admin');
+      designation.includes('hr');
+
+    if (isExcluded) {
+      throw AppError.forbidden(`You are not authorized to ${actionDescription} this Field Service Report`);
+    }
 
     const engineeringKeywords = ['engineer', 'tech', 'service', 'fse', 'electrician', 'technician'];
-    const salesKeywords = ['sales', 'representative', 'executive', 'business dev', 'account manager', 'account exec', 'bd'];
+    const isServiceEmployee =
+      designation === 'service' ||
+      engineeringKeywords.some((k) => designation.includes(k));
 
-    const isEngineer =
-      workType === APP_CONSTANTS.WORK_TYPES.FIELD &&
-      (designation === 'service' || engineeringKeywords.some((k) => designation.includes(k)));
-    const isSales = !isExcluded && !isEngineer && (designation === 'sales' || salesKeywords.some((k) => designation.includes(k)));
+    // Service employees (Service Office, Service Field, Service Engineers, Technicians, etc.) can view service reports
+    if (isServiceEmployee) {
+      return;
+    }
+
+    const salesKeywords = ['sales', 'representative', 'executive', 'business dev', 'account manager', 'account exec', 'bd'];
+    const isSales = designation === 'sales' || salesKeywords.some((k) => designation.includes(k));
     const isCompletedOrClosed =
       details.fsr.status === APP_CONSTANTS.FSR_STATUSES.COMPLETED ||
       details.fsr.status === APP_CONSTANTS.FSR_STATUSES.CLOSED;
 
-    if (!isSales || !isCompletedOrClosed) {
-      throw AppError.forbidden(`You are not authorized to ${actionDescription} this Field Service Report`);
+    // Sales representatives can view completed or closed reports to track client equipment service
+    if (isSales && isCompletedOrClosed) {
+      return;
     }
+
+    throw AppError.forbidden(`You are not authorized to ${actionDescription} this Field Service Report`);
   }
 
   /**

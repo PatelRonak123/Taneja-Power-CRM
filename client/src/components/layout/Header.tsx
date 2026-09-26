@@ -19,9 +19,68 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
   const { user, logout } = useAuthStore();
   const currentPath = useCurrentPath();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+  const lastScrollY = useRef(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = user?.role === 'ADMIN';
+
+  // Reset visibility on route navigation
+  useEffect(() => {
+    setIsVisible(true);
+    lastScrollY.current = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+  }, [currentPath]);
+
+  // Handle scroll detection for mobile view (hide on scroll down, show on scroll up)
+  useEffect(() => {
+    let ticking = false;
+
+    const updateScrollDirection = () => {
+      const currentScrollY =
+        window.pageYOffset ||
+        document.documentElement.scrollTop ||
+        document.body.scrollTop ||
+        0;
+      const delta = currentScrollY - lastScrollY.current;
+
+      // Always visible near top of page
+      if (currentScrollY <= 10) {
+        setIsVisible(true);
+        lastScrollY.current = currentScrollY;
+        ticking = false;
+        return;
+      }
+
+      // Scrolling down past threshold -> hide
+      if (delta > 6) {
+        setIsVisible(false);
+        setIsDropdownOpen(false);
+        lastScrollY.current = currentScrollY;
+      }
+      // Scrolling up past threshold -> reveal navbar immediately
+      else if (delta < -6) {
+        setIsVisible(true);
+        lastScrollY.current = currentScrollY;
+      }
+
+      ticking = false;
+    };
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(updateScrollDirection);
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+    document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, { capture: true });
+      document.removeEventListener('scroll', handleScroll, { capture: true });
+    };
+  }, []);
 
   const getPageTitle = (path: string): string => {
     if (path === '/admin/dashboard' || path === '/admin') return 'Admin Dashboard';
@@ -54,11 +113,11 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
 
   const userInitials = user?.fullName
     ? user.fullName
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
     : 'U';
 
   const handleLogout = async () => {
@@ -78,7 +137,10 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 md:px-8 flex items-center justify-between">
+    <header
+      className={`fixed lg:sticky top-0 left-0 right-0 z-30 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 md:px-8 flex items-center justify-between transition-transform duration-300 ease-in-out lg:translate-y-0 ${isVisible ? 'translate-y-0' : '-translate-y-full'
+        }`}
+    >
       {/* Left Title & Mobile Menu Trigger */}
       <div className="flex items-center gap-3">
         {onToggleMobileMenu && (

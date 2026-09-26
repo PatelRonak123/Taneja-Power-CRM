@@ -443,7 +443,7 @@ export class QuotationAmcPdfService {
       .font('Helvetica')
       .fontSize(8)
       .fillColor('#64748b')
-      .text('Industrial Energy & AMC Service Division • Contact: +91 98765 43210', 36, sigY + 80);
+      .text('Industrial Energy & AMC Service Division • Contact: 099988 38762', 36, sigY + 80);
 
     // Customer acknowledgment placeholder on right side of signatory
     const rightSigX = doc.page.width - 240;
@@ -793,7 +793,7 @@ export class QuotationAmcPdfService {
         .font('Helvetica')
         .fontSize(6.5)
         .fillColor('#475569')
-        .text(`${escData.phone || '+91 98765 43210'} • ${escData.email || 'support@tanejapower.com'}`, x + 8, escY + 39, { width: escColW - 16 });
+        .text(`${escData.phone || '099988 38762'} • ${escData.email || 'support@tanejapower.com'}`, x + 8, escY + 39, { width: escColW - 16 });
     });
 
     // 7. SERVICE PROTOCOL ASSURANCE CALLOUT (y = escY + 60, height = 36)

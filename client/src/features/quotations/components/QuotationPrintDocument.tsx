@@ -59,8 +59,8 @@ export const QuotationPrintDocument: React.FC<Props> = ({ quotation, revisionOve
               </div>
             </div>
             <p className="text-[10px] text-slate-600 mt-1">
-              GIDC Industrial Estate, Vadodara, Gujarat 390010, India<br />
-              <span className="font-semibold text-slate-800">GSTIN:</span> 24AABCT1234F1Z5 • <span className="font-semibold text-slate-800">Email:</span> sales@tanejapower.com • <span className="font-semibold text-slate-800">Phone:</span> +91 98765 43210
+              29, 4th Floor, Earth Alfa, Vasna - Bhayli Main Rd, opp. Nilamber Bunglow, Ashwamegh Nagar, Tandalja, Vadodara, Gujarat 390020<br />
+              <span className="font-semibold text-slate-800">GSTIN:</span> 24AABCT1234F1Z5 • <span className="font-semibold text-slate-800">Email:</span> sales@tanejapower.com • <span className="font-semibold text-slate-800">Phone:</span> 099988 38762
             </p>
           </div>
 

@@ -339,17 +339,17 @@ export const FsrListPage: React.FC = () => {
       {/* Main FSR Table */}
       <div className="bg-card rounded-xl border border-border shadow-xs overflow-hidden flex flex-col w-full">
         <div className="w-full overflow-x-auto">
-          <Table density="standard" className="min-w-225 md:min-w-0 md:table-fixed">
+          <Table density="standard" className="min-w-275">
             <TableHeader>
               <TableRow>
-                <TableHead className="md:w-[12%]">FSR #</TableHead>
-                <TableHead className="md:w-[18%]">Customer</TableHead>
-                <TableHead className="md:w-[18%]">Product / Serial</TableHead>
-                <TableHead align="center" className="md:w-[10%]">Call Type</TableHead>
-                <TableHead className="md:w-[14%]">Assigned FSE</TableHead>
-                <TableHead className="md:w-[10%]">Visit Date</TableHead>
-                <TableHead align="center" className="md:w-[9%]">Status</TableHead>
-                <TableHead align="right" className="md:w-[9%]">Actions</TableHead>
+                <TableHead className="min-w-35">FSR #</TableHead>
+                <TableHead className="min-w-45">Customer</TableHead>
+                <TableHead className="min-w-40">Product / Serial</TableHead>
+                <TableHead align="center" className="min-w-32.5">Call Type</TableHead>
+                <TableHead className="min-w-35">Assigned FSE</TableHead>
+                <TableHead className="min-w-27.5">Visit Date</TableHead>
+                <TableHead align="center" className="min-w-35">Status</TableHead>
+                <TableHead align="right" className="min-w-45">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -406,7 +406,7 @@ export const FsrListPage: React.FC = () => {
                       )}
                     </TableCell>
 
-                    <TableCell align="center" className="align-middle">
+                    <TableCell align="center" className="align-middle whitespace-nowrap">
                       <FsrCallTypeBadge callType={item.fsr.callType} />
                     </TableCell>
 
@@ -424,18 +424,19 @@ export const FsrListPage: React.FC = () => {
                       {new Date(item.fsr.visitDate).toLocaleDateString()}
                     </TableCell>
 
-                    <TableCell align="center" className="align-middle">
+                    <TableCell align="center" className="align-middle whitespace-nowrap">
                       <FsrStatusBadge status={item.fsr.status} />
                     </TableCell>
 
-                    <TableCell align="right" className="align-middle whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
+                    <TableCell align="right" className="align-middle whitespace-nowrap min-w-45" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1.5 shrink-0">
                         {/* View */}
                         <button
                           type="button"
                           onClick={() => navigate(`/field-service/${item.fsr.id}`)}
-                          className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer shadow-2xs"
                           title="View Details"
+                          aria-label="View Details"
                         >
                           <Eye size={13} />
                         </button>
@@ -452,8 +453,9 @@ export const FsrListPage: React.FC = () => {
                               )
                             }
                             disabled={downloadingId === item.fsr.id}
-                            className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-50"
+                            className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
                             title="Download Official PDF"
+                            aria-label="Download PDF"
                           >
                             {downloadingId === item.fsr.id ? (
                               <Loader2 size={13} className="animate-spin text-blue-600" />
@@ -468,8 +470,9 @@ export const FsrListPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => navigate(`/field-service/${item.fsr.id}/edit`)}
-                            className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer shadow-2xs"
                             title="Edit Report"
+                            aria-label="Edit Report"
                           >
                             <Edit3 size={13} />
                           </button>
@@ -481,8 +484,9 @@ export const FsrListPage: React.FC = () => {
                             type="button"
                             onClick={() => startMutation.mutate(item.fsr.id)}
                             disabled={startMutation.isPending}
-                            className="p-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors cursor-pointer shadow-2xs"
                             title="Start Service Visit"
+                            aria-label="Start Visit"
                           >
                             <Play size={13} />
                           </button>
@@ -494,8 +498,9 @@ export const FsrListPage: React.FC = () => {
                             type="button"
                             onClick={() => completeMutation.mutate(item.fsr.id)}
                             disabled={completeMutation.isPending}
-                            className="p-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer shadow-2xs"
                             title="Complete Visit"
+                            aria-label="Complete Visit"
                           >
                             <CheckCircle size={13} />
                           </button>
@@ -507,8 +512,9 @@ export const FsrListPage: React.FC = () => {
                             type="button"
                             onClick={() => closeMutation.mutate(item.fsr.id)}
                             disabled={closeMutation.isPending}
-                            className="p-1.5 rounded-md border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors cursor-pointer shadow-2xs"
                             title="Close Report"
+                            aria-label="Close Report"
                           >
                             <FileCheck size={13} />
                           </button>
@@ -519,8 +525,9 @@ export const FsrListPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setAssignModalFsr(item)}
-                            className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md border border-border bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer shadow-2xs"
                             title="Assign / Reassign Engineer"
+                            aria-label="Assign Engineer"
                           >
                             <UserCheck size={13} />
                           </button>

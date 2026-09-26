@@ -148,8 +148,63 @@ export const EmployeeAttendancePage: React.FC = () => {
     }
   }, [todayData]);
 
+  // Helper distance calculation (Haversine formula in meters)
+  const calculateDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371000;
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c);
+  };
+
+  const officeConfig = todayData?.officeLocation || {
+    NAME: 'Taneja Power Systems (Head Office)',
+    ADDRESS: '29, 4th Floor, Earth Alfa, Vasna - Bhayli Main Rd, opp. Nilamber Bunglow, Ashwamegh Nagar, Tandalja, Vadodara, Gujarat 390020',
+    LATITUDE: 22.2965,
+    LONGITUDE: 73.1495,
+    RADIUS_METERS: 500,
+  };
+
+  const workType = user?.workType || todayData?.workType || 'OFFICE';
+  const isOfficeEmployee = workType === 'OFFICE';
+
+  const distanceToOffice =
+    latitude !== null && longitude !== null
+      ? calculateDistanceMeters(latitude, longitude, officeConfig.LATITUDE, officeConfig.LONGITUDE)
+      : null;
+
+  const isWithinGeofence =
+    distanceToOffice !== null ? distanceToOffice <= officeConfig.RADIUS_METERS : false;
+
   // Handle Check In
   const handleCheckIn = async () => {
+    // Geofence enforcement strictly for Office Employees
+    if (isOfficeEmployee) {
+      if (gpsLoading) {
+        toast.error('Acquiring Location', 'Please wait while your GPS coordinates are being acquired.');
+        return;
+      }
+      if (latitude === null || longitude === null) {
+        const msg =
+          gpsError ||
+          'Location access is strictly required for office employees to check in. Please allow GPS location permissions in your browser.';
+        setErrorMsg(msg);
+        toast.error('Location Access Required', msg);
+        requestLocation();
+        return;
+      }
+      if (!isWithinGeofence) {
+        const msg = `You are outside the office premises (${distanceToOffice}m away). Check-in is only permitted within ${officeConfig.RADIUS_METERS}m of ${officeConfig.NAME}.`;
+        setErrorMsg(msg);
+        toast.error('Outside Office Boundary', msg);
+        return;
+      }
+    }
+
     setActionLoading(true);
     setErrorMsg(null);
 
@@ -181,6 +236,29 @@ export const EmployeeAttendancePage: React.FC = () => {
 
   // Handle Check Out
   const handleCheckOut = async () => {
+    // Geofence enforcement strictly for Office Employees
+    if (isOfficeEmployee) {
+      if (gpsLoading) {
+        toast.error('Acquiring Location', 'Please wait while your GPS coordinates are being acquired.');
+        return;
+      }
+      if (latitude === null || longitude === null) {
+        const msg =
+          gpsError ||
+          'Location access is strictly required for office employees to check out. Please allow GPS location permissions in your browser.';
+        setErrorMsg(msg);
+        toast.error('Location Access Required', msg);
+        requestLocation();
+        return;
+      }
+      if (!isWithinGeofence) {
+        const msg = `You are outside the office premises (${distanceToOffice}m away). Check-out is only permitted within ${officeConfig.RADIUS_METERS}m of ${officeConfig.NAME}.`;
+        setErrorMsg(msg);
+        toast.error('Outside Office Boundary', msg);
+        return;
+      }
+    }
+
     setActionLoading(true);
     setErrorMsg(null);
 
@@ -355,32 +433,90 @@ export const EmployeeAttendancePage: React.FC = () => {
             </div>
 
             {/* GPS Coordinates & Detection Indicator */}
-            <div className="mt-5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2.5 text-slate-600">
-                <MapPin size={16} className={latitude && longitude ? 'text-emerald-600' : 'text-slate-400'} />
-                {gpsLoading ? (
-                  <span className="text-slate-500 flex items-center gap-1.5 font-medium">
-                    <Loader2 size={13} className="animate-spin" /> Acquiring GPS location...
-                  </span>
-                ) : latitude && longitude ? (
-                  <span className="font-mono font-medium text-slate-800">
-                    GPS Logged: {latitude.toFixed(4)}, {longitude.toFixed(4)}
-                  </span>
-                ) : (
-                  <span className="text-slate-500 font-medium">
-                    {gpsError || 'GPS location not available (Optional check-in supported)'}
-                  </span>
-                )}
+            <div className={`mt-5 p-4 rounded-2xl border text-xs transition-all ${
+              isOfficeEmployee
+                ? isWithinGeofence
+                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                  : latitude && longitude
+                  ? 'bg-rose-50/80 border-rose-200 text-rose-900'
+                  : 'bg-slate-50 border-slate-200 text-slate-700'
+                : 'bg-slate-50 border-slate-200/80 text-slate-700'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <MapPin
+                    size={18}
+                    className={`shrink-0 mt-0.5 ${
+                      isOfficeEmployee
+                        ? isWithinGeofence
+                          ? 'text-emerald-600'
+                          : latitude && longitude
+                          ? 'text-rose-600'
+                          : 'text-amber-500'
+                        : latitude && longitude
+                        ? 'text-emerald-600'
+                        : 'text-slate-400'
+                    }`}
+                  />
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900">
+                        {isOfficeEmployee ? 'Office Geofence Location' : 'GPS Location'}
+                      </span>
+                      {isOfficeEmployee && (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          isWithinGeofence
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : latitude && longitude
+                            ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                            : 'bg-amber-100 text-amber-800 border border-amber-300'
+                        }`}>
+                          {isWithinGeofence
+                            ? 'Inside Office Radius'
+                            : latitude && longitude
+                            ? 'Outside Radius'
+                            : 'Location Required'}
+                        </span>
+                      )}
+                    </div>
+
+                    {gpsLoading ? (
+                      <span className="text-slate-500 flex items-center gap-1.5 font-medium">
+                        <Loader2 size={13} className="animate-spin" /> Acquiring GPS location for attendance verification...
+                      </span>
+                    ) : latitude && longitude ? (
+                      <div className="space-y-0.5">
+                        <div className="font-mono text-slate-800 font-semibold text-[11px]">
+                          Coordinates: {latitude.toFixed(4)}, {longitude.toFixed(4)}
+                        </div>
+                        {isOfficeEmployee && (
+                          <div className={`text-[11px] font-medium ${isWithinGeofence ? 'text-emerald-700' : 'text-rose-700 font-semibold'}`}>
+                            {isWithinGeofence ? (
+                              <span>✓ Within permitted boundary (~{distanceToOffice}m from office, max allowed: {officeConfig.RADIUS_METERS}m)</span>
+                            ) : (
+                              <span>⚠ Outside office boundary (~{distanceToOffice}m away • Check-in/out only allowed within {officeConfig.RADIUS_METERS}m of {officeConfig.NAME})</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className={`font-medium ${isOfficeEmployee ? 'text-rose-700 font-semibold' : 'text-slate-500'}`}>
+                        {gpsError || (isOfficeEmployee ? 'Location access is required for office attendance. Please allow browser location access.' : 'GPS location not available (Optional check-in for field employees)')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={requestLocation}
+                  disabled={gpsLoading}
+                  className="self-start sm:self-center px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-blue-700 border border-slate-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs shrink-0 disabled:opacity-50"
+                >
+                  <RefreshCw size={12} className={gpsLoading ? 'animate-spin' : ''} />
+                  Refresh GPS
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={requestLocation}
-                disabled={gpsLoading}
-                className="text-blue-600 hover:text-blue-800 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
-              >
-                <RefreshCw size={12} className={gpsLoading ? 'animate-spin' : ''} />
-                Refresh GPS
-              </button>
             </div>
 
             {/* Shift Session Information */}
