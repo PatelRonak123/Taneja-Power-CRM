@@ -1,7 +1,8 @@
 import React from 'react';
-import { Search, X, RotateCcw, List, LayoutGrid } from 'lucide-react';
+import { RotateCcw, List, LayoutGrid } from 'lucide-react';
 import { getCategoryIcon } from '../../utils/categoryIcons';
 import { Button } from '@/components/ui/Button';
+import { SearchInput } from '@/components/ui/SearchInput';
 
 interface ProductFiltersProps {
   searchQuery: string;
@@ -49,26 +50,13 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
       {/* Primary Control Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Search Field with Icon and Clear */}
-        <div className="relative flex-1 min-w-70">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-          <input
-            type="text"
-            className="w-full h-9 pl-9 pr-9 bg-slate-50 border border-slate-200 rounded-lg text-[13px] text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-colors"
-            placeholder="Search equipment by name, model or SKU..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
-              onClick={() => onSearchChange('')}
-              aria-label="Clear search"
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
+        <SearchInput
+          placeholder="Search equipment by name, model or SKU..."
+          value={searchQuery}
+          onChange={onSearchChange}
+          wrapperClassName="flex-1 min-w-70"
+          inputClassName="bg-slate-50 border-slate-200"
+        />
 
         {/* Filter Selects & View Toggle */}
         <div className="flex flex-wrap items-center gap-2">

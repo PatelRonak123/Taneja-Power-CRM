@@ -1,6 +1,7 @@
 import React from 'react';
-import { Search, RefreshCw, X, Filter } from 'lucide-react';
+import { RefreshCw, Filter } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
+import { SearchInput } from '../../../components/ui/SearchInput';
 
 interface EmployeeToolbarProps {
   searchQuery: string;
@@ -11,8 +12,8 @@ interface EmployeeToolbarProps {
   setStatusFilter: (status: string) => void;
   workTypeFilter: string;
   setWorkTypeFilter: (workType: string) => void;
-  onSearchSubmit: (e: React.FormEvent) => void;
-  onClearSearch: () => void;
+  onSearchSubmit?: (e?: React.FormEvent) => void;
+  onClearSearch?: () => void;
   onRefresh: () => void;
   loading: boolean;
 }
@@ -34,26 +35,20 @@ export const EmployeeToolbar: React.FC<EmployeeToolbarProps> = ({
   return (
     <div className="bg-card border border-border rounded-xl p-3 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
       {/* Search Box */}
-      <form onSubmit={onSearchSubmit} className="relative flex-1 min-w-70">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Search employees by name, email, or phone..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full h-9 pl-9 pr-9 rounded-lg bg-slate-50 border border-slate-200 text-[13px] font-normal text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-colors"
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 rounded cursor-pointer"
-            onClick={onClearSearch}
-            title="Clear search"
-          >
-            <X size={14} />
-          </button>
-        )}
-      </form>
+      <SearchInput
+        placeholder="Search employees by name, email, or phone..."
+        value={searchQuery}
+        onChange={setSearchQuery}
+        onImmediateSearch={(val) => {
+          if (!val) {
+            onClearSearch?.();
+          } else {
+            onSearchSubmit?.();
+          }
+        }}
+        wrapperClassName="flex-1 min-w-70"
+        isLoading={loading}
+      />
 
       {/* Filter and Refresh Controls */}
       <div className="flex flex-wrap items-center gap-2">

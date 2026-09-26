@@ -3,6 +3,7 @@ import { AuthService } from '../services/auth.service.js';
 import { sendResponse } from '../../../common/utils/responseEnvelope.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
 import { setAuthCookies, clearAuthCookies, REFRESH_TOKEN_COOKIE } from '../../../common/auth/cookie.js';
+import { AppError } from '../../../common/errors/AppError.js';
 
 export class AuthController {
   constructor(private readonly authService: AuthService = new AuthService()) {}
@@ -61,7 +62,9 @@ export class AuthController {
         'Token refreshed successfully'
       );
     } catch (error) {
-      clearAuthCookies(res);
+      if (error instanceof AppError && error.statusCode === APP_CONSTANTS.HTTP_STATUS.UNAUTHORIZED) {
+        clearAuthCookies(res);
+      }
       next(error);
     }
   };
@@ -110,6 +113,28 @@ export class AuthController {
       const result = await this.authService.resetPasswordWithOtp(
         req.body.email,
         req.body.otp,
+        req.body.newPassword
+      );
+      sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, result, result.message);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  verifyCurrentPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await this.authService.verifyCurrentPassword(req.user!.userId, req.body.currentPassword);
+      sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, { valid: true }, 'Current password verified');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  changePassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.authService.changePassword(
+        req.user!.userId,
+        req.body.currentPassword,
         req.body.newPassword
       );
       sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, result, result.message);

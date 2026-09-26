@@ -59,8 +59,24 @@ export interface CheckOutPayload {
   notes?: string | null;
 }
 
+export interface OfficeLocationConfig {
+  NAME: string;
+  ADDRESS: string;
+  LATITUDE: number;
+  LONGITUDE: number;
+  RADIUS_METERS: number;
+}
+
 export interface MyAttendanceResponse {
   todayRecord: AttendanceItem | null;
   status: 'NOT_CHECKED_IN' | 'CHECKED_IN' | 'CHECKED_OUT';
   date: string;
+  workType?: string;
+  officeLocation?: {
+    NAME: string;
+    ADDRESS: string;
+    LATITUDE: number;
+    LONGITUDE: number;
+    RADIUS_METERS: number;
+  };
 }

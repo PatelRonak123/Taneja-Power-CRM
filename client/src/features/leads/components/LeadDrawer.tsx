@@ -11,7 +11,6 @@ import {
   Mail,
   MapPin,
   Clock,
-  ShieldCheck,
   FileText,
   Send,
   MessageSquare,
@@ -372,15 +371,19 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                     </span>
                     <span className="text-base font-bold text-slate-800">{lead.status}</span>
                   </div>
-                  {lead.linkedClientId ? (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200/80 rounded-full text-xs font-bold tracking-wide">
-                      <ShieldCheck size={14} /> LINKED TO CLIENT ID ({lead.linkedClientId})
-                    </span>
-                  ) : (
-                    <span className="text-xs font-semibold text-slate-400 bg-slate-200/60 px-2.5 py-1 rounded-full">
-                      PROSPECTIVE LEAD
-                    </span>
-                  )}
+                  <span
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold tracking-wide ${
+                      lead.status.toUpperCase().includes('APPROVED') || lead.status.toUpperCase().includes('COMPLETED')
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                        : lead.status.toUpperCase() === 'LOST'
+                        ? 'bg-rose-50 text-rose-700 border border-rose-200/80'
+                        : lead.status.toUpperCase() === 'NEW' || lead.status.toUpperCase().includes('NEGOTIATION')
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200/80'
+                        : 'bg-blue-50 text-blue-700 border border-blue-200/80'
+                    }`}
+                  >
+                    {lead.status}
+                  </span>
                 </div>
 
                 {/* Key Details Grid */}

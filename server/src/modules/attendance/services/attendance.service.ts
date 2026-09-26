@@ -6,7 +6,11 @@ import {
 } from '../repositories/attendance.repository.js';
 import { EmployeeRepository } from '../../employees/repositories/employee.repository.js';
 import { CheckInInput, CheckOutInput } from '../validators/attendance.validator.js';
-import { ATTENDANCE_STATUS, ATTENDANCE_CONSTANTS } from '../constants/attendance.constants.js';
+import {
+  ATTENDANCE_STATUS,
+  ATTENDANCE_CONSTANTS,
+  calculateGeodesicDistanceMeters,
+} from '../constants/attendance.constants.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { AttendanceEntity } from '../../../database/schema/attendance.js';
 
@@ -38,9 +42,40 @@ export class AttendanceService {
       throw AppError.badRequest('Inactive employee accounts cannot perform attendance check-in');
     }
 
+    // 2. Geofence location check strictly for Office Employees
+    if (employee.workType === 'OFFICE') {
+      if (
+        input.latitude === undefined ||
+        input.latitude === null ||
+        input.longitude === undefined ||
+        input.longitude === null
+      ) {
+        throw AppError.badRequest(
+          'Location access is required for office employees to check in. Please allow GPS location permissions in your browser.'
+        );
+      }
+
+      const officeLat = ATTENDANCE_CONSTANTS.OFFICE_LOCATION.LATITUDE;
+      const officeLon = ATTENDANCE_CONSTANTS.OFFICE_LOCATION.LONGITUDE;
+      const allowedRadius = ATTENDANCE_CONSTANTS.OFFICE_LOCATION.RADIUS_METERS;
+
+      const distanceMeters = calculateGeodesicDistanceMeters(
+        input.latitude,
+        input.longitude,
+        officeLat,
+        officeLon
+      );
+
+      if (distanceMeters > allowedRadius) {
+        throw AppError.badRequest(
+          `You are outside the office premises (${distanceMeters}m away). Check-in is only permitted within ${allowedRadius}m of ${ATTENDANCE_CONSTANTS.OFFICE_LOCATION.NAME}.`
+        );
+      }
+    }
+
     const todayDate = this.getTodayDateString();
 
-    // 2. Check for existing attendance record for today
+    // 3. Check for existing attendance record for today
     const existing = await this.attendanceRepo.findByEmployeeAndDate(employeeId, todayDate);
     if (existing) {
       if (existing.status === ATTENDANCE_STATUS.CHECKED_IN) {
@@ -51,7 +86,7 @@ export class AttendanceService {
       }
     }
 
-    // 3. Create attendance record with server-generated timestamp
+    // 4. Create attendance record with server-generated timestamp
     const checkInAt = new Date();
     return this.attendanceRepo.create({
       employeeId,
@@ -74,9 +109,40 @@ export class AttendanceService {
       throw AppError.badRequest('Inactive employee accounts cannot perform attendance check-out');
     }
 
+    // 2. Geofence location check strictly for Office Employees
+    if (employee.workType === 'OFFICE') {
+      if (
+        input.latitude === undefined ||
+        input.latitude === null ||
+        input.longitude === undefined ||
+        input.longitude === null
+      ) {
+        throw AppError.badRequest(
+          'Location access is required for office employees to check out. Please allow GPS location permissions in your browser.'
+        );
+      }
+
+      const officeLat = ATTENDANCE_CONSTANTS.OFFICE_LOCATION.LATITUDE;
+      const officeLon = ATTENDANCE_CONSTANTS.OFFICE_LOCATION.LONGITUDE;
+      const allowedRadius = ATTENDANCE_CONSTANTS.OFFICE_LOCATION.RADIUS_METERS;
+
+      const distanceMeters = calculateGeodesicDistanceMeters(
+        input.latitude,
+        input.longitude,
+        officeLat,
+        officeLon
+      );
+
+      if (distanceMeters > allowedRadius) {
+        throw AppError.badRequest(
+          `You are outside the office premises (${distanceMeters}m away). Check-out is only permitted within ${allowedRadius}m of ${ATTENDANCE_CONSTANTS.OFFICE_LOCATION.NAME}.`
+        );
+      }
+    }
+
     const todayDate = this.getTodayDateString();
 
-    // 2. Find today's attendance record
+    // 3. Find today's attendance record
     const existing = await this.attendanceRepo.findByEmployeeAndDate(employeeId, todayDate);
     if (!existing) {
       throw AppError.badRequest('No active attendance record found for today. Please check in first.');
@@ -86,7 +152,7 @@ export class AttendanceService {
       throw AppError.badRequest('You have already checked out for today.');
     }
 
-    // 3. Compute server-side checkout timestamp and duration in total minutes
+    // 4. Compute server-side checkout timestamp and duration in total minutes
     const checkOutAt = new Date();
     const checkInTime = new Date(existing.checkInAt).getTime();
     const checkOutTime = checkOutAt.getTime();
@@ -122,7 +188,10 @@ export class AttendanceService {
     todayRecord: AttendanceEntity | null;
     status: 'NOT_CHECKED_IN' | 'CHECKED_IN' | 'CHECKED_OUT';
     date: string;
+    workType?: string;
+    officeLocation?: typeof ATTENDANCE_CONSTANTS.OFFICE_LOCATION;
   }> {
+    const employee = await this.employeeRepo.findById(employeeId);
     const date = targetDate || this.getTodayDateString();
     const record = await this.attendanceRepo.findByEmployeeAndDate(employeeId, date);
 
@@ -135,6 +204,8 @@ export class AttendanceService {
       todayRecord: record || null,
       status,
       date,
+      workType: employee?.workType || 'OFFICE',
+      officeLocation: ATTENDANCE_CONSTANTS.OFFICE_LOCATION,
     };
   }
 

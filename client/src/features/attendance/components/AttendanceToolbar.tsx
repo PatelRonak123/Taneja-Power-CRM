@@ -1,13 +1,15 @@
 import React from 'react';
-import { Search, RotateCw, Calendar, Clock } from 'lucide-react';
+import { RotateCw, Calendar, Clock } from 'lucide-react';
 import { Employee } from '../../admin/types/employee.types';
 import { Button } from '../../../components/ui/Button';
+import { SearchInput } from '../../../components/ui/SearchInput';
 
 export type DatePreset = 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'CUSTOM';
 
 interface AttendanceToolbarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
+  onResetPage?: () => void;
   statusFilter: string;
   onStatusFilterChange: (status: string) => void;
   employeeFilter: string;
@@ -30,6 +32,7 @@ interface AttendanceToolbarProps {
 export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
   searchQuery,
   onSearchChange,
+  onResetPage,
   statusFilter,
   onStatusFilterChange,
   employeeFilter,
@@ -142,19 +145,14 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
       {/* Bottom Controls: Search, Employee Dropdown, Status Dropdown, Refresh */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 w-full">
         {/* Search Bar */}
-        <div className="relative flex-1 w-full min-w-0">
-          <Search
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-          />
-          <input
-            type="text"
-            placeholder="Search employee or phone..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 rounded-lg bg-white border border-border text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
-          />
-        </div>
+        <SearchInput
+          placeholder="Search employee or phone..."
+          value={searchQuery}
+          onChange={onSearchChange}
+          onResetPage={onResetPage}
+          wrapperClassName="flex-1 w-full min-w-0"
+          isLoading={loading}
+        />
 
         {/* Filter Dropdowns & Refresh */}
         <div className="flex items-center gap-2 w-full sm:w-auto">

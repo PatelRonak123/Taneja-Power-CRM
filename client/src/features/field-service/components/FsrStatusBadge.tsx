@@ -9,8 +9,10 @@ interface Props {
 }
 
 export const FsrStatusBadge: React.FC<Props> = ({ status, size = 'md', showIcon = true }) => {
+  const normalizedStatus = (status || '').toString().trim().toUpperCase().replace(/[\s-]/g, '_');
+
   const getBadgeConfig = () => {
-    switch (status) {
+    switch (normalizedStatus) {
       case 'DRAFT':
         return {
           label: 'Draft',
@@ -18,16 +20,17 @@ export const FsrStatusBadge: React.FC<Props> = ({ status, size = 'md', showIcon 
           classes: 'bg-slate-100 text-slate-700 border-slate-200',
         };
       case 'IN_PROGRESS':
+      case 'INPROGRESS':
         return {
           label: 'In Progress',
           icon: Clock,
-          classes: 'bg-blue-50 text-blue-700 border-blue-200 shadow-xs',
+          classes: 'bg-blue-50 text-blue-700 border-blue-200 shadow-2xs',
         };
       case 'COMPLETED':
         return {
           label: 'Completed',
           icon: CheckCircle2,
-          classes: 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-xs',
+          classes: 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-2xs',
         };
       case 'CLOSED':
         return {
@@ -36,6 +39,7 @@ export const FsrStatusBadge: React.FC<Props> = ({ status, size = 'md', showIcon 
           classes: 'bg-purple-50 text-purple-700 border-purple-300',
         };
       case 'CANCELLED':
+      case 'CANCELED':
         return {
           label: 'Cancelled',
           icon: XCircle,
@@ -43,7 +47,7 @@ export const FsrStatusBadge: React.FC<Props> = ({ status, size = 'md', showIcon 
         };
       default:
         return {
-          label: status,
+          label: status || 'Draft',
           icon: FileEdit,
           classes: 'bg-slate-100 text-slate-700 border-slate-200',
         };
@@ -67,10 +71,10 @@ export const FsrStatusBadge: React.FC<Props> = ({ status, size = 'md', showIcon 
 
   return (
     <span
-      className={`inline-flex items-center font-medium rounded-full border ${config.classes} ${sizeClasses} transition-all`}
+      className={`inline-flex items-center font-medium rounded-full border whitespace-nowrap shrink-0 ${config.classes} ${sizeClasses} transition-all`}
     >
       {showIcon && <Icon size={iconSizes} className="shrink-0" />}
-      <span>{config.label}</span>
+      <span className="whitespace-nowrap">{config.label}</span>
     </span>
   );
 };

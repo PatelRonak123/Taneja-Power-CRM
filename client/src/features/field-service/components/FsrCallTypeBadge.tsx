@@ -9,15 +9,19 @@ interface Props {
 }
 
 export const FsrCallTypeBadge: React.FC<Props> = ({ callType, size = 'md', showIcon = true }) => {
+  const normalizedType = (callType || '').toString().trim().toUpperCase();
+
   const getBadgeConfig = () => {
-    switch (callType) {
+    switch (normalizedType) {
       case 'BD':
+      case 'BREAKDOWN':
         return {
           label: 'Breakdown (BD)',
           icon: AlertTriangle,
           classes: 'bg-rose-50 text-rose-700 border-rose-200',
         };
       case 'PM':
+      case 'PREVENTIVE':
         return {
           label: 'Preventive (PM)',
           icon: Wrench,
@@ -37,7 +41,7 @@ export const FsrCallTypeBadge: React.FC<Props> = ({ callType, size = 'md', showI
         };
       default:
         return {
-          label: callType,
+          label: callType || 'Service',
           icon: Wrench,
           classes: 'bg-slate-100 text-slate-700 border-slate-200',
         };
@@ -52,10 +56,10 @@ export const FsrCallTypeBadge: React.FC<Props> = ({ callType, size = 'md', showI
 
   return (
     <span
-      className={`inline-flex items-center font-medium rounded-full border ${config.classes} ${sizeClasses} transition-all`}
+      className={`inline-flex items-center font-medium rounded-full border whitespace-nowrap shrink-0 ${config.classes} ${sizeClasses} transition-all`}
     >
       {showIcon && <Icon size={iconSize} className="shrink-0" />}
-      <span>{config.label}</span>
+      <span className="whitespace-nowrap">{config.label}</span>
     </span>
   );
 };

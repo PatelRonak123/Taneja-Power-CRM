@@ -67,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       id: 'admin-dashboard',
       path: '/admin/dashboard',
       aliasPaths: ['/admin'],
-      label: 'Admin Dashboard',
+      label: 'Dashboard',
       icon: ShieldCheck,
       description: 'System overview & metrics',
     },

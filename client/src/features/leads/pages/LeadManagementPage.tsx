@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { SearchInput } from '../../../components/ui/SearchInput';
 import {
   Plus,
-  Search,
   Building2,
   Eye,
   Pencil,
@@ -245,106 +245,108 @@ export const LeadManagementPage: React.FC = () => {
     <div className="space-y-5 max-w-7xl mx-auto pb-10 select-none">
 
       {/* Top Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-xl border border-border shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-4 sm:p-5 rounded-xl border border-border shadow-xs">
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-medium tracking-wider text-slate-400 uppercase">
               LEADS PIPELINE
             </span>
             {user && (
-              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">
+              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 whitespace-nowrap">
                 User: {user.fullName} ({user.role})
               </span>
             )}
           </div>
-          <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
+          <h1 className="text-xl sm:text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
             Lead Management
           </h1>
-          <p className="text-[13px] text-slate-500 leading-relaxed mt-0.5">
+          <p className="text-xs sm:text-[13px] text-slate-500 leading-relaxed mt-0.5">
             Capture, track, and convert prospective client opportunities into active orders
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-start sm:self-auto shrink-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto shrink-0">
           <Button
             variant="outline"
             size="md"
+            className="flex-1 sm:flex-initial"
             onClick={handleExportCsv}
             disabled={filteredLeads.length === 0}
             title="Download CSV report of current leads list"
           >
-            <Download size={14} className="mr-1.5" />
-            <span>Export CSV</span>
+            <Download size={14} className="mr-1.5 shrink-0" />
+            <span className="truncate">Export CSV</span>
           </Button>
           <Button
             variant="primary"
             size="md"
+            className="flex-1 sm:flex-initial"
             onClick={handleOpenAdd}
           >
-            <Plus size={15} className="mr-1.5" />
-            <span>Add New Lead</span>
+            <Plus size={15} className="mr-1.5 shrink-0" />
+            <span className="truncate">Add New Lead</span>
           </Button>
         </div>
       </div>
 
       {/* KPI Stats Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
-        <div className="bg-card p-4 rounded-xl border border-border shadow-xs flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-xs text-slate-500 font-medium block">Total Leads</span>
-            <span className="text-[22px] font-bold text-slate-900 tabular-nums leading-none block">{stats.totalCount}</span>
-            <span className="text-[11px] text-slate-400">In CRM Database</span>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3.5">
+        <div className="bg-card p-2.5 sm:p-4 rounded-lg sm:rounded-xl border border-border shadow-xs flex items-center justify-between min-w-0">
+          <div className="space-y-0.5 sm:space-y-1 min-w-0">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium block truncate">Total Leads</span>
+            <span className="text-base sm:text-[22px] font-bold text-slate-900 tabular-nums leading-tight sm:leading-none block truncate">{stats.totalCount}</span>
+            <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">In CRM Database</span>
           </div>
-          <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Building2 size={18} />
+          <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-md sm:rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-[18px] sm:[&>svg]:h-[18px]">
+            <Building2 />
           </div>
         </div>
 
-        <div className="bg-card p-4 rounded-xl border border-border shadow-xs flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-xs text-slate-500 font-medium block">Pipeline Value</span>
-            <span className="text-[22px] font-bold text-slate-900 tabular-nums leading-none block">
+        <div className="bg-card p-2.5 sm:p-4 rounded-lg sm:rounded-xl border border-border shadow-xs flex items-center justify-between min-w-0">
+          <div className="space-y-0.5 sm:space-y-1 min-w-0">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium block truncate">Pipeline Value</span>
+            <span className="text-base sm:text-[22px] font-bold text-slate-900 tabular-nums leading-tight sm:leading-none block truncate">
               ₹{(stats.totalPipelineValue / 100000).toFixed(1)}L
             </span>
-            <span className="text-[11px] text-slate-400">Expected revenue</span>
+            <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">Expected revenue</span>
           </div>
-          <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <DollarSign size={18} />
+          <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-md sm:rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-[18px] sm:[&>svg]:h-[18px]">
+            <DollarSign />
           </div>
         </div>
 
-        <div className="bg-card p-4 rounded-xl border border-border shadow-xs flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-xs text-slate-500 font-medium block">Won Revenue</span>
-            <span className="text-[22px] font-bold text-emerald-600 tabular-nums leading-none block">
+        <div className="bg-card p-2.5 sm:p-4 rounded-lg sm:rounded-xl border border-border shadow-xs flex items-center justify-between min-w-0">
+          <div className="space-y-0.5 sm:space-y-1 min-w-0">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium block truncate">Won Revenue</span>
+            <span className="text-base sm:text-[22px] font-bold text-emerald-600 tabular-nums leading-tight sm:leading-none block truncate">
               ₹{(stats.wonValue / 100000).toFixed(1)}L
             </span>
-            <span className="text-[11px] text-slate-400">Approved / Closed</span>
+            <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">Approved / Closed</span>
           </div>
-          <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-            <CheckCircle2 size={18} />
-          </div>
-        </div>
-
-        <div className="bg-card p-4 rounded-xl border border-border shadow-xs flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-xs text-slate-500 font-medium block">Win Rate</span>
-            <span className="text-[22px] font-bold text-slate-900 tabular-nums leading-none block">{stats.winRate}%</span>
-            <span className="text-[11px] text-slate-400">Conversion ratio</span>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-            <TrendingUp size={18} />
+          <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-md sm:rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-[18px] sm:[&>svg]:h-[18px]">
+            <CheckCircle2 />
           </div>
         </div>
 
-        <div className="bg-card p-4 rounded-xl border border-border shadow-xs flex items-center justify-between col-span-2 sm:col-span-1">
-          <div className="space-y-1">
-            <span className="text-xs text-slate-500 font-medium block">High Priority</span>
-            <span className="text-[22px] font-bold text-rose-600 tabular-nums leading-none block">{stats.urgentCount}</span>
-            <span className="text-[11px] text-slate-400">Urgent / High deals</span>
+        <div className="bg-card p-2.5 sm:p-4 rounded-lg sm:rounded-xl border border-border shadow-xs flex items-center justify-between min-w-0">
+          <div className="space-y-0.5 sm:space-y-1 min-w-0">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium block truncate">Win Rate</span>
+            <span className="text-base sm:text-[22px] font-bold text-slate-900 tabular-nums leading-tight sm:leading-none block truncate">{stats.winRate}%</span>
+            <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">Conversion ratio</span>
           </div>
-          <div className="w-9 h-9 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-            <AlertCircle size={18} />
+          <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-md sm:rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-[18px] sm:[&>svg]:h-[18px]">
+            <TrendingUp />
+          </div>
+        </div>
+
+        <div className="bg-card p-2.5 sm:p-4 rounded-lg sm:rounded-xl border border-border shadow-xs flex items-center justify-between min-w-0 col-span-2 sm:col-span-1">
+          <div className="space-y-0.5 sm:space-y-1 min-w-0">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium block truncate">High Priority</span>
+            <span className="text-base sm:text-[22px] font-bold text-rose-600 tabular-nums leading-tight sm:leading-none block truncate">{stats.urgentCount}</span>
+            <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">Urgent / High deals</span>
+          </div>
+          <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-md sm:rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-[18px] sm:[&>svg]:h-[18px]">
+            <AlertCircle />
           </div>
         </div>
       </div>
@@ -384,16 +386,12 @@ export const LeadManagementPage: React.FC = () => {
         )}
 
         {/* Search Field */}
-        <div className="relative flex-1 min-w-50">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-          <input
-            type="text"
-            className="w-full h-9 pl-9 pr-3 bg-white border border-border rounded-lg text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
-            placeholder="Search customer, company, product..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          placeholder="Search customer, company, product..."
+          value={searchQuery}
+          onChange={setSearchQuery}
+          wrapperClassName="flex-1 min-w-50"
+        />
 
         {/* Status Filter */}
         <select

@@ -109,14 +109,15 @@ export const EmployeeManagementPage: React.FC = () => {
     }
   };
 
+  // Re-fetch on filter or debounced search changes
   useEffect(() => {
     setPage(1);
     fetchEmployees(1);
-  }, [roleFilter, statusFilter, workTypeFilter]);
+  }, [searchQuery, roleFilter, statusFilter, workTypeFilter]);
 
-  // Search Submit
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Search Submit (immediate)
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     setPage(1);
     fetchEmployees(1);
   };

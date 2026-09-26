@@ -99,9 +99,14 @@ apiClient.interceptors.response.use(
         await apiClient.post('/auth/refresh');
         processQueue(null);
         return apiClient(originalRequest);
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         processQueue(refreshError);
-        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+        const refreshStatus = refreshError?.statusCode || refreshError?.response?.status;
+        // Only trigger auth:unauthorized if the server specifically returned 401 or 403
+        // If the server is temporarily restarting/offline (Network Error), do NOT log the user out!
+        if (refreshStatus === 401 || refreshStatus === 403) {
+          window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+        }
         return Promise.reject(normalizedError);
       } finally {
         isRefreshing = false;

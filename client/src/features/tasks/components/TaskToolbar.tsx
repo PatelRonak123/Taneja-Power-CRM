@@ -1,7 +1,8 @@
 import React from 'react';
-import { Search, RefreshCw, X, Filter } from 'lucide-react';
+import { RefreshCw, X, Filter } from 'lucide-react';
 import { Customer } from '../../customers/types/customer.types';
 import { Button } from '../../../components/ui/Button';
+import { SearchInput } from '../../../components/ui/SearchInput';
 
 interface TaskToolbarProps {
   searchQuery: string;
@@ -19,7 +20,7 @@ interface TaskToolbarProps {
   employees: { id: string; fullName: string }[];
   customers: Customer[];
   showEmployeeFilter?: boolean;
-  onSearchSubmit: (e: React.FormEvent) => void;
+  onSearchSubmit?: (e?: React.FormEvent) => void;
   onClearFilters: () => void;
   onRefresh: () => void;
   loading: boolean;
@@ -59,25 +60,14 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
       {/* Top Search & Actions Row */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {/* Search Input Box */}
-        <form onSubmit={onSearchSubmit} className="relative flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            className="w-full h-9 pl-9 pr-8 rounded-lg bg-white border border-border text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
-            placeholder="Search tasks by title, customer, destination, or employee..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 rounded-md cursor-pointer"
-              onClick={() => setSearchQuery('')}
-            >
-              <X size={14} />
-            </button>
-          )}
-        </form>
+        <SearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          onImmediateSearch={() => onSearchSubmit?.()}
+          placeholder="Search tasks by title, customer, destination, or employee..."
+          wrapperClassName="flex-1"
+          isLoading={loading}
+        />
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 self-end sm:self-auto">

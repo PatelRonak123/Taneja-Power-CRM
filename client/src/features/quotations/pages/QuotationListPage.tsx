@@ -4,10 +4,10 @@ import { QuotationListItem } from '../types/quotation.types';
 import { QuotationStatusBadge } from '../components/QuotationStatusBadge';
 import { QuotationTypeBadge } from '../components/QuotationTypeBadge';
 import { navigate } from '../../../app/router/navigation';
+import { SearchInput } from '../../../components/ui/SearchInput';
 import {
   FileSpreadsheet,
   Plus,
-  Search,
   Eye,
   Edit,
   Mail,
@@ -178,19 +178,15 @@ export const QuotationListPage: React.FC = () => {
 
       {/* Filter & Search Bar */}
       <div className="bg-card border border-border rounded-xl p-3 shadow-xs flex flex-col md:flex-row items-center gap-3">
-        <div className="relative flex-1 w-full min-w-70">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Search by quote number, customer, company, or engineer..."
-            className="w-full h-9 pl-9 pr-3 rounded-lg bg-slate-50 border border-slate-200 text-[13px] font-normal text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-colors"
-          />
-        </div>
+        <SearchInput
+          placeholder="Search by quote number, customer, company, or engineer..."
+          value={search}
+          onChange={setSearch}
+          onResetPage={() => setPage(1)}
+          wrapperClassName="flex-1 w-full min-w-70"
+          inputClassName="bg-slate-50 border-slate-200"
+          isLoading={loading}
+        />
 
         <div className="flex items-center gap-2 w-full md:w-auto">
           {/* Status Filter */}

@@ -12,7 +12,6 @@ import {
   Building,
   Smartphone,
   CalendarCheck,
-  CalendarX,
 } from 'lucide-react';
 import { navigate } from '../../../app/router/navigation';
 import { Employee, EmployeeRole, EmployeeStatus, WorkType } from '../types/employee.types';
@@ -206,9 +205,6 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
                               </span>
                             )}
                           </span>
-                          <span className="text-[11px] text-slate-400 font-mono">
-                            ID: {emp.id.slice(0, 8)}...
-                          </span>
                         </div>
                       </div>
                     </TableCell>
@@ -290,25 +286,6 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
                         >
                           <CalendarCheck size={13} />
                         </button>
-
-                        {onToggleStatus && (
-                          <button
-                            type="button"
-                            className={`p-1.5 rounded-md border transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-amber-600 ${
-                              emp.status === 'ON_LEAVE'
-                                ? 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600'
-                                : 'bg-white border-slate-200 text-slate-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200'
-                            }`}
-                            onClick={() => {
-                              const nextStatus = emp.status === 'ON_LEAVE' ? 'ACTIVE' : 'ON_LEAVE';
-                              onToggleStatus({ ...emp, status: nextStatus as any });
-                            }}
-                            title={emp.status === 'ON_LEAVE' ? 'End Leave (Set Active)' : 'Mark On Leave'}
-                            aria-label={emp.status === 'ON_LEAVE' ? 'End Leave' : 'Mark On Leave'}
-                          >
-                            <CalendarX size={13} />
-                          </button>
-                        )}
 
                         <button
                           type="button"

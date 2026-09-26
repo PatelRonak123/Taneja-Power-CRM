@@ -113,8 +113,8 @@ export class EmailService {
               </p>
             </div>
             <div class="footer">
-              <p><strong>Taneja Power Systems</strong> • GIDC Industrial Estate, Makarpura, Vadodara, Gujarat 390010</p>
-              <p>Email: sales@tanejapower.com | Phone: +91 98765 43210</p>
+              <p><strong>Taneja Power Systems</strong> • 29, 4th Floor, Earth Alfa, Vasna - Bhayli Main Rd, opp. Nilamber Bunglow, Ashwamegh Nagar, Tandalja, Vadodara, Gujarat 390020</p>
+              <p>Email: sales@tanejapower.com | Phone: 099988 38762</p>
             </div>
           </div>
         </body>
@@ -227,7 +227,7 @@ export class EmailService {
                 <!-- Corporate Footer -->
                 <div style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 32px; text-align: center; font-size: 11px; color: #64748b; line-height: 1.6;">
                   <p style="margin: 0; font-weight: 700; color: #334155;">Taneja Power Systems Inc.</p>
-                  <p style="margin: 2px 0 0 0;">GIDC Industrial Estate, Makarpura, Vadodara, Gujarat 390010</p>
+                  <p style="margin: 2px 0 0 0;">29, 4th Floor, Earth Alfa, Vasna - Bhayli Main Rd, opp. Nilamber Bunglow, Ashwamegh Nagar, Tandalja, Vadodara, Gujarat 390020</p>
                   <p style="margin: 4px 0 0 0; color: #94a3b8;">Automated System Notification • Do Not Reply directly to this email</p>
                 </div>
 

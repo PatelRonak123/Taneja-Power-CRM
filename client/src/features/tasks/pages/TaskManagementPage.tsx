@@ -161,14 +161,14 @@ export const TaskManagementPage: React.FC = () => {
     }
   };
 
-  // Re-fetch on filter changes
+  // Re-fetch on filter and debounced search changes
   useEffect(() => {
     setPage(1);
     fetchTasks(1);
-  }, [statusFilter, priorityFilter, employeeFilter, customerFilter, dateFilter]);
+  }, [searchQuery, statusFilter, priorityFilter, employeeFilter, customerFilter, dateFilter]);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     setPage(1);
     fetchTasks(1);
   };
