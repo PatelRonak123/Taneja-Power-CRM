@@ -1,9 +1,51 @@
+import { env } from '../../config/env.js';
+
 type LogLevel = 'info' | 'warn' | 'error' | 'debug';
+
+const SENSITIVE_KEY_PATTERNS = [
+  'password',
+  'passwordhash',
+  'newpassword',
+  'currentpassword',
+  'token',
+  'accesstoken',
+  'refreshtoken',
+  'secret',
+  'jwtsecret',
+  'apikey',
+  'authorization',
+  'cookie',
+];
+
+const maskSensitiveData = (obj: unknown, depth = 0): unknown => {
+  if (depth > 5 || !obj || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => maskSensitiveData(item, depth + 1));
+  }
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    const lowerKey = key.toLowerCase();
+    const isSensitive = SENSITIVE_KEY_PATTERNS.some((pattern) => lowerKey.includes(pattern));
+    if (isSensitive) {
+      sanitized[key] = '[REDACTED]';
+    } else if (typeof value === 'object' && value !== null) {
+      sanitized[key] = maskSensitiveData(value, depth + 1);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+};
 
 class Logger {
   private formatMessage(level: LogLevel, message: string, meta?: Record<string, unknown>): string {
     const timestamp = new Date().toISOString();
-    const metaString = meta ? ` | ${JSON.stringify(meta)}` : '';
+    const sanitizedMeta = meta ? (maskSensitiveData(meta) as Record<string, unknown>) : undefined;
+    const metaString = sanitizedMeta ? ` | ${JSON.stringify(sanitizedMeta)}` : '';
     return `[${timestamp}] [${level.toUpperCase()}] ${message}${metaString}`;
   }
 
@@ -20,7 +62,7 @@ class Logger {
   }
 
   debug(message: string, meta?: Record<string, unknown>): void {
-    if (process.env.NODE_ENV === 'development') {
+    if (env.isDevelopment) {
       console.debug(this.formatMessage('debug', message, meta));
     }
   }

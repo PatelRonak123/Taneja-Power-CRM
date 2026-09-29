@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { toast } from '../../../utils/toast';
+import { env } from '../../../app/config/env';
 
 interface LoginFormProps {
   onSubmit: (credentials: { email: string; password: string }) => Promise<void>;
@@ -92,7 +93,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/v1/auth/forgot-password', {
+      const response = await fetch(`${env.API_BASE_URL}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -202,7 +203,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/v1/auth/verify-otp', {
+      const response = await fetch(`${env.API_BASE_URL}/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp: otpCode }),
@@ -251,7 +252,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/v1/auth/reset-password', {
+      const response = await fetch(`${env.API_BASE_URL}/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp: otpDigits.join(''), newPassword }),

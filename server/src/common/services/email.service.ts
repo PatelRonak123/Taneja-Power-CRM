@@ -23,7 +23,7 @@ export class EmailService {
   private resendClient: Resend | null = null;
 
   private getClient(): Resend {
-    const apiKey = env.RESEND_API_KEY || process.env.RESEND_API_KEY;
+    const apiKey = env.RESEND_API_KEY;
     if (!apiKey || apiKey.includes('your_resend_api_key')) {
       throw AppError.badRequest(
         'Resend API key is missing or not configured. Please add a valid RESEND_API_KEY to your server .env file.'
@@ -151,11 +151,15 @@ export class EmailService {
    * Send 4-digit password reset OTP email
    */
   async sendOtpEmail(to: string, otpCode: string): Promise<SendOtpEmailResult> {
-    const apiKey = env.RESEND_API_KEY || process.env.RESEND_API_KEY;
+    const apiKey = env.RESEND_API_KEY;
     if (!apiKey || apiKey.includes('your_resend_api_key')) {
-      console.warn(`\n==============================================`);
-      console.warn(`[DEV OTP EMAIL] RESEND_API_KEY not configured. OTP code [${otpCode}] for recipient: ${to}`);
-      console.warn(`==============================================\n`);
+      if (env.isDevelopment) {
+        console.warn(`\n==============================================`);
+        console.warn(`[DEV OTP EMAIL] RESEND_API_KEY not configured. OTP code [${otpCode}] for recipient: ${to}`);
+        console.warn(`==============================================\n`);
+      } else {
+        console.warn(`[OTP EMAIL] RESEND_API_KEY is not configured on this server. Delivery skipped for recipient: ${to}`);
+      }
       return {
         delivered: false,
         error: 'RESEND_API_KEY is not configured on this server.',
