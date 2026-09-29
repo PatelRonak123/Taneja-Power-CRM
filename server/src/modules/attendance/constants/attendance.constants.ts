@@ -1,3 +1,5 @@
+import { env } from '../../../config/env.js';
+
 export const ATTENDANCE_STATUS = {
   CHECKED_IN: 'CHECKED_IN',
   CHECKED_OUT: 'CHECKED_OUT',
@@ -11,10 +13,10 @@ export const ATTENDANCE_CONSTANTS = {
   OFFICE_LOCATION: {
     NAME: 'Taneja Power Systems (Head Office)',
     ADDRESS: '29, 4th Floor, Earth Alfa, Vasna - Bhayli Main Rd, opp. Nilamber Bunglow, Ashwamegh Nagar, Tandalja, Vadodara, Gujarat 390020',
-    LATITUDE: process.env.OFFICE_LATITUDE ? parseFloat(process.env.OFFICE_LATITUDE) : 22.2965,
-    LONGITUDE: process.env.OFFICE_LONGITUDE ? parseFloat(process.env.OFFICE_LONGITUDE) : 73.1495,
+    LATITUDE: env.OFFICE_LATITUDE,
+    LONGITUDE: env.OFFICE_LONGITUDE,
     // Maximum allowed check-in/out radius in meters for office employees
-    RADIUS_METERS: process.env.OFFICE_RADIUS_METERS ? parseFloat(process.env.OFFICE_RADIUS_METERS) : 500,
+    RADIUS_METERS: env.OFFICE_RADIUS_METERS,
   },
 } as const;
 

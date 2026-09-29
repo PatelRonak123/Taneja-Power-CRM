@@ -25,6 +25,7 @@ import { customerService } from '../../customers/services/customerService';
 import { toast } from '../../../utils/toast';
 import { Customer } from '../../customers/types/customer.types';
 import { leadsApi } from '../api/leadsApi';
+import { FollowUpEntitySection } from '../../follow-ups/components/FollowUpEntitySection';
 
 interface LeadDrawerProps {
   isOpen: boolean;
@@ -544,6 +545,19 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                       <p className="text-xs text-slate-400 italic">No activity logged yet.</p>
                     )}
                   </div>
+                </div>
+
+                {/* Lead / Deal Follow-ups Section */}
+                <div className="pt-4 border-t border-slate-200/80">
+                  <FollowUpEntitySection
+                    leadId={lead.id}
+                    dealId={lead.id}
+                    leadCode={lead.id}
+                    customerId={selectedCustomerId || lead.linkedClientId}
+                    customerName={lead.companyName || lead.customerName}
+                    defaultTitle={`Follow-up: ${lead.customerName}`}
+                    defaultType="CALL"
+                  />
                 </div>
               </>
             )}

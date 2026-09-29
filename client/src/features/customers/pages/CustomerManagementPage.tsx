@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   Building2,
   Plus,
+  X,
 } from 'lucide-react';
+import { FollowUpEntitySection } from '../../follow-ups/components/FollowUpEntitySection';
 import { customerService } from '../services/customerService';
 import {
   Customer,
@@ -77,6 +79,8 @@ export const CustomerManagementPage: React.FC = () => {
 
   // Destinations Detail Drawer / View State
   const [selectedCustomerForDestinations, setSelectedCustomerForDestinations] =
+    useState<Customer | null>(null);
+  const [selectedCustomerForFollowUps, setSelectedCustomerForFollowUps] =
     useState<Customer | null>(null);
   const [destinations, setDestinations] = useState<CustomerDestination[]>([]);
   const [loadingDestinations, setLoadingDestinations] = useState<boolean>(false);
@@ -573,6 +577,7 @@ export const CustomerManagementPage: React.FC = () => {
         }}
         onOpenCreate={handleOpenCreateCustomer}
         onOpenDestinations={handleOpenDestinations}
+        onOpenFollowUps={setSelectedCustomerForFollowUps}
         onEditCustomer={handleOpenEditCustomer}
         onDeleteCustomer={handleDeleteCustomer}
         deletingCustomerId={deletingCustomerId}
@@ -618,6 +623,45 @@ export const CustomerManagementPage: React.FC = () => {
         formSubmitting={destinationFormSubmitting}
         formError={destinationFormError}
       />
+
+      {/* Customer Follow-ups Slide-over Drawer */}
+      {selectedCustomerForFollowUps && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setSelectedCustomerForFollowUps(null)}
+          />
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-50">
+            <div className="w-screen max-w-2xl bg-white shadow-2xl flex flex-col border-l border-slate-200 overflow-y-auto">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-10">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Follow-ups: {selectedCustomerForFollowUps.companyName || selectedCustomerForFollowUps.name}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Manage and schedule follow-ups for this customer
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerForFollowUps(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-6">
+                <FollowUpEntitySection
+                  customerId={selectedCustomerForFollowUps.id}
+                  customerName={selectedCustomerForFollowUps.companyName || selectedCustomerForFollowUps.name}
+                  defaultTitle={`Follow-up: ${selectedCustomerForFollowUps.companyName || selectedCustomerForFollowUps.name}`}
+                  defaultType="CUSTOMER_VISIT"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

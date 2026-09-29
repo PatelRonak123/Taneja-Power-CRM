@@ -144,9 +144,9 @@ export const SecurityPasswordCard: React.FC = () => {
             <p className="text-xs text-slate-500">Update your account authentication credentials</p>
           </div>
         </div>
-        <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full">
+        {/* <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full">
           BCRYPT ENCRYPTED
-        </span>
+        </span> */}
       </div>
 
       {/* Success Alert Banner */}

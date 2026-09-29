@@ -11,21 +11,27 @@ const server = app.listen(env.PORT, async () => {
   logger.info(`📡 API endpoint: http://localhost:${env.PORT}/api/v1`);
 
   // Initialize WhatsApp client & auto-restore existing session if present
-  try {
-    await whatsappService.initialize();
-  } catch (err) {
-    logger.error('Failed to initialize WhatsApp service on startup', {
-      error: (err as Error).message,
-    });
+  if (env.WHATSAPP_ENABLED) {
+    try {
+      await whatsappService.initialize();
+    } catch (err) {
+      logger.error('Failed to initialize WhatsApp service on startup', {
+        error: (err as Error).message,
+      });
+    }
+  } else {
+    logger.info('WhatsApp service is disabled via WHATSAPP_ENABLED=false');
   }
 });
 
 const gracefulShutdown = async (signal: string) => {
   logger.info(`Received ${signal}. Shutting down gracefully...`);
-  try {
-    await whatsappService.disconnect();
-  } catch {
-    // Ignore disconnect errors during shutdown
+  if (env.WHATSAPP_ENABLED) {
+    try {
+      await whatsappService.disconnect();
+    } catch {
+      // Ignore disconnect errors during shutdown
+    }
   }
   server.close(async () => {
     logger.info('HTTP server closed.');

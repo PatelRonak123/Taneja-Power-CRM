@@ -17,17 +17,53 @@ import geocodingRoutes from './modules/geocoding/geocoding.routes.js';
 import quotationRoutes from './modules/quotations/routes/quotation.routes.js';
 import amcContractRoutes from './modules/amc-contracts/routes/amc-contract.routes.js';
 import fieldServiceRoutes from './modules/field-service/routes/field-service.routes.js';
+import followUpRoutes from './modules/follow-ups/routes/follow-up.routes.js';
 import path from 'path';
 import { sendResponse } from './common/utils/responseEnvelope.js';
 
 export const createApp = (): Application => {
   const app = express();
 
-  // Global Middleware
+  // Trust proxy in production or when explicitly configured (essential for secure cookies behind reverse proxy)
+  if (env.TRUST_PROXY !== undefined) {
+    app.set('trust proxy', env.TRUST_PROXY);
+  } else if (env.isProduction) {
+    app.set('trust proxy', 1);
+  }
+
+  // Global CORS Middleware
+  const allowedOrigins = env.corsOrigins;
+
   app.use(
     cors({
-      origin: env.CORS_ORIGIN,
+      origin: (requestOrigin, callback) => {
+        // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+        if (!requestOrigin) {
+          return callback(null, true);
+        }
+
+        // In development, allow configured origins plus local development tooling
+        if (env.isDevelopment) {
+          if (
+            allowedOrigins.includes(requestOrigin) ||
+            requestOrigin.startsWith('http://localhost:') ||
+            requestOrigin.startsWith('http://127.0.0.1:')
+          ) {
+            return callback(null, true);
+          }
+          return callback(null, true);
+        }
+
+        // In production, strictly match configured origins
+        if (allowedOrigins.includes(requestOrigin)) {
+          return callback(null, true);
+        }
+
+        return callback(new Error(`CORS origin '${requestOrigin}' not allowed by policy`));
+      },
       credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
     })
   );
   app.use(cookieParser());
@@ -55,6 +91,7 @@ export const createApp = (): Application => {
   app.use(`${APP_CONSTANTS.API_PREFIX}/quotations`, quotationRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/amc-contracts`, amcContractRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/field-service`, fieldServiceRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/follow-ups`, followUpRoutes);
 
   // 404 Handler
   app.use(notFoundMiddleware);

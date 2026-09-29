@@ -11,6 +11,7 @@ import { QuotationService } from "../modules/quotations/services/quotation.servi
 import { LeadService } from "../modules/leads/services/lead.service.js";
 import { AmcContractService } from "../modules/amc-contracts/services/amc-contract.service.js";
 import { AttendanceService } from "../modules/attendance/services/attendance.service.js";
+import { ATTENDANCE_CONSTANTS } from "../modules/attendance/constants/attendance.constants.js";
 import { APP_CONSTANTS, UserRole, WorkType } from "../config/constants.js";
 import { hasPermission } from "../common/auth/permissions.js";
 import { isValidDesignationForWorkType } from "../modules/employees/validators/employee.validator.js";
@@ -394,7 +395,11 @@ async function runPhaseB4Tests() {
     // TEST 7: Attendance Scoping
     // -------------------------------------------------------------
     console.log("--- TEST 7: Attendance Self-Service Scoping ---");
-    const ownAttendance = await attendanceService.checkIn(accountantUser.id, { notes: "B4 Office Check-in" });
+    const officeCoords = {
+      latitude: ATTENDANCE_CONSTANTS.OFFICE_LOCATION.LATITUDE,
+      longitude: ATTENDANCE_CONSTANTS.OFFICE_LOCATION.LONGITUDE,
+    };
+    const ownAttendance = await attendanceService.checkIn(accountantUser.id, { notes: "B4 Office Check-in", ...officeCoords });
     if (ownAttendance.employeeId !== accountantUser.id) {
       throw new Error("Own attendance checkIn recorded with wrong employeeId");
     }
@@ -405,7 +410,7 @@ async function runPhaseB4Tests() {
     }
     console.log("✓ PASS: Own attendance check-in & retrieval verified.");
 
-    const salesAttendance = await attendanceService.checkIn(salesUser.id, { notes: "B4 Sales Check-in" });
+    const salesAttendance = await attendanceService.checkIn(salesUser.id, { notes: "B4 Sales Check-in", ...officeCoords });
     const attendanceControllerPath = path.resolve(__dirname, "../modules/attendance/controllers/attendance.controller.ts");
     const attendanceControllerContent = fs.readFileSync(attendanceControllerPath, "utf-8");
     if (!attendanceControllerContent.includes("result.employeeId !== req.user.userId")) {

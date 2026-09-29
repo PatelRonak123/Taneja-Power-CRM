@@ -17,6 +17,7 @@ import { QuotationRevision, QuotationItem } from '../types/quotation.types';
 import { amcContractApi } from '../../amc-contracts/api/amcContractApi';
 import { toast } from '../../../utils/toast';
 import { Button } from '../../../components/ui/Button';
+import { FollowUpEntitySection } from '../../follow-ups/components/FollowUpEntitySection';
 
 import {
   ArrowLeft,
@@ -30,6 +31,7 @@ import {
   Building2,
   MapPin,
   Calendar,
+  Clock,
   FileText,
   ShieldCheck,
   Activity,
@@ -68,7 +70,7 @@ export const QuotationDetailPage: React.FC = () => {
   const match = currentPath.match(/^\/quotations\/([^/]+)$/);
   const quotationId = match ? match[1] : null;
 
-  const [activeTab, setActiveTab] = useState<'revisions' | 'approvals' | 'activity'>('revisions');
+  const [activeTab, setActiveTab] = useState<'revisions' | 'approvals' | 'activity' | 'followups'>('revisions');
   const [approvalModalAction, setApprovalModalAction] = useState<'APPROVE' | 'REJECT' | null>(null);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [viewingRevisionNumber, setViewingRevisionNumber] = useState<number | null>(null);
@@ -839,6 +841,17 @@ export const QuotationDetailPage: React.FC = () => {
             <Activity className="w-4 h-4 mr-2" />
             Audit & Activity Logs
           </button>
+          <button
+            onClick={() => setActiveTab('followups')}
+            className={`flex items-center px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'followups'
+                ? 'border-indigo-600 text-indigo-600 bg-white'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
+            }`}
+          >
+            <Clock className="w-4 h-4 mr-2" />
+            Follow-ups & Reminders
+          </button>
         </div>
 
         <div className="p-6">
@@ -913,6 +926,17 @@ export const QuotationDetailPage: React.FC = () => {
 
           {activeTab === 'activity' && (
             <QuotationActivityTimeline activityLogs={quotation.activityLogs || []} />
+          )}
+
+          {activeTab === 'followups' && (
+            <FollowUpEntitySection
+              quotationId={quotation.id}
+              quotationNumber={quotation.quotationNumber}
+              customerId={quotation.customerId}
+              customerName={quotation.customer?.name}
+              defaultTitle={`Quotation Follow-up: ${quotation.quotationNumber}`}
+              defaultType="QUOTATION_FOLLOW_UP"
+            />
           )}
         </div>
       </div>

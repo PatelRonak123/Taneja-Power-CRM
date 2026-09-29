@@ -29,6 +29,7 @@ import { FsrDetailPage } from "../../features/field-service/pages/FsrDetailPage"
 import { CustomerManagementPage } from "../../features/customers/pages/CustomerManagementPage";
 import { LeadManagementPage } from "../../features/leads/pages/LeadManagementPage";
 import { PipelinePage } from "../../features/leads/pages/PipelinePage";
+import { FollowUpManagementPage } from "../../features/follow-ups/pages/FollowUpManagementPage";
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -85,6 +86,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       currentPath === "/deals"
     ) {
       return <PipelinePage />;
+    }
+
+    if (currentPath === "/follow-ups" || currentPath === "/admin/follow-ups") {
+      if (isHrOffice) {
+        return <EmployeeDashboardPage />;
+      }
+      return <FollowUpManagementPage />;
     }
 
     if (currentPath.startsWith("/field-service")) {

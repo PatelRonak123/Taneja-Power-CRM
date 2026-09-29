@@ -22,6 +22,7 @@ import {
   PanelLeftOpen,
   FileSpreadsheet,
   Wrench,
+  CalendarClock,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -102,6 +103,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       label: 'Deals Pipeline',
       icon: Layers,
       description: 'Kanban workflow & deals',
+    },
+    {
+      id: 'follow-up-management',
+      path: '/follow-ups',
+      aliasPaths: ['/admin/follow-ups'],
+      label: 'Follow-ups & Reminders',
+      icon: CalendarClock,
+      description: 'Scheduled interactions & touchpoints',
     },
     {
       id: 'field-service-management',
@@ -237,6 +246,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           icon: FileSpreadsheet,
         },
         {
+          id: 'employee-follow-ups',
+          path: '/follow-ups',
+          aliasPaths: ['/admin/follow-ups'],
+          label: 'Follow-ups',
+          icon: CalendarClock,
+        },
+        {
           id: 'products',
           path: '/products',
           aliasPaths: ['/equipment'],
@@ -296,6 +312,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           icon: ShieldCheck,
         },
         {
+          id: 'employee-follow-ups',
+          path: '/follow-ups',
+          aliasPaths: ['/admin/follow-ups'],
+          label: 'Follow-ups',
+          icon: CalendarClock,
+        },
+        {
           id: 'employee-field-service',
           path: '/field-service',
           aliasPaths: ['/field-service/reports', '/field-service/my-visits', '/field-service/new'],
@@ -347,6 +370,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           aliasPaths: ['/admin/pipeline'],
           label: 'Deals Pipeline',
           icon: Layers,
+        },
+        {
+          id: 'employee-follow-ups',
+          path: '/follow-ups',
+          aliasPaths: ['/admin/follow-ups'],
+          label: 'Follow-ups',
+          icon: CalendarClock,
         },
         {
           id: 'employee-quotations',
@@ -407,6 +437,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           aliasPaths: ['/admin/tasks'],
           label: 'My Tasks',
           icon: ClipboardList,
+        },
+        {
+          id: 'employee-follow-ups',
+          path: '/follow-ups',
+          aliasPaths: ['/admin/follow-ups'],
+          label: 'Follow-ups',
+          icon: CalendarClock,
         },
         {
           id: 'employee-amc-contracts',

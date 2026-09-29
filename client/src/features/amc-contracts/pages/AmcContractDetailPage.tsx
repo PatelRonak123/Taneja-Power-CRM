@@ -5,6 +5,7 @@ import { navigate, useCurrentPath } from '../../../app/router/navigation';
 import { useAuthStore } from '../../../stores/authStore';
 import { AmcServiceReportModal } from '../components/AmcServiceReportModal';
 import { toast } from '../../../utils/toast';
+import { FollowUpEntitySection } from '../../follow-ups/components/FollowUpEntitySection';
 import {
   Building2,
   Calendar,
@@ -959,6 +960,16 @@ export const AmcContractDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* AMC Follow-ups & Reminders Section */}
+      <FollowUpEntitySection
+        amcContractId={contract.id}
+        amcContractNumber={contract.contractNumber}
+        customerId={contract.customerId}
+        customerName={contract.customerCompanyName || contract.customerName}
+        defaultTitle={`AMC Follow-up: ${contract.contractNumber}`}
+        defaultType="AMC_RENEWAL"
+      />
 
       {/* Log Breakdown Drawer */}
       {isBreakdownModalOpen && contract && createPortal(

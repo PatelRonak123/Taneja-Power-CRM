@@ -1,8 +1,7 @@
 import { Response, CookieOptions } from 'express';
 import { env } from '../../config/env.js';
 
-const isProduction = env.NODE_ENV === 'production';
-const isSecure = env.COOKIE_SECURE !== undefined ? env.COOKIE_SECURE : isProduction;
+const isSecure = env.COOKIE_SECURE !== undefined ? env.COOKIE_SECURE : env.isProduction;
 
 export const ACCESS_TOKEN_COOKIE = 'access_token';
 export const REFRESH_TOKEN_COOKIE = 'refresh_token';
@@ -17,6 +16,7 @@ export const getBaseCookieOptions = (): CookieOptions => ({
   httpOnly: true,
   secure: isSecure,
   sameSite: env.COOKIE_SAME_SITE as CookieOptions['sameSite'],
+  domain: env.COOKIE_DOMAIN || undefined,
   path: '/',
 });
 

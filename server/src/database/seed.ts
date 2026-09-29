@@ -2,10 +2,16 @@ import { db, pool } from './db.js';
 import { users } from './schema/users.js';
 import { hashPassword } from '../common/auth/password.js';
 import { logger } from '../common/logger/logger.js';
+import { env } from '../config/env.js';
 
 import { fileURLToPath } from 'url';
 
 export const seedDatabase = async (): Promise<void> => {
+  if (env.isProduction && !env.ALLOW_PRODUCTION_SEED) {
+    logger.error('CRITICAL: Database seeding is blocked in production mode! Set ALLOW_PRODUCTION_SEED=true to override.');
+    throw new Error('Database seeding blocked in production mode');
+  }
+
   logger.info('🌱 Starting database seed...');
 
   try {

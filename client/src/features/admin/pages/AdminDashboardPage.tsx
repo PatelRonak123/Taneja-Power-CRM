@@ -30,6 +30,7 @@ import { customerService } from '../../customers/services/customerService';
 import { employeeService } from '../services/employeeService';
 import { attendanceService } from '../../attendance/services/attendanceService';
 import { productService } from '../../products/services/productService';
+import { FollowUpDashboardWidget } from '../../follow-ups/components/FollowUpDashboardWidget';
 
 export const AdminDashboardPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -645,6 +646,9 @@ export const AdminDashboardPage: React.FC = () => {
 
         {/* RIGHT COLUMN: Quick Navigation, Integration & Telemetry (5 Cols on LG) */}
         <div className="lg:col-span-5 space-y-5">
+          {/* CRM Follow-ups & Reminders Widget */}
+          <FollowUpDashboardWidget />
+
           {/* Executive Administrative Modules Grid */}
           <div className="bg-card rounded-xl border border-border shadow-xs p-4 space-y-3.5">
             <div className="flex items-center justify-between gap-2 min-w-0">

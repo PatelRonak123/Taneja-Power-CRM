@@ -8,3 +8,4 @@ export * from "./leads.js";
 export * from "./quotations.js";
 export * from "./amc-contracts.js";
 export * from "./field-service.js";
+export * from "./follow-ups.js";

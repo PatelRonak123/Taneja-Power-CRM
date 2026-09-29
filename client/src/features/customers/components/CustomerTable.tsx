@@ -6,6 +6,7 @@ import {
   Edit2,
   Trash2,
   Plus,
+  CalendarClock,
 } from 'lucide-react';
 import { Customer } from '../types/customer.types';
 import {
@@ -29,6 +30,7 @@ interface CustomerTableProps {
   statusFilter: string;
   deletingCustomerId: string | null;
   onOpenDestinations: (customer: Customer) => void;
+  onOpenFollowUps?: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
   onDeleteCustomer: (customer: Customer) => void;
   page: number;
@@ -47,6 +49,7 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   statusFilter,
   deletingCustomerId,
   onOpenDestinations,
+  onOpenFollowUps,
   onEditCustomer,
   onDeleteCustomer,
   page,
@@ -197,6 +200,18 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                     {/* Actions */}
                     <TableCell align="right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {onOpenFollowUps && (
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-indigo-600"
+                            onClick={() => onOpenFollowUps(cust)}
+                            title="Customer Follow-ups & Reminders"
+                            aria-label={`Follow-ups for ${cust.name}`}
+                          >
+                            <CalendarClock size={13} />
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600"

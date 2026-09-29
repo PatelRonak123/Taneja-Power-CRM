@@ -27,11 +27,11 @@ export const handleError = (err: Error | AppError, res: Response): void => {
 
   res.status(500).json({
     success: false,
-    message: env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+    message: env.isProduction ? 'Internal server error' : err.message,
     error: {
       code: 'INTERNAL_SERVER_ERROR',
-      message: env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
-      stack: env.NODE_ENV === 'development' ? err.stack : undefined,
+      message: env.isProduction ? 'Internal server error' : err.message,
+      stack: env.isDevelopment ? err.stack : undefined,
     },
   });
 };

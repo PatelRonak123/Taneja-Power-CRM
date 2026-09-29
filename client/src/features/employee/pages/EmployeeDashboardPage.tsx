@@ -4,9 +4,15 @@ import { EmployeeWelcomeBanner } from '../components/EmployeeWelcomeBanner';
 import { EmployeeMetricsGrid } from '../components/EmployeeMetricsGrid';
 import { EmployeeQuickActions } from '../components/EmployeeQuickActions';
 import { EmployeeActivityFeed } from '../components/EmployeeActivityFeed';
+import { FollowUpDashboardWidget } from '../../follow-ups/components/FollowUpDashboardWidget';
 
 export const EmployeeDashboardPage: React.FC = () => {
   const { user } = useAuthStore();
+  const designation = (user?.designation || '').toLowerCase();
+  const isHrOffice =
+    (user?.role === 'USER' || (user as any)?.role === 'HR') &&
+    user?.workType === 'OFFICE' &&
+    (designation.includes('hr') || designation.includes('human resources'));
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-12 animate-fade-in w-full overflow-x-hidden">
@@ -15,6 +21,13 @@ export const EmployeeDashboardPage: React.FC = () => {
 
       {/* Overview Metric Cards */}
       <EmployeeMetricsGrid />
+
+      {/* CRM Follow-ups & Reminders Widget */}
+      {!isHrOffice && (
+        <div className="w-full">
+          <FollowUpDashboardWidget />
+        </div>
+      )}
 
       {/* Dashboard Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
