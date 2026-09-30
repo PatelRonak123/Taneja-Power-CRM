@@ -53,16 +53,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     // Role / Designation flags
     const designation = (user?.designation || "").toLowerCase();
     const isSalesOffice =
-      user?.role === "USER" &&
-      user?.workType === "OFFICE" &&
+      (user?.role === "USER" || (user as any)?.role === "SALES") &&
       designation.includes("sales");
     const isAccountantOffice =
       user?.role === "USER" &&
-      user?.workType === "OFFICE" &&
       designation.includes("accountant");
     const isHrOffice =
       (user?.role === "USER" || (user as any)?.role === "HR") &&
-      user?.workType === "OFFICE" &&
       (designation.includes("hr") || designation.includes("human resources"));
 
     if (
@@ -149,10 +146,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       currentPath === "/amc-contracts" ||
       currentPath === "/admin/amc-contracts"
     ) {
+      if (isSalesOffice) {
+        return <EmployeeDashboardPage />;
+      }
       return <AmcContractListPage />;
     }
 
     if (currentPath.startsWith("/amc-contracts/")) {
+      if (isSalesOffice) {
+        return <EmployeeDashboardPage />;
+      }
       return <AmcContractDetailPage />;
     }
 

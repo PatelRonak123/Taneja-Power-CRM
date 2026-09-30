@@ -1,4 +1,4 @@
-import { eq, ilike, or, and, count, desc, gte, lte, aliasedTable } from 'drizzle-orm';
+import { eq, ilike, or, and, count, desc, gte, lte, aliasedTable, inArray } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import {
   quotations,
@@ -27,8 +27,10 @@ export interface QuotationFilterOptions {
   search?: string;
   status?: string;
   quotationType?: string;
+  allowedTypes?: string[];
   customerId?: string;
   salespersonId?: string;
+  createdById?: string;
   startDate?: string;
   endDate?: string;
   page?: number;
@@ -191,11 +193,22 @@ export class QuotationRepository {
       conditions.push(eq(quotations.quotationType, options.quotationType.trim()));
     }
 
+    if (options.allowedTypes && options.allowedTypes.length > 0) {
+      conditions.push(inArray(quotations.quotationType, options.allowedTypes));
+    }
+
     if (options.customerId && options.customerId.trim() !== '') {
       conditions.push(eq(quotations.customerId, options.customerId.trim()));
     }
 
-    if (options.salespersonId && options.salespersonId.trim() !== '') {
+    if (options.createdById && options.createdById.trim() !== '') {
+      conditions.push(
+        or(
+          eq(quotations.createdById, options.createdById.trim()),
+          eq(quotations.salespersonId, options.createdById.trim())
+        )
+      );
+    } else if (options.salespersonId && options.salespersonId.trim() !== '') {
       conditions.push(eq(quotations.salespersonId, options.salespersonId.trim()));
     }
 

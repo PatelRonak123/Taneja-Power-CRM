@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuthStore } from '../../../stores/authStore';
 import {
   CreateQuotationPayload,
   LineItemFormInput,
@@ -62,10 +63,21 @@ export const QuotationForm: React.FC<Props> = ({
     initialData?.destinationId || ''
   );
 
+  const { user } = useAuthStore();
+  const designationLower = (user?.designation || '').toLowerCase();
+  const isSalesOffice =
+    (user?.role === 'USER' || (user as any)?.role === 'SALES') &&
+    designationLower.includes('sales');
+  const isServiceOffice =
+    (user?.role === 'USER' || (user as any)?.role === 'SERVICE') &&
+    designationLower.includes('service');
+
   // Header State
-  const [quotationType, setQuotationType] = useState<QuotationType>(
-    initialData?.quotationType || 'PRODUCT'
-  );
+  const [quotationType, setQuotationType] = useState<QuotationType>(() => {
+    if (initialData?.quotationType) return initialData.quotationType;
+    if (isServiceOffice) return 'SERVICE';
+    return 'PRODUCT';
+  });
   const [quotationDate, setQuotationDate] = useState<string>(
     initialData?.currentRevision?.quotationDate
       ? new Date(initialData.currentRevision.quotationDate).toISOString().split('T')[0]
@@ -687,6 +699,16 @@ export const QuotationForm: React.FC<Props> = ({
       return;
     }
 
+    if (isSalesOffice && quotationType !== 'PRODUCT' && quotationType !== 'TECHNICAL') {
+      setFormError('Sales Office employees can only create Normal Product Supply and Technical Equipment quotations.');
+      return;
+    }
+
+    if (isServiceOffice && quotationType !== 'SERVICE' && quotationType !== 'AMC') {
+      setFormError('Service Office employees can only create Service/Repair/Testing and AMC quotations.');
+      return;
+    }
+
     if (quotationType === 'AMC') {
       if (new Date(amcEndDate) < new Date(amcStartDate)) {
         setFormError('AMC Contract End Date cannot be earlier than Start Date.');
@@ -825,10 +847,10 @@ export const QuotationForm: React.FC<Props> = ({
               }}
               className="px-3 py-2 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
             >
-              <option value="PRODUCT">Normal Product Supply</option>
-              <option value="TECHNICAL">Technical High Voltage Equipment</option>
-              <option value="SERVICE">Service / Repair / Testing</option>
-              <option value="AMC">Annual Maintenance Contract (AMC)</option>
+              {!isServiceOffice && <option value="PRODUCT">Normal Product Supply</option>}
+              {!isServiceOffice && <option value="TECHNICAL">Technical High Voltage Equipment</option>}
+              {!isSalesOffice && <option value="SERVICE">Service / Repair / Testing</option>}
+              {!isSalesOffice && <option value="AMC">Annual Maintenance Contract (AMC)</option>}
             </select>
           </div>
 

@@ -171,10 +171,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
   ];
 
   const designation = (user?.designation || '').toLowerCase();
-  const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('sales');
-  const isServiceOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('service');
-  const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('accountant');
-  const isHrOffice = (user?.role === 'USER' || (user as any)?.role === 'HR') && user?.workType === 'OFFICE' && (designation.includes('hr') || designation.includes('human resources'));
+  const isSalesOffice = (user?.role === 'USER' || (user as any)?.role === 'SALES') && designation.includes('sales');
+  const isServiceOffice = (user?.role === 'USER' || (user as any)?.role === 'SERVICE') && designation.includes('service');
+  const isAccountantOffice = user?.role === 'USER' && designation.includes('accountant');
+  const isHrOffice = (user?.role === 'USER' || (user as any)?.role === 'HR') && (designation.includes('hr') || designation.includes('human resources'));
 
   const coreNavItems = isAdmin
     ? [
@@ -329,8 +329,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           id: 'employee-tasks',
           path: '/tasks',
           aliasPaths: ['/admin/tasks'],
-          label: 'My Tasks',
+          label: 'Field Task Management',
           icon: ClipboardList,
+          description: 'Create, assign & track field work orders',
         },
         {
           id: 'employee-attendance',
@@ -389,15 +390,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           id: 'employee-tasks',
           path: '/tasks',
           aliasPaths: ['/admin/tasks'],
-          label: 'My Tasks',
+          label: 'Field Task Management',
           icon: ClipboardList,
-        },
-        {
-          id: 'employee-amc-contracts',
-          path: '/amc-contracts',
-          aliasPaths: [],
-          label: 'AMC Contracts',
-          icon: ShieldCheck,
+          description: 'Create, assign \u0026 track field work orders',
         },
         { id: 'products', path: '/products', aliasPaths: ['/equipment'], label: 'Equipment & Inventory', icon: Zap },
         {
@@ -435,8 +430,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           id: 'employee-tasks',
           path: '/tasks',
           aliasPaths: ['/admin/tasks'],
-          label: 'My Tasks',
+          label: 'Field Task Management',
           icon: ClipboardList,
+          description: 'Create, assign \u0026 track field work orders',
         },
         {
           id: 'employee-follow-ups',
@@ -444,13 +440,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           aliasPaths: ['/admin/follow-ups'],
           label: 'Follow-ups',
           icon: CalendarClock,
-        },
-        {
-          id: 'employee-amc-contracts',
-          path: '/amc-contracts',
-          aliasPaths: [],
-          label: 'AMC Contracts',
-          icon: ShieldCheck,
         },
         { id: 'products', path: '/products', aliasPaths: ['/equipment'], label: 'Equipment & Inventory', icon: Zap },
         {

@@ -26,8 +26,10 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
+  Send,
 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
+import { toast } from '../../../utils/toast';
 import {
   Table,
   TableHeader,
@@ -54,15 +56,15 @@ type DatePreset =
 export const QuotationListPage: React.FC = () => {
   const { user } = useAuthStore();
   const designationLower = (user?.designation || '').toLowerCase();
-  const isServiceOffice =
-    user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('service');
-  const isAccountantOffice =
-    user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('accountant');
+  const isSalesOffice = (user?.role === 'USER' || (user as any)?.role === 'SALES') && designationLower.includes('sales');
+  const isServiceOffice = (user?.role === 'USER' || (user as any)?.role === 'SERVICE') && designationLower.includes('service');
+  const isAccountantOffice = user?.role === 'USER' && designationLower.includes('accountant');
 
   const [quotations, setQuotations] = useState<QuotationListItem[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   // Filter States
   const [search, setSearch] = useState('');
@@ -203,6 +205,19 @@ export const QuotationListPage: React.FC = () => {
     fetchQuotations();
   }, [fetchQuotations]);
 
+  const handleQuickSubmit = async (q: QuotationListItem) => {
+    try {
+      setSubmittingId(q.id);
+      await quotationService.submitQuotation(q.id);
+      toast.success(`Quotation ${q.quotationNumber} submitted for approval`);
+      fetchQuotations();
+    } catch (err: any) {
+      toast.error('Failed to submit for approval', err?.response?.data?.message || err?.message);
+    } finally {
+      setSubmittingId(null);
+    }
+  };
+
   // Compute metrics from current list
   const draftCount = quotations.filter((q) => q.status === 'DRAFT').length;
   const pendingCount = quotations.filter((q) => q.status === 'PENDING_APPROVAL').length;
@@ -226,8 +241,8 @@ export const QuotationListPage: React.FC = () => {
           </h1>
           <p className="text-[13px] text-slate-500 font-normal mt-0.5 leading-normal">
             {isServiceOffice
-              ? 'View commercial service proposals, technical estimations, and AMC contract quotations.'
-              : 'Create multi-tier product, technical, and AMC proposals with live GST calculations, formal revisions, and approval lifecycles.'}
+              ? 'View and create commercial service proposals, technical estimations, and AMC contract quotations.'
+              : 'Create multi-tier product and technical proposals with live GST calculations, formal revisions, and approval lifecycles.'}
           </p>
         </div>
 
@@ -242,14 +257,14 @@ export const QuotationListPage: React.FC = () => {
           >
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </Button>
-          {!isServiceOffice && !isAccountantOffice && (
+          {!isAccountantOffice && (
             <Button
               variant="primary"
               size="md"
               leftIcon={<Plus size={16} />}
               onClick={() => navigate('/quotations/new')}
             >
-              Create Quotation
+              {isServiceOffice ? 'Create Service / AMC Quotation' : 'Create Quotation'}
             </Button>
           )}
         </div>
@@ -375,11 +390,13 @@ export const QuotationListPage: React.FC = () => {
                 }}
                 className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer pr-1"
               >
-                <option value="">All Types</option>
-                <option value="PRODUCT">Product Supply</option>
-                <option value="TECHNICAL">Technical High Voltage</option>
-                <option value="SERVICE">Service & Testing</option>
-                <option value="AMC">AMC Contract</option>
+                <option value="">
+                  {isSalesOffice ? 'All Allowed (Product & Technical)' : isServiceOffice ? 'All Allowed (Service & AMC)' : 'All Types'}
+                </option>
+                {!isServiceOffice && <option value="PRODUCT">Product</option>}
+                {!isServiceOffice && <option value="TECHNICAL">Technical</option>}
+                {!isSalesOffice && <option value="SERVICE">Service</option>}
+                {!isSalesOffice && <option value="AMC">AMC Contract</option>}
               </select>
             </div>
 
@@ -610,16 +627,7 @@ export const QuotationListPage: React.FC = () => {
                           : 'No matching commercial quotations found. Create a new quotation to get started.'
                       }
                       action={
-                        activeFiltersCount > 0 ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            leftIcon={<RotateCcw size={14} />}
-                            onClick={handleResetFilters}
-                          >
-                            Reset Active Filters
-                          </Button>
-                        ) : !isServiceOffice && !isAccountantOffice ? (
+                        !isAccountantOffice ? (
                           <Button
                             variant="primary"
                             size="sm"
@@ -700,15 +708,27 @@ export const QuotationListPage: React.FC = () => {
                               </button>
                             )}
                             {q.status === 'DRAFT' && !isAccountantOffice && (
-                              <button
-                                type="button"
-                                onClick={() => navigate(`/quotations/${q.id}/edit`)}
-                                className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-amber-50 text-slate-500 hover:text-amber-600 hover:border-amber-200 transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-amber-600"
-                                title="Edit Quotation"
-                                aria-label={`Edit quotation ${q.quotationNumber}`}
-                              >
-                                <Edit size={13} />
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={submittingId === q.id}
+                                  onClick={() => handleQuickSubmit(q)}
+                                  className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 hover:border-emerald-200 transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-emerald-600 disabled:opacity-50"
+                                  title="Submit for Approval"
+                                  aria-label={`Submit quotation ${q.quotationNumber} for approval`}
+                                >
+                                  <Send size={13} className={submittingId === q.id ? 'animate-spin' : ''} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/quotations/${q.id}/edit`)}
+                                  className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-amber-50 text-slate-500 hover:text-amber-600 hover:border-amber-200 transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-amber-600"
+                                  title="Edit Quotation"
+                                  aria-label={`Edit quotation ${q.quotationNumber}`}
+                                >
+                                  <Edit size={13} />
+                                </button>
+                              </>
                             )}
                           </div>
                         </TableCell>

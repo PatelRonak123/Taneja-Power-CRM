@@ -9,10 +9,13 @@ const controller = new AmcContractController();
 // Require authentication for all AMC Contract endpoints
 router.use(authenticate);
 
-router.get('/', controller.getContracts);
-router.post('/from-quotation/:quotationId', denyDesignations('Accountant Office'), controller.createFromQuotation);
-router.get('/:id', controller.getContractById);
-router.put('/:id', denyDesignations('Accountant Office'), controller.updateContract);
+// Sales Office & Accountant Office have no access to AMC Contracts (handled by Service Office, Admin, Manager)
+const denyNonServiceOffice = denyDesignations('Accountant Office', 'Sales Office', 'Sales');
+
+router.get('/', denyNonServiceOffice, controller.getContracts);
+router.post('/from-quotation/:quotationId', denyNonServiceOffice, controller.createFromQuotation);
+router.get('/:id', denyNonServiceOffice, controller.getContractById);
+router.put('/:id', denyNonServiceOffice, controller.updateContract);
 router.post(
   '/:id/activate',
   requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
@@ -23,10 +26,10 @@ router.post(
   requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
   controller.terminateContract
 );
-router.post('/:id/service-requests', denyDesignations('Accountant Office'), controller.createBreakdownRequest);
-router.post('/:id/service-requests/:requestId/escalate', denyDesignations('Accountant Office'), controller.escalateBreakdownRequest);
-router.get('/:id/service-requests/:requestId', controller.getBreakdownRequestById);
-router.post('/schedule/:visitId/create-task', denyDesignations('Accountant Office'), controller.createTaskForVisit);
+router.post('/:id/service-requests', denyNonServiceOffice, controller.createBreakdownRequest);
+router.post('/:id/service-requests/:requestId/escalate', denyNonServiceOffice, controller.escalateBreakdownRequest);
+router.get('/:id/service-requests/:requestId', denyNonServiceOffice, controller.getBreakdownRequestById);
+router.post('/schedule/:visitId/create-task', denyNonServiceOffice, controller.createTaskForVisit);
 
 // Phase 7: Renewal & History
 router.post(
@@ -34,17 +37,17 @@ router.post(
   requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
   controller.renewContract
 );
-router.get('/:id/history', controller.getContractHistory);
+router.get('/:id/history', denyNonServiceOffice, controller.getContractHistory);
 
 // Phase 5 Service Execution & Report Routes
-router.post('/visits/:visitId/start', denyDesignations('Accountant Office'), controller.startVisit);
-router.post('/visits/:visitId/cancel', denyDesignations('Accountant Office'), controller.cancelVisit);
-router.get('/visits/:visitId/report', controller.getOrCreateServiceReport);
-router.post('/visits/:visitId/report', denyDesignations('Accountant Office'), controller.updateServiceReport);
-router.post('/visits/:visitId/complete', denyDesignations('Accountant Office'), controller.completeServiceVisit);
-router.get('/reports/:reportId/pdf', controller.downloadServiceReportPdf);
+router.post('/visits/:visitId/start', denyNonServiceOffice, controller.startVisit);
+router.post('/visits/:visitId/cancel', denyNonServiceOffice, controller.cancelVisit);
+router.get('/visits/:visitId/report', denyNonServiceOffice, controller.getOrCreateServiceReport);
+router.post('/visits/:visitId/report', denyNonServiceOffice, controller.updateServiceReport);
+router.post('/visits/:visitId/complete', denyNonServiceOffice, controller.completeServiceVisit);
+router.get('/reports/:reportId/pdf', denyNonServiceOffice, controller.downloadServiceReportPdf);
 
 // Phase 6 Materials Routes
-router.get('/reports/:reportId/materials', controller.getMaterialsForReport);
+router.get('/reports/:reportId/materials', denyNonServiceOffice, controller.getMaterialsForReport);
 
 export default router;

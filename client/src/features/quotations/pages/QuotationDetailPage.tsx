@@ -64,6 +64,10 @@ const formatDate = (dateStr: string | undefined) => {
 export const QuotationDetailPage: React.FC = () => {
   const currentPath = useCurrentPath();
   const { user } = useAuthStore();
+  const designationLower = (user?.designation || '').toLowerCase();
+  const isSalesOffice =
+    (user?.role === 'USER' || (user as any)?.role === 'SALES') &&
+    designationLower.includes('sales');
   const queryClient = useQueryClient();
 
   // Extract ID from /quotations/:id
@@ -286,7 +290,7 @@ export const QuotationDetailPage: React.FC = () => {
               </>
             )}
 
-            {quotation.quotationType === 'AMC' && (
+            {quotation.quotationType === 'AMC' && !isSalesOffice && (
               <Button
                 variant="primary"
                 size="md"

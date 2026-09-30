@@ -14,8 +14,8 @@ import { employeeService } from '../../admin/services/employeeService';
 export const EmployeeMetricsGrid: React.FC = () => {
   const { user } = useAuthStore();
   const designation = (user?.designation || '').toLowerCase();
-  const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('sales');
-  const isServiceOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('service');
+  const isSalesOffice = (user?.role === 'USER' || (user as any)?.role === 'SALES') && designation.includes('sales');
+  const isServiceOffice = (user?.role === 'USER' || (user as any)?.role === 'SERVICE') && designation.includes('service');
   const isHrOffice =
     (user?.role === 'USER' || (user as any)?.role === 'HR') &&
     user?.workType === 'OFFICE' &&
