@@ -26,7 +26,7 @@ export class ProductController {
 
   create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.productService.createProduct(req.body);
+      const result = await this.productService.createProduct(req.body, req.user);
       sendResponse(res, APP_CONSTANTS.HTTP_STATUS.CREATED, result, 'Product created successfully');
     } catch (error) {
       next(error);
@@ -35,7 +35,7 @@ export class ProductController {
 
   update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.productService.updateProduct(req.params.id, req.body);
+      const result = await this.productService.updateProduct(req.params.id, req.body, req.user);
       sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, result, 'Product updated successfully');
     } catch (error) {
       next(error);

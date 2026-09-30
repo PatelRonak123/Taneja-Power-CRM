@@ -9,3 +9,8 @@ export * from "./quotations.js";
 export * from "./amc-contracts.js";
 export * from "./field-service.js";
 export * from "./follow-ups.js";
+export * from "./inventory.js";
+export * from "./procurement.js";
+export * from "./sales-orders.js";
+export * from "./invoices.js";
+export * from "./dispatch.js";

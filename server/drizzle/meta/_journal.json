@@ -120,6 +120,41 @@
       "when": 1790060000000,
       "tag": "0016_add_work_type_to_users",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790760757886,
+      "tag": "0017_perpetual_tarot",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790764547949,
+      "tag": "0018_faulty_scrambler",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790766547445,
+      "tag": "0019_add_sales_orders_phase3",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790770000000,
+      "tag": "0020_add_invoices_phase4",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790780000000,
+      "tag": "0021_add_dispatch_phase5",
+      "breakpoints": true
     }
   ]
 }

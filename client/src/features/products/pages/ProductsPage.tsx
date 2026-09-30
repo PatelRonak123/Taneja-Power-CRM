@@ -11,6 +11,8 @@ import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
 import { ErrorAlert } from '@/components/feedback/ErrorAlert';
 import { Product } from '../types/product.types';
 import { useAuthStore } from '@/stores/authStore';
+import { StockAdjustmentModal } from '../../inventory/components/StockAdjustmentModal';
+import { StockMovementHistoryModal } from '../../inventory/components/StockMovementHistoryModal';
 
 export const ProductsPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -34,6 +36,8 @@ export const ProductsPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [selectedProductForAdjustment, setSelectedProductForAdjustment] = useState<Product | null>(null);
+  const [selectedProductForHistory, setSelectedProductForHistory] = useState<Product | null>(null);
 
   // Calculate live catalog metrics
   const totalCount = meta?.total || products.length;
@@ -99,6 +103,8 @@ export const ProductsPage: React.FC = () => {
           onEdit={handleOpenEditModal}
           onDelete={deleteProduct}
           onDeployFirst={isManagerOrAdmin ? handleOpenAddModal : undefined}
+          onAdjustStock={(p) => setSelectedProductForAdjustment(p)}
+          onViewHistory={(p) => setSelectedProductForHistory(p)}
           canEdit={isManagerOrAdmin}
           canDelete={isAdmin}
         />
@@ -126,6 +132,21 @@ export const ProductsPage: React.FC = () => {
           onCancel={handleCloseModal}
         />
       </Modal>
+
+      {/* Stock Adjustment Modal */}
+      <StockAdjustmentModal
+        isOpen={!!selectedProductForAdjustment}
+        onClose={() => setSelectedProductForAdjustment(null)}
+        product={selectedProductForAdjustment}
+        onSuccess={() => refetch()}
+      />
+
+      {/* Stock Movement History Ledger Modal */}
+      <StockMovementHistoryModal
+        isOpen={!!selectedProductForHistory}
+        onClose={() => setSelectedProductForHistory(null)}
+        product={selectedProductForHistory}
+      />
     </div>
   );
 };

@@ -50,13 +50,15 @@ export class ProductRepository {
     return result[0];
   }
 
-  async create(data: NewProductEntity): Promise<ProductEntity> {
-    const result = await db.insert(products).values(data).returning();
+  async create(data: NewProductEntity, tx?: any): Promise<ProductEntity> {
+    const client = tx || db;
+    const result = await client.insert(products).values(data).returning();
     return result[0];
   }
 
-  async update(id: string, data: Partial<NewProductEntity>): Promise<ProductEntity | undefined> {
-    const result = await db
+  async update(id: string, data: Partial<NewProductEntity>, tx?: any): Promise<ProductEntity | undefined> {
+    const client = tx || db;
+    const result = await client
       .update(products)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(products.id, id))

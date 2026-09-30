@@ -1,0 +1,1052 @@
+import React, { useState } from 'react';
+import {
+  Truck,
+  FileText,
+  PackageCheck,
+  Plus,
+  Search,
+  CheckCircle,
+  Eye,
+  X,
+} from 'lucide-react';
+import { Supplier, PurchaseOrder, GoodsReceipt } from '../types/procurement.types';
+import { useAuthStore } from '../../../stores/authStore';
+import {
+  useSuppliers,
+  usePurchaseOrders,
+  useGoodsReceipts,
+  useProcurementProducts,
+  useCreateSupplier,
+  useUpdateSupplier,
+  useSetSupplierStatus,
+  useCreatePurchaseOrder,
+  useSubmitPurchaseOrder,
+  useApprovePurchaseOrder,
+  useCancelPurchaseOrder,
+  useCreateGoodsReceipt,
+  usePostGoodsReceipt,
+} from '../hooks';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+type Tab = 'suppliers' | 'orders' | 'receipts';
+
+const defaultSupplierForm = {
+  supplierCode: '',
+  name: '',
+  legalName: '',
+  contactPerson: '',
+  phone: '',
+  email: '',
+  address: '',
+  city: '',
+  state: '',
+  pincode: '',
+  gstin: '',
+  pan: '',
+  paymentTerms: '',
+  notes: '',
+  status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
+};
+
+const defaultPoForm = () => ({
+  supplierId: '',
+  orderDate: new Date().toISOString().split('T')[0],
+  expectedDeliveryDate: '',
+  notes: '',
+  termsAndConditions: '',
+  items: [{ productId: '', quantity: 1, unitCost: 0, taxRate: 18 }],
+});
+
+type GrnFormState = {
+  purchaseOrderId: string;
+  receiptDate: string;
+  notes: string;
+  items: Array<{
+    purchaseOrderItemId: string;
+    receivedQuantity: number;
+    maxAllowed: number;
+    productName: string;
+  }>;
+  autoPost: boolean;
+};
+
+const defaultGrnForm = (): GrnFormState => ({
+  purchaseOrderId: '',
+  receiptDate: new Date().toISOString().split('T')[0],
+  notes: '',
+  items: [],
+  autoPost: true,
+});
+
+// ─── PO status badge colours ──────────────────────────────────────────────────
+const PO_STATUS_COLORS: Record<string, string> = {
+  DRAFT: 'bg-slate-100 text-slate-700 border-slate-300',
+  PENDING_APPROVAL: 'bg-amber-50 text-amber-700 border-amber-300',
+  APPROVED: 'bg-blue-50 text-blue-700 border-blue-300',
+  PARTIALLY_RECEIVED: 'bg-indigo-50 text-indigo-700 border-indigo-300',
+  FULLY_RECEIVED: 'bg-emerald-50 text-emerald-700 border-emerald-300',
+  CANCELLED: 'bg-rose-50 text-rose-700 border-rose-300',
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
+export const ProcurementPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'ADMIN';
+  const isManager = user?.role === 'MANAGER';
+  const canApprovePo = isAdmin || isManager;
+  const canPostGrn = isAdmin || isManager;
+
+  // ── Tab ─────────────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<Tab>('orders');
+
+  // ── Filter state ─────────────────────────────────────────────────────────────
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [supplierStatusFilter, setSupplierStatusFilter] = useState('');
+  const [poSearch, setPoSearch] = useState('');
+  const [poStatusFilter, setPoStatusFilter] = useState('');
+  const [grnSearch, setGrnSearch] = useState('');
+
+  // ── Modal / selection state ──────────────────────────────────────────────────
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [supplierForm, setSupplierForm] = useState(defaultSupplierForm);
+
+  const [showPoModal, setShowPoModal] = useState(false);
+  const [selectedPo, setSelectedPo] = useState<PurchaseOrder | null>(null);
+  const [poForm, setPoForm] = useState(defaultPoForm());
+
+  const [showGrnModal, setShowGrnModal] = useState(false);
+  const [selectedGrn, setSelectedGrn] = useState<GoodsReceipt | null>(null);
+  const [grnSelectedPo, setGrnSelectedPo] = useState<PurchaseOrder | null>(null);
+  const [grnForm, setGrnForm] = useState<GrnFormState>(defaultGrnForm());
+
+  // ── Queries ──────────────────────────────────────────────────────────────────
+  const {
+    data: suppliers = [],
+    isLoading: loadingSuppliers,
+  } = useSuppliers({ search: supplierSearch, status: supplierStatusFilter });
+
+  const {
+    data: purchaseOrders = [],
+    isLoading: loadingPos,
+  } = usePurchaseOrders({ search: poSearch, status: poStatusFilter });
+
+  const {
+    data: receipts = [],
+    isLoading: loadingReceipts,
+  } = useGoodsReceipts({ search: grnSearch });
+
+  const { data: availableProducts = [] } = useProcurementProducts();
+
+  // ── Mutations ────────────────────────────────────────────────────────────────
+  const createSupplier = useCreateSupplier();
+  const updateSupplier = useUpdateSupplier();
+  const setSupplierStatus = useSetSupplierStatus();
+
+  const createPo = useCreatePurchaseOrder();
+  const submitPo = useSubmitPurchaseOrder();
+  const approvePo = useApprovePurchaseOrder();
+  const cancelPo = useCancelPurchaseOrder();
+
+  const createGrn = useCreateGoodsReceipt();
+  const postGrn = usePostGoodsReceipt();
+
+  // ── Handlers: Suppliers ──────────────────────────────────────────────────────
+  const handleSaveSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingSupplier) {
+      await updateSupplier.mutateAsync({ id: editingSupplier.id, payload: supplierForm });
+    } else {
+      await createSupplier.mutateAsync(supplierForm);
+    }
+    setShowSupplierModal(false);
+    setEditingSupplier(null);
+  };
+
+  const handleToggleSupplierStatus = (supplier: Supplier) => {
+    const nextStatus = supplier.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    setSupplierStatus.mutate({ id: supplier.id, status: nextStatus });
+  };
+
+  // ── Handlers: Purchase Orders ────────────────────────────────────────────────
+  const handleSavePo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await createPo.mutateAsync(poForm);
+    setShowPoModal(false);
+  };
+
+  const handleSubmitPo = (poId: string) => submitPo.mutate(poId);
+  const handleApprovePo = (poId: string) => approvePo.mutate(poId);
+  const handleCancelPo = (poId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this purchase order?')) return;
+    cancelPo.mutate(poId);
+  };
+
+  // ── Handlers: GRN ───────────────────────────────────────────────────────────
+  const handlePoSelectForGrn = (poId: string) => {
+    const po = purchaseOrders.find((p) => p.id === poId);
+    if (!po || !po.items) return;
+    setGrnSelectedPo(po);
+
+    const items = po.items
+      .map((item) => {
+        const remaining = item.quantity - (item.receivedQuantity || 0);
+        return {
+          purchaseOrderItemId: item.id,
+          receivedQuantity: remaining > 0 ? remaining : 0,
+          maxAllowed: remaining,
+          productName: item.productNameSnapshot,
+        };
+      })
+      .filter((i) => i.maxAllowed > 0);
+
+    setGrnForm({
+      purchaseOrderId: po.id,
+      receiptDate: new Date().toISOString().split('T')[0],
+      notes: '',
+      items,
+      autoPost: true,
+    });
+  };
+
+  const handleSaveGrn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (grnForm.items.length === 0) return;
+    for (const item of grnForm.items) {
+      if (item.receivedQuantity <= 0 || item.receivedQuantity > item.maxAllowed) return;
+    }
+    await createGrn.mutateAsync({
+      purchaseOrderId: grnForm.purchaseOrderId,
+      receiptDate: grnForm.receiptDate,
+      notes: grnForm.notes,
+      items: grnForm.items.map((i) => ({
+        purchaseOrderItemId: i.purchaseOrderItemId,
+        receivedQuantity: i.receivedQuantity,
+      })),
+      autoPost: grnForm.autoPost,
+    });
+    setShowGrnModal(false);
+    setGrnSelectedPo(null);
+  };
+
+  const handlePostExistingGrn = (grnId: string) => postGrn.mutate(grnId);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  return (
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-12">
+
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Procurement Management</h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Supplier directory, purchase order approvals, and Goods Receipt (GRN) inventory integration.
+          </p>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex bg-slate-800/80 p-1.5 rounded-xl border border-slate-700/60 self-start md:self-auto">
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'orders' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Purchase Orders</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('receipts')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'receipts' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <PackageCheck className="w-4 h-4" />
+            <span>Goods Receipts</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('suppliers')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'suppliers' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <Truck className="w-4 h-4" />
+            <span>Suppliers</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── TAB: PURCHASE ORDERS ─────────────────────────────────────────────── */}
+      {activeTab === 'orders' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1 max-w-md">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search PO number..."
+                  value={poSearch}
+                  onChange={(e) => setPoSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <select
+                value={poStatusFilter}
+                onChange={(e) => setPoStatusFilter(e.target.value)}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All Statuses</option>
+                <option value="DRAFT">DRAFT</option>
+                <option value="PENDING_APPROVAL">PENDING APPROVAL</option>
+                <option value="APPROVED">APPROVED</option>
+                <option value="PARTIALLY_RECEIVED">PARTIALLY RECEIVED</option>
+                <option value="FULLY_RECEIVED">FULLY RECEIVED</option>
+                <option value="CANCELLED">CANCELLED</option>
+              </select>
+            </div>
+            <button
+              onClick={() => {
+                setPoForm({
+                  ...defaultPoForm(),
+                  supplierId: suppliers[0]?.id || '',
+                  items: [{ productId: availableProducts[0]?.id || '', quantity: 1, unitCost: 0, taxRate: 18 }],
+                });
+                setShowPoModal(true);
+              }}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-colors shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Purchase Order</span>
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="py-3 px-4">PO Number</th>
+                  <th className="py-3 px-4">Supplier</th>
+                  <th className="py-3 px-4">Order Date</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Total Amount</th>
+                  <th className="py-3 px-4 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loadingPos ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-500">Loading purchase orders...</td>
+                  </tr>
+                ) : purchaseOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-500">No purchase orders found.</td>
+                  </tr>
+                ) : (
+                  purchaseOrders.map((po) => (
+                    <tr key={po.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4 font-semibold text-slate-900">{po.poNumber}</td>
+                      <td className="py-3 px-4 text-slate-700">
+                        {po.supplier?.name || 'Unknown Supplier'}
+                        <div className="text-xs text-slate-400">{po.supplier?.supplierCode}</div>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">{new Date(po.orderDate).toLocaleDateString()}</td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${PO_STATUS_COLORS[po.status] || 'bg-slate-100 text-slate-600'}`}>
+                          {po.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right font-medium text-slate-900">
+                        ₹{Number(po.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button onClick={() => setSelectedPo(po)} className="p-1.5 text-slate-600 hover:text-indigo-600 rounded-lg hover:bg-slate-100" title="View Details">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          {po.status === 'DRAFT' && (
+                            <button onClick={() => handleSubmitPo(po.id)} className="px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200">
+                              Submit
+                            </button>
+                          )}
+                          {po.status === 'PENDING_APPROVAL' && canApprovePo && (
+                            <button onClick={() => handleApprovePo(po.id)} className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200">
+                              Approve
+                            </button>
+                          )}
+                          {(po.status === 'DRAFT' || po.status === 'APPROVED') && (
+                            <button onClick={() => handleCancelPo(po.id)} className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg" title="Cancel PO">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: GOODS RECEIPTS ──────────────────────────────────────────────── */}
+      {activeTab === 'receipts' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search GRN number..."
+                value={grnSearch}
+                onChange={(e) => setGrnSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <button
+              onClick={() => setShowGrnModal(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-colors shadow-sm"
+            >
+              <PackageCheck className="w-4 h-4" />
+              <span>Create Goods Receipt</span>
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="py-3 px-4">GRN Number</th>
+                  <th className="py-3 px-4">PO Number</th>
+                  <th className="py-3 px-4">Supplier</th>
+                  <th className="py-3 px-4">Receipt Date</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-center">Items Received</th>
+                  <th className="py-3 px-4 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loadingReceipts ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-500">Loading goods receipts...</td>
+                  </tr>
+                ) : receipts.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-500">No goods receipts found.</td>
+                  </tr>
+                ) : (
+                  receipts.map((grn) => {
+                    const isPosted = grn.status === 'POSTED';
+                    return (
+                      <tr key={grn.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-slate-900">{grn.grnNumber}</td>
+                        <td className="py-3 px-4 font-medium text-slate-700">{grn.purchaseOrder?.poNumber || 'N/A'}</td>
+                        <td className="py-3 px-4 text-slate-600">{grn.purchaseOrder?.supplier?.name || 'N/A'}</td>
+                        <td className="py-3 px-4 text-slate-600">{new Date(grn.receiptDate).toLocaleDateString()}</td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${isPosted ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-amber-50 text-amber-700 border-amber-300'}`}>
+                            {grn.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center font-medium">
+                          {grn.items?.reduce((sum, i) => sum + i.receivedQuantity, 0) || 0} units
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => setSelectedGrn(grn)} className="p-1.5 text-slate-600 hover:text-indigo-600 rounded-lg hover:bg-slate-100" title="View Details">
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            {!isPosted && canPostGrn && (
+                              <button onClick={() => handlePostExistingGrn(grn.id)} className="px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200">
+                                Post &amp; Add Stock
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: SUPPLIERS ───────────────────────────────────────────────────── */}
+      {activeTab === 'suppliers' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1 max-w-md">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search supplier by name, code, phone, email, GSTIN..."
+                  value={supplierSearch}
+                  onChange={(e) => setSupplierSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <select
+                value={supplierStatusFilter}
+                onChange={(e) => setSupplierStatusFilter(e.target.value)}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All Statuses</option>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="INACTIVE">INACTIVE</option>
+              </select>
+            </div>
+            <button
+              onClick={() => {
+                setEditingSupplier(null);
+                setSupplierForm({ ...defaultSupplierForm, paymentTerms: 'Net 30 Days' });
+                setShowSupplierModal(true);
+              }}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-colors shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Supplier</span>
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="py-3 px-4">Code</th>
+                  <th className="py-3 px-4">Supplier Name</th>
+                  <th className="py-3 px-4">Contact Person</th>
+                  <th className="py-3 px-4">Phone &amp; Email</th>
+                  <th className="py-3 px-4">GSTIN</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loadingSuppliers ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-500">Loading suppliers...</td>
+                  </tr>
+                ) : suppliers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-500">No suppliers found.</td>
+                  </tr>
+                ) : (
+                  suppliers.map((s) => (
+                    <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4 font-mono font-semibold text-slate-800">{s.supplierCode}</td>
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-slate-900">{s.name}</div>
+                        {s.legalName && <div className="text-xs text-slate-400">{s.legalName}</div>}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">{s.contactPerson || '—'}</td>
+                      <td className="py-3 px-4 text-slate-600">
+                        <div>{s.phone || '—'}</div>
+                        <div className="text-xs text-slate-400">{s.email || ''}</div>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-xs text-slate-700">{s.gstin || '—'}</td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${s.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-300'}`}>
+                          {s.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setEditingSupplier(s);
+                              setSupplierForm({
+                                supplierCode: s.supplierCode,
+                                name: s.name,
+                                legalName: s.legalName || '',
+                                contactPerson: s.contactPerson || '',
+                                phone: s.phone || '',
+                                email: s.email || '',
+                                address: s.address || '',
+                                city: s.city || '',
+                                state: s.state || '',
+                                pincode: s.pincode || '',
+                                gstin: s.gstin || '',
+                                pan: s.pan || '',
+                                paymentTerms: s.paymentTerms || '',
+                                notes: s.notes || '',
+                                status: s.status,
+                              });
+                              setShowSupplierModal(true);
+                            }}
+                            className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleToggleSupplierStatus(s)}
+                            className={`px-2.5 py-1 text-xs font-medium rounded-lg border ${s.status === 'ACTIVE' ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100' : 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'}`}
+                          >
+                            {s.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: ADD / EDIT SUPPLIER ───────────────────────────────────────── */}
+      {showSupplierModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="font-bold text-slate-900 text-lg">
+                {editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
+              </h3>
+              <button onClick={() => setShowSupplierModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveSupplier} className="p-6 flex flex-col gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Supplier Code (Auto if blank)</label>
+                  <input type="text" value={supplierForm.supplierCode} onChange={(e) => setSupplierForm({ ...supplierForm, supplierCode: e.target.value })} placeholder="e.g. SUP-0001" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Supplier Name *</label>
+                  <input type="text" required value={supplierForm.name} onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })} placeholder="Company or Business Name" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Legal Name</label>
+                  <input type="text" value={supplierForm.legalName} onChange={(e) => setSupplierForm({ ...supplierForm, legalName: e.target.value })} placeholder="Registered Legal Entity" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Contact Person</label>
+                  <input type="text" value={supplierForm.contactPerson} onChange={(e) => setSupplierForm({ ...supplierForm, contactPerson: e.target.value })} placeholder="Key contact representative" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone</label>
+                  <input type="text" value={supplierForm.phone} onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })} placeholder="+91..." className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
+                  <input type="email" value={supplierForm.email} onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })} placeholder="vendor@company.com" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">GSTIN</label>
+                  <input type="text" value={supplierForm.gstin} onChange={(e) => setSupplierForm({ ...supplierForm, gstin: e.target.value.toUpperCase() })} placeholder="15-character GSTIN" className="w-full px-3 py-2 text-sm font-mono uppercase border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">PAN</label>
+                  <input type="text" value={supplierForm.pan} onChange={(e) => setSupplierForm({ ...supplierForm, pan: e.target.value.toUpperCase() })} placeholder="10-character PAN" className="w-full px-3 py-2 text-sm font-mono uppercase border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Address</label>
+                <textarea rows={2} value={supplierForm.address} onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })} placeholder="Street address, unit, industrial area..." className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">City</label>
+                  <input type="text" value={supplierForm.city} onChange={(e) => setSupplierForm({ ...supplierForm, city: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">State</label>
+                  <input type="text" value={supplierForm.state} onChange={(e) => setSupplierForm({ ...supplierForm, state: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Pincode</label>
+                  <input type="text" value={supplierForm.pincode} onChange={(e) => setSupplierForm({ ...supplierForm, pincode: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setShowSupplierModal(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
+                <button type="submit" disabled={createSupplier.isPending || updateSupplier.isPending} className="px-5 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl shadow-sm">
+                  {editingSupplier ? 'Save Changes' : 'Create Supplier'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CREATE PURCHASE ORDER ─────────────────────────────────────── */}
+      {showPoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">Create Purchase Order</h3>
+                <p className="text-xs text-slate-500">Initial status will be DRAFT. Stock is never affected by PO creation.</p>
+              </div>
+              <button onClick={() => setShowPoModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSavePo} className="p-6 flex flex-col gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Supplier *</label>
+                  <select required value={poForm.supplierId} onChange={(e) => setPoForm({ ...poForm, supplierId: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Select Supplier</option>
+                    {suppliers.filter((s) => s.status === 'ACTIVE').map((s) => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.supplierCode})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Expected Delivery Date</label>
+                  <input type="date" value={poForm.expectedDeliveryDate} onChange={(e) => setPoForm({ ...poForm, expectedDeliveryDate: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-slate-700">Line Items *</label>
+                  <button type="button" onClick={() => setPoForm({ ...poForm, items: [...poForm.items, { productId: availableProducts[0]?.id || '', quantity: 1, unitCost: 0, taxRate: 18 }] })} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                    <Plus className="w-3.5 h-3.5" /> <span>Add Item</span>
+                  </button>
+                </div>
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-700 font-semibold text-xs border-b border-slate-200">
+                      <tr>
+                        <th className="py-2.5 px-3">Product</th>
+                        <th className="py-2.5 px-3 w-24">Qty</th>
+                        <th className="py-2.5 px-3 w-32">Unit Cost (₹)</th>
+                        <th className="py-2.5 px-3 w-24">Tax (%)</th>
+                        <th className="py-2.5 px-3 w-32 text-right">Line Total (₹)</th>
+                        <th className="py-2.5 px-3 w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {poForm.items.map((item, idx) => {
+                        const sub = item.quantity * item.unitCost;
+                        const tax = sub * ((item.taxRate || 0) / 100);
+                        const total = sub + tax;
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="py-2 px-3">
+                              <select required value={item.productId} onChange={(e) => { const items = [...poForm.items]; items[idx].productId = e.target.value; setPoForm({ ...poForm, items }); }} className="w-full py-1 px-2 text-xs border border-slate-200 rounded-lg">
+                                {availableProducts.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+                              </select>
+                            </td>
+                            <td className="py-2 px-3">
+                              <input type="number" min="1" required value={item.quantity} onChange={(e) => { const items = [...poForm.items]; items[idx].quantity = Math.max(1, parseInt(e.target.value) || 1); setPoForm({ ...poForm, items }); }} className="w-full py-1 px-2 text-xs border border-slate-200 rounded-lg text-center" />
+                            </td>
+                            <td className="py-2 px-3">
+                              <input type="number" min="0" step="0.01" required value={item.unitCost} onChange={(e) => { const items = [...poForm.items]; items[idx].unitCost = Math.max(0, parseFloat(e.target.value) || 0); setPoForm({ ...poForm, items }); }} className="w-full py-1 px-2 text-xs border border-slate-200 rounded-lg text-right" />
+                            </td>
+                            <td className="py-2 px-3">
+                              <input type="number" min="0" max="100" value={item.taxRate} onChange={(e) => { const items = [...poForm.items]; items[idx].taxRate = parseFloat(e.target.value) || 0; setPoForm({ ...poForm, items }); }} className="w-full py-1 px-2 text-xs border border-slate-200 rounded-lg text-center" />
+                            </td>
+                            <td className="py-2 px-3 text-right font-medium text-slate-800">
+                              ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              {poForm.items.length > 1 && (
+                                <button type="button" onClick={() => setPoForm({ ...poForm, items: poForm.items.filter((_, i) => i !== idx) })} className="text-slate-400 hover:text-rose-500">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Totals */}
+              {(() => {
+                const subtotal = poForm.items.reduce((s, i) => s + i.quantity * i.unitCost, 0);
+                const tax = poForm.items.reduce((s, i) => s + i.quantity * i.unitCost * ((i.taxRate || 0) / 100), 0);
+                return (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col gap-1 text-sm self-end w-full sm:w-72">
+                    <div className="flex justify-between text-slate-600"><span>Subtotal:</span><span>₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between text-slate-600"><span>Tax Amount:</span><span>₹{tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between text-base font-bold text-slate-900 border-t border-slate-200 pt-1 mt-1"><span>Grand Total:</span><span>₹{(subtotal + tax).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                  </div>
+                );
+              })()}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowPoModal(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
+                <button type="submit" disabled={createPo.isPending} className="px-5 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl shadow-sm">
+                  Save PO Draft
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: VIEW PO DETAILS ───────────────────────────────────────────── */}
+      {selectedPo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-900 text-lg">{selectedPo.poNumber}</h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">{selectedPo.status}</span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Ordered from {selectedPo.supplier?.name} on {new Date(selectedPo.orderDate).toLocaleDateString()}
+                </p>
+              </div>
+              <button onClick={() => setSelectedPo(null)} className="text-slate-400 hover:text-slate-600 p-1"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 flex flex-col gap-6">
+              {/* Action banner */}
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="text-sm">
+                  <div className="text-xs text-slate-500 font-semibold uppercase">Approval Status</div>
+                  <div className="text-slate-800 mt-0.5">
+                    {selectedPo.approvedByUser ? (
+                      <span className="text-emerald-700 font-medium">Approved by {selectedPo.approvedByUser.fullName} on {selectedPo.approvedAt ? new Date(selectedPo.approvedAt).toLocaleDateString() : ''}</span>
+                    ) : (
+                      <span className="text-amber-700 font-medium">Pending Approval</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedPo.status === 'DRAFT' && (
+                    <button onClick={() => handleSubmitPo(selectedPo.id)} className="px-4 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm">Submit for Approval</button>
+                  )}
+                  {selectedPo.status === 'PENDING_APPROVAL' && canApprovePo && (
+                    <button onClick={() => handleApprovePo(selectedPo.id)} className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm">Approve Purchase Order</button>
+                  )}
+                  {(selectedPo.status === 'APPROVED' || selectedPo.status === 'PARTIALLY_RECEIVED') && (
+                    <button
+                      onClick={() => {
+                        handlePoSelectForGrn(selectedPo.id);
+                        setSelectedPo(null);
+                        setActiveTab('receipts');
+                        setShowGrnModal(true);
+                      }}
+                      className="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm"
+                    >
+                      Receive Goods (GRN)
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Items */}
+              <div>
+                <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Ordered Items &amp; Receipt Tracking</h4>
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-700 font-semibold text-xs border-b border-slate-200">
+                      <tr>
+                        <th className="py-2.5 px-3">Product Name</th>
+                        <th className="py-2.5 px-3 text-center">Ordered</th>
+                        <th className="py-2.5 px-3 text-center">Received</th>
+                        <th className="py-2.5 px-3 text-center">Remaining</th>
+                        <th className="py-2.5 px-3 text-right">Unit Cost</th>
+                        <th className="py-2.5 px-3 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedPo.items?.map((item) => {
+                        const remaining = item.quantity - (item.receivedQuantity || 0);
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50/50">
+                            <td className="py-2 px-3">
+                              <div className="font-semibold text-slate-900">{item.productNameSnapshot}</div>
+                              {item.skuSnapshot && <div className="text-xs text-slate-400">{item.skuSnapshot}</div>}
+                            </td>
+                            <td className="py-2 px-3 text-center font-medium text-slate-700">{item.quantity}</td>
+                            <td className="py-2 px-3 text-center font-medium text-emerald-700">{item.receivedQuantity || 0}</td>
+                            <td className="py-2 px-3 text-center font-medium text-amber-700">{remaining}</td>
+                            <td className="py-2 px-3 text-right text-slate-600">₹{Number(item.unitCost).toFixed(2)}</td>
+                            <td className="py-2 px-3 text-right font-medium text-slate-900">₹{Number(item.lineTotal).toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Totals */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col gap-1 text-sm self-end w-full sm:w-72">
+                <div className="flex justify-between text-slate-600"><span>Subtotal:</span><span>₹{Number(selectedPo.subtotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between text-slate-600"><span>Tax Amount:</span><span>₹{Number(selectedPo.taxAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between text-base font-bold text-slate-900 border-t border-slate-200 pt-1 mt-1"><span>Total Amount:</span><span>₹{Number(selectedPo.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CREATE GOODS RECEIPT ──────────────────────────────────────── */}
+      {showGrnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">Goods Receipt / GRN</h3>
+                <p className="text-xs text-slate-500">Physical goods arrival tracking. Posting this GRN will call StockService to atomically increase stock.</p>
+              </div>
+              <button onClick={() => { setShowGrnModal(false); setGrnSelectedPo(null); }} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveGrn} className="p-6 flex flex-col gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Select Approved PO *</label>
+                  <select required value={grnForm.purchaseOrderId} onChange={(e) => handlePoSelectForGrn(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Select Purchase Order</option>
+                    {purchaseOrders.filter((p) => p.status === 'APPROVED' || p.status === 'PARTIALLY_RECEIVED').map((p) => (
+                      <option key={p.id} value={p.id}>{p.poNumber} — {p.supplier?.name} ({p.status})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Receipt Date *</label>
+                  <input type="date" required value={grnForm.receiptDate} onChange={(e) => setGrnForm({ ...grnForm, receiptDate: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+
+              {grnSelectedPo && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-2">Receiving Quantities (Strictly bounded by remaining quantity)</label>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-slate-50 text-slate-700 font-semibold text-xs border-b border-slate-200">
+                        <tr>
+                          <th className="py-2.5 px-3">Product</th>
+                          <th className="py-2.5 px-3 text-center">Remaining</th>
+                          <th className="py-2.5 px-3 text-center w-36">Current Receipt</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {grnForm.items.map((item, idx) => (
+                          <tr key={item.purchaseOrderItemId} className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-3"><span className="font-semibold text-slate-900">{item.productName}</span></td>
+                            <td className="py-2.5 px-3 text-center font-medium text-amber-700">{item.maxAllowed} units</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <input type="number" min="1" max={item.maxAllowed} required value={item.receivedQuantity}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value) || 0;
+                                  const newItems = [...grnForm.items];
+                                  newItems[idx].receivedQuantity = val;
+                                  setGrnForm({ ...grnForm, items: newItems });
+                                }}
+                                className="w-24 py-1 px-2 text-sm font-semibold border border-slate-200 rounded-lg text-center focus:ring-2 focus:ring-indigo-500"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Receipt Notes / Challan No.</label>
+                <textarea rows={2} value={grnForm.notes} onChange={(e) => setGrnForm({ ...grnForm, notes: e.target.value })} placeholder="e.g. Received via Blue Dart challan #8890, all items verified intact." className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl" />
+              </div>
+
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 text-xs text-indigo-900">
+                <input type="checkbox" id="autoPostCheckbox" checked={grnForm.autoPost} onChange={(e) => setGrnForm({ ...grnForm, autoPost: e.target.checked })} className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
+                <label htmlFor="autoPostCheckbox" className="font-medium cursor-pointer">Post immediately and update stock ledger (adds inventory atomically via StockService)</label>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setShowGrnModal(false); setGrnSelectedPo(null); }} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
+                <button type="submit" disabled={!grnSelectedPo || grnForm.items.length === 0 || createGrn.isPending} className="px-5 py-2 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl shadow-sm">
+                  {grnForm.autoPost ? 'Post Goods Receipt & Update Stock' : 'Save Draft GRN'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: VIEW GRN DETAILS ──────────────────────────────────────────── */}
+      {selectedGrn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-900 text-lg">{selectedGrn.grnNumber}</h3>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${selectedGrn.status === 'POSTED' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-amber-50 text-amber-700 border-amber-300'}`}>
+                    {selectedGrn.status}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Receipt against PO {selectedGrn.purchaseOrder?.poNumber} on {new Date(selectedGrn.receiptDate).toLocaleDateString()}
+                </p>
+              </div>
+              <button onClick={() => setSelectedGrn(null)} className="text-slate-400 hover:text-slate-600 p-1"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 flex flex-col gap-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-slate-400 font-semibold uppercase">Supplier</div>
+                    <div className="font-semibold text-slate-900">{selectedGrn.purchaseOrder?.supplier?.name || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-400 font-semibold uppercase">Received By</div>
+                    <div className="font-semibold text-slate-900">{selectedGrn.receivedByUser?.fullName || 'N/A'}</div>
+                  </div>
+                </div>
+                {selectedGrn.notes && (
+                  <div className="mt-3 pt-3 border-t border-slate-200 text-xs text-slate-600">
+                    <span className="font-semibold">Notes:</span> {selectedGrn.notes}
+                  </div>
+                )}
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Received Items Summary</h4>
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-700 font-semibold text-xs border-b border-slate-200">
+                      <tr>
+                        <th className="py-2.5 px-3">Product</th>
+                        <th className="py-2.5 px-3 text-center">Ordered</th>
+                        <th className="py-2.5 px-3 text-center">Previously Received</th>
+                        <th className="py-2.5 px-3 text-center font-bold text-emerald-700">Received in this GRN</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedGrn.items?.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/50">
+                          <td className="py-2 px-3 font-semibold text-slate-900">{item.product?.name || item.purchaseOrderItem?.productNameSnapshot || 'Product'}</td>
+                          <td className="py-2 px-3 text-center text-slate-600">{item.orderedQuantity}</td>
+                          <td className="py-2 px-3 text-center text-slate-600">{item.previouslyReceivedQuantity || 0}</td>
+                          <td className="py-2 px-3 text-center font-bold text-emerald-700">+{item.receivedQuantity}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {selectedGrn.status === 'POSTED' && (
+                <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>Stock movements committed to ledger under referenceType <strong>PURCHASE_RECEIPT</strong>.</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

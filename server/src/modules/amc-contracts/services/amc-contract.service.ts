@@ -22,9 +22,11 @@ import { users } from '../../../database/schema/users.js';
 import { products } from '../../../database/schema/products.js';
 import { AmcContractNumberService } from './amc-contract-number.service.js';
 import { AmcServiceReportPdfService, ServiceReportPdfData } from './amc-service-report-pdf.service.js';
+import { StockService } from '../../inventory/services/stock.service.js';
 
 export class AmcContractService {
   private numberService = new AmcContractNumberService();
+  private stockService = new StockService();
 
   /**
    * Create an AMC Contract from an accepted AMC quotation snapshot
@@ -1815,32 +1817,18 @@ export class AmcContractService {
         const qty = Number(mat.quantity);
         if (qty <= 0) continue;
 
-        // Validate sufficient stock
-        const [product] = await tx
-          .select({ id: products.id, stockQuantity: products.stockQuantity, name: products.name })
-          .from(products)
-          .where(eq(products.id, mat.productId))
-          .limit(1);
-
-        if (!product) {
-          throw new Error(`Product ${mat.productId} not found during stock deduction for material "${mat.productNameSnapshot}".`);
-        }
-
-        if (product.stockQuantity < qty) {
-          throw new Error(
-            `Insufficient stock for "${product.name}" (${mat.skuSnapshot || mat.productId}). ` +
-            `Required: ${qty} ${mat.unitSnapshot}, Available: ${product.stockQuantity} ${mat.unitSnapshot}.`
-          );
-        }
-
-        // Atomically deduct stock
-        await tx
-          .update(products)
-          .set({
-            stockQuantity: sql`${products.stockQuantity} - ${qty}`,
-            updatedAt: now,
-          })
-          .where(and(eq(products.id, mat.productId), gt(products.stockQuantity, qty - 1)));
+        // Atomically deduct stock and create stock movement audit record
+        await this.stockService.removeStock(
+          {
+            productId: mat.productId,
+            quantity: qty,
+            referenceType: 'AMC',
+            referenceId: report.id,
+            reason: `Consumed in AMC Service Report ${report.reportNumber || report.id} for material "${mat.productNameSnapshot || 'Material'}"`,
+          },
+          userId ? { id: userId } : undefined,
+          tx
+        );
 
         // Mark as consumed (idempotency seal)
         await tx

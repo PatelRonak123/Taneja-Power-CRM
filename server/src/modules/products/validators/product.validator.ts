@@ -23,6 +23,7 @@ export const updateProductSchema = z.object({
     category: z.string().min(2).optional(),
     price: z.coerce.number().positive().optional(),
     stockQuantity: z.coerce.number().int().min(0).optional(),
+    adjustmentReason: z.string().min(3).optional(),
     status: z.enum(['ACTIVE', 'INACTIVE', 'OUT_OF_STOCK']).optional(),
   }),
 });

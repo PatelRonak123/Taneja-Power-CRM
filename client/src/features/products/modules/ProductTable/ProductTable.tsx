@@ -4,7 +4,7 @@ import { ProductStatusBadge } from '../../components/ProductStatusBadge';
 import { ProductPrice } from '../../components/ProductPrice';
 import { formatDate } from '../../utils/productFormatters';
 import { getCategoryIcon } from '../../utils/categoryIcons';
-import { Pencil, Trash2, Package, Plus } from 'lucide-react';
+import { Pencil, Trash2, Package, Plus, SlidersHorizontal, History } from 'lucide-react';
 import { confirmModal } from '@/utils/confirmModal';
 import {
   Table,
@@ -22,6 +22,8 @@ interface ProductTableProps {
   onEdit: (product: Product) => void;
   onDelete: (id: string) => void;
   onDeployFirst?: () => void;
+  onAdjustStock?: (product: Product) => void;
+  onViewHistory?: (product: Product) => void;
   canEdit?: boolean;
   canDelete?: boolean;
 }
@@ -31,6 +33,8 @@ export const ProductTable: React.FC<ProductTableProps> = ({
   onEdit,
   onDelete,
   onDeployFirst,
+  onAdjustStock,
+  onViewHistory,
   canEdit = true,
   canDelete = true,
 }) => {
@@ -131,6 +135,28 @@ export const ProductTable: React.FC<ProductTableProps> = ({
 
                     <TableCell align="right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {onViewHistory && (
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800 hover:border-slate-300 transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600"
+                            onClick={() => onViewHistory(product)}
+                            title="View Stock Ledger History"
+                            aria-label={`Audit history for ${product.name}`}
+                          >
+                            <History size={13} />
+                          </button>
+                        )}
+                        {onAdjustStock && canEdit && (
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-amber-50 text-slate-500 hover:text-amber-700 hover:border-amber-300 transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600"
+                            onClick={() => onAdjustStock(product)}
+                            title="Adjust Inventory Stock"
+                            aria-label={`Adjust stock for ${product.name}`}
+                          >
+                            <SlidersHorizontal size={13} />
+                          </button>
+                        )}
                         {canEdit && (
                           <button
                             type="button"

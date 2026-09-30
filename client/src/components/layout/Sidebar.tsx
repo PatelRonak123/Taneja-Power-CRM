@@ -23,6 +23,9 @@ import {
   FileSpreadsheet,
   Wrench,
   CalendarClock,
+  Truck,
+  ShoppingCart,
+  Receipt,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -135,6 +138,38 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       label: 'AMC Contracts',
       icon: ShieldCheck,
       description: 'Maintenance contracts & schedule',
+    },
+    {
+      id: 'procurement-management',
+      path: '/procurement',
+      aliasPaths: ['/admin/procurement'],
+      label: 'Procurement & Orders',
+      icon: Truck,
+      description: 'Suppliers, POs & GRN',
+    },
+    {
+      id: 'sales-order-management',
+      path: '/sales-orders',
+      aliasPaths: ['/admin/sales-orders'],
+      label: 'Sales Orders / Customer PO',
+      icon: ShoppingCart,
+      description: 'Customer purchase orders & confirmations',
+    },
+    {
+      id: 'invoice-management',
+      path: '/invoices',
+      aliasPaths: ['/admin/invoices'],
+      label: 'Invoices (Sales & Vendor)',
+      icon: Receipt,
+      description: 'Sales tax invoices & vendor purchase bills',
+    },
+    {
+      id: 'dispatch-management',
+      path: '/dispatches',
+      aliasPaths: ['/admin/dispatches'],
+      label: 'Dispatch / Delivery Challan',
+      icon: Truck,
+      description: 'Shipments & physical stock delivery',
     },
     {
       id: 'task-management',
@@ -258,6 +293,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           aliasPaths: ['/equipment'],
           label: 'Equipment & Inventory',
           icon: Zap,
+        },
+        {
+          id: 'accountant-procurement',
+          path: '/procurement',
+          aliasPaths: ['/admin/procurement'],
+          label: 'Procurement & Orders',
+          icon: Truck,
+        },
+        {
+          id: 'accountant-sales-orders',
+          path: '/sales-orders',
+          aliasPaths: ['/admin/sales-orders'],
+          label: 'Sales Orders',
+          icon: ShoppingCart,
+        },
+        {
+          id: 'accountant-invoices',
+          path: '/invoices',
+          aliasPaths: ['/admin/invoices'],
+          label: 'Invoices (Sales & Vendor)',
+          icon: Receipt,
+        },
+        {
+          id: 'accountant-dispatches',
+          path: '/dispatches',
+          aliasPaths: ['/admin/dispatches'],
+          label: 'Dispatch / Challans',
+          icon: Truck,
         },
         {
           id: 'employee-amc-contracts',
@@ -387,6 +450,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           icon: FileSpreadsheet,
         },
         {
+          id: 'employee-sales-orders',
+          path: '/sales-orders',
+          aliasPaths: ['/admin/sales-orders'],
+          label: 'Sales Orders',
+          icon: ShoppingCart,
+        },
+        {
           id: 'employee-tasks',
           path: '/tasks',
           aliasPaths: ['/admin/tasks'],
@@ -425,6 +495,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           aliasPaths: ['/quotations/new'],
           label: 'Quotations & Proposals',
           icon: FileSpreadsheet,
+        },
+        {
+          id: 'employee-sales-orders',
+          path: '/sales-orders',
+          aliasPaths: ['/admin/sales-orders'],
+          label: 'Sales Orders',
+          icon: ShoppingCart,
         },
         {
           id: 'employee-tasks',
