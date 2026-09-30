@@ -520,14 +520,16 @@ export const CustomerManagementPage: React.FC = () => {
               <Building2 size={12} className="text-blue-600" /> Directory
             </span>
             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium text-slate-600 bg-slate-100 border border-slate-200 tabular-nums">
-              {totalCount} Total Clients
+              {totalCount} {!isAdmin ? 'My Clients' : 'Total Clients'}
             </span>
           </div>
           <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
             Customer & Destination Management
           </h1>
           <p className="text-[13px] text-slate-500 leading-normal">
-            Manage enterprise client accounts, configure multi-facility service destination sites, and coordinate GPS location markers.
+            {!isAdmin
+              ? 'View and manage your registered client accounts, contact details, and service destination sites.'
+              : 'Manage enterprise client accounts, configure multi-facility service destination sites, and coordinate GPS location markers.'}
           </p>
         </div>
 
@@ -608,7 +610,7 @@ export const CustomerManagementPage: React.FC = () => {
         onEditDestination={handleOpenEditDestination}
         onDeleteDestination={handleDeleteDestination}
         deletingDestinationId={deletingDestinationId}
-        isAdmin={isAdmin}
+        canManage={true}
       />
 
       {/* Destination Create / Edit Modal */}

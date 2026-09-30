@@ -17,6 +17,8 @@ export const createCustomerSchema = z.object({
         errorMap: () => ({ message: 'Status must be ACTIVE or INACTIVE' }),
       })
       .default(APP_CONSTANTS.STATUS.ACTIVE),
+    createdById: z.string().uuid().optional().nullable(),
+    createdBy: z.string().max(255).optional().nullable(),
   }),
 });
 
@@ -48,6 +50,7 @@ export const listCustomersSchema = z.object({
     status: z.string().optional(),
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().default(10),
+    createdById: z.string().uuid().optional(),
   }),
 });
 

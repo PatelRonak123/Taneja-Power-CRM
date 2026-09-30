@@ -10,18 +10,40 @@ import {
 } from '../validators/customer.validator.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { CustomerEntity } from '../../../database/schema/customers.js';
+import { JwtPayload } from '../../../common/auth/jwt.js';
+import { APP_CONSTANTS } from '../../../config/constants.js';
 
 export class CustomerService {
   constructor(
     private readonly customerRepo: CustomerRepository = new CustomerRepository()
   ) {}
 
-  async listCustomers(options: CustomerFilterOptions) {
+  private isScopedEmployee(user?: JwtPayload): boolean {
+    if (!user) return false;
+    if (user.role === APP_CONSTANTS.ROLES.ADMIN || user.role === APP_CONSTANTS.ROLES.MANAGER) {
+      return false;
+    }
+    return true;
+  }
+
+  async listCustomers(options: CustomerFilterOptions, authUser?: JwtPayload) {
     const page = options.page || 1;
     const limit = options.limit || 10;
+
+    // Server-side Ownership Scoping for Sales and Service Employees
+    let scopedCreatedById: string | undefined = options.createdById;
+    if (authUser && this.isScopedEmployee(authUser)) {
+      scopedCreatedById = authUser.userId;
+    }
+
+    const filterOptions: CustomerFilterOptions = {
+      ...options,
+      createdById: scopedCreatedById,
+    };
+
     const [{ data, total }, metrics] = await Promise.all([
-      this.customerRepo.findAll(options),
-      this.customerRepo.getMetrics(),
+      this.customerRepo.findAll(filterOptions),
+      this.customerRepo.getMetrics(scopedCreatedById),
     ]);
 
     const totalPages = Math.ceil(total / limit) || 1;
@@ -38,15 +60,28 @@ export class CustomerService {
     };
   }
 
-  async getCustomerById(id: string): Promise<CustomerWithDestinations> {
+  async getCustomerById(id: string, authUser?: JwtPayload): Promise<CustomerWithDestinations> {
     const customer = await this.customerRepo.findByIdWithDestinations(id);
     if (!customer) {
       throw AppError.notFound('Customer not found');
     }
+
+    if (
+      authUser &&
+      this.isScopedEmployee(authUser) &&
+      customer.createdById &&
+      customer.createdById !== authUser.userId
+    ) {
+      throw AppError.forbidden('You do not have permission to view this customer');
+    }
+
     return customer;
   }
 
-  async createCustomer(input: CreateCustomerInput): Promise<CustomerEntity> {
+  async createCustomer(
+    input: CreateCustomerInput,
+    authUser?: JwtPayload
+  ): Promise<CustomerEntity> {
     return this.customerRepo.create({
       name: input.name,
       companyName: input.companyName || null,
@@ -58,16 +93,28 @@ export class CustomerService {
       pincode: input.pincode || null,
       notes: input.notes || null,
       status: input.status || 'ACTIVE',
+      createdById: authUser?.userId || input.createdById || null,
+      createdBy: (authUser as any)?.fullName || input.createdBy || null,
     });
   }
 
   async updateCustomer(
     id: string,
-    input: UpdateCustomerInput
+    input: UpdateCustomerInput,
+    authUser?: JwtPayload
   ): Promise<CustomerEntity> {
     const existing = await this.customerRepo.findById(id);
     if (!existing) {
       throw AppError.notFound('Customer not found');
+    }
+
+    if (
+      authUser &&
+      this.isScopedEmployee(authUser) &&
+      existing.createdById &&
+      existing.createdById !== authUser.userId
+    ) {
+      throw AppError.forbidden('You do not have permission to edit this customer');
     }
 
     const updateData: any = {};

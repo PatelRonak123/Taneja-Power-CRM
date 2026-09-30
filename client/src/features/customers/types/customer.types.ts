@@ -32,6 +32,8 @@ export interface Customer {
   pincode?: string | null;
   notes?: string | null;
   status: CustomerStatus;
+  createdById?: string | null;
+  createdBy?: string | null;
   destinationCount?: number;
   destinations?: CustomerDestination[];
   createdAt: string;

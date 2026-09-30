@@ -6,6 +6,8 @@ import {
 } from '../validators/customer.validator.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { CustomerDestinationEntity } from '../../../database/schema/customers.js';
+import { JwtPayload } from '../../../common/auth/jwt.js';
+import { APP_CONSTANTS } from '../../../config/constants.js';
 
 export class DestinationService {
   constructor(
@@ -13,24 +15,46 @@ export class DestinationService {
     private readonly customerRepo: CustomerRepository = new CustomerRepository()
   ) {}
 
-  private async ensureCustomerExists(customerId: string) {
+  private isScopedEmployee(user?: JwtPayload): boolean {
+    if (!user) return false;
+    if (user.role === APP_CONSTANTS.ROLES.ADMIN || user.role === APP_CONSTANTS.ROLES.MANAGER) {
+      return false;
+    }
+    return true;
+  }
+
+  private async ensureCustomerExists(customerId: string, authUser?: JwtPayload) {
     const customer = await this.customerRepo.findById(customerId);
     if (!customer) {
       throw AppError.notFound('Customer not found');
     }
+
+    if (
+      authUser &&
+      this.isScopedEmployee(authUser) &&
+      customer.createdById &&
+      customer.createdById !== authUser.userId
+    ) {
+      throw AppError.forbidden('You do not have permission to access destinations for this customer');
+    }
+
     return customer;
   }
 
-  async listDestinations(customerId: string): Promise<CustomerDestinationEntity[]> {
-    await this.ensureCustomerExists(customerId);
+  async listDestinations(
+    customerId: string,
+    authUser?: JwtPayload
+  ): Promise<CustomerDestinationEntity[]> {
+    await this.ensureCustomerExists(customerId, authUser);
     return this.destinationRepo.findByCustomerId(customerId);
   }
 
   async getDestinationById(
     customerId: string,
-    destinationId: string
+    destinationId: string,
+    authUser?: JwtPayload
   ): Promise<CustomerDestinationEntity> {
-    await this.ensureCustomerExists(customerId);
+    await this.ensureCustomerExists(customerId, authUser);
     const destination = await this.destinationRepo.findByIdAndCustomerId(
       destinationId,
       customerId
@@ -43,9 +67,10 @@ export class DestinationService {
 
   async createDestination(
     customerId: string,
-    input: CreateDestinationInput
+    input: CreateDestinationInput,
+    authUser?: JwtPayload
   ): Promise<CustomerDestinationEntity> {
-    await this.ensureCustomerExists(customerId);
+    await this.ensureCustomerExists(customerId, authUser);
 
     return this.destinationRepo.create({
       customerId,
@@ -67,9 +92,10 @@ export class DestinationService {
   async updateDestination(
     customerId: string,
     destinationId: string,
-    input: UpdateDestinationInput
+    input: UpdateDestinationInput,
+    authUser?: JwtPayload
   ): Promise<CustomerDestinationEntity> {
-    await this.ensureCustomerExists(customerId);
+    await this.ensureCustomerExists(customerId, authUser);
 
     const existing = await this.destinationRepo.findByIdAndCustomerId(
       destinationId,
@@ -103,8 +129,12 @@ export class DestinationService {
     return updated;
   }
 
-  async deleteDestination(customerId: string, destinationId: string): Promise<void> {
-    await this.ensureCustomerExists(customerId);
+  async deleteDestination(
+    customerId: string,
+    destinationId: string,
+    authUser?: JwtPayload
+  ): Promise<void> {
+    await this.ensureCustomerExists(customerId, authUser);
 
     const existing = await this.destinationRepo.findByIdAndCustomerId(
       destinationId,

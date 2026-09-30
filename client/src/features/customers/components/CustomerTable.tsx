@@ -125,6 +125,11 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                           <span className="text-xs text-slate-500 font-normal truncate">
                             {cust.companyName || 'Individual Client'}
                           </span>
+                          {cust.createdBy && (
+                            <span className="text-[11px] text-slate-400 font-normal truncate">
+                              By: {cust.createdBy}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </TableCell>

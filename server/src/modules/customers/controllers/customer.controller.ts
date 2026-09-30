@@ -8,7 +8,7 @@ export class CustomerController {
 
   list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.customerService.listCustomers(req.query as any);
+      const result = await this.customerService.listCustomers(req.query as any, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
@@ -26,7 +26,7 @@ export class CustomerController {
 
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.customerService.getCustomerById(req.params.id);
+      const result = await this.customerService.getCustomerById(req.params.id, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
@@ -40,7 +40,7 @@ export class CustomerController {
 
   create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.customerService.createCustomer(req.body);
+      const result = await this.customerService.createCustomer(req.body, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.CREATED,
@@ -54,7 +54,7 @@ export class CustomerController {
 
   update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.customerService.updateCustomer(req.params.id, req.body);
+      const result = await this.customerService.updateCustomer(req.params.id, req.body, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,

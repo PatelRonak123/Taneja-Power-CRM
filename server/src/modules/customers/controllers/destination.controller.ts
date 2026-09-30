@@ -10,7 +10,10 @@ export class DestinationController {
 
   list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.destinationService.listDestinations(req.params.customerId);
+      const result = await this.destinationService.listDestinations(
+        req.params.customerId,
+        req.user
+      );
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,
@@ -26,7 +29,8 @@ export class DestinationController {
     try {
       const result = await this.destinationService.getDestinationById(
         req.params.customerId,
-        req.params.destinationId
+        req.params.destinationId,
+        req.user
       );
       sendResponse(
         res,
@@ -43,7 +47,8 @@ export class DestinationController {
     try {
       const result = await this.destinationService.createDestination(
         req.params.customerId,
-        req.body
+        req.body,
+        req.user
       );
       sendResponse(
         res,
@@ -61,7 +66,8 @@ export class DestinationController {
       const result = await this.destinationService.updateDestination(
         req.params.customerId,
         req.params.destinationId,
-        req.body
+        req.body,
+        req.user
       );
       sendResponse(
         res,
@@ -78,7 +84,8 @@ export class DestinationController {
     try {
       await this.destinationService.deleteDestination(
         req.params.customerId,
-        req.params.destinationId
+        req.params.destinationId,
+        req.user
       );
       sendResponse(
         res,

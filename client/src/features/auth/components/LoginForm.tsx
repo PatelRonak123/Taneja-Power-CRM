@@ -26,7 +26,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
   // UI states
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
-  const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -667,7 +666,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
         </div>
 
         <div className="flex items-center justify-between gap-2 mt-0.5">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
+          {/* <label className="flex items-center gap-2 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={keepSignedIn}
@@ -675,7 +674,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
               className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer"
             />
             <span className="text-xs font-semibold text-slate-700">Keep me signed in</span>
-          </label>
+          </label> */}
           <button
             type="button"
             onClick={() => {

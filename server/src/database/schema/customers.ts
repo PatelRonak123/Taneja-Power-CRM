@@ -1,20 +1,29 @@
 import { pgTable, uuid, varchar, text, numeric, timestamp, index } from 'drizzle-orm/pg-core';
+import { users } from './users.js';
 
-export const customers = pgTable('customers', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  name: varchar('name', { length: 255 }).notNull(),
-  companyName: varchar('company_name', { length: 255 }),
-  phone: varchar('phone', { length: 50 }),
-  email: varchar('email', { length: 255 }),
-  address: text('address'),
-  city: varchar('city', { length: 100 }),
-  state: varchar('state', { length: 100 }),
-  pincode: varchar('pincode', { length: 20 }),
-  notes: text('notes'),
-  status: varchar('status', { length: 50 }).default('ACTIVE').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+export const customers = pgTable(
+  'customers',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: varchar('name', { length: 255 }).notNull(),
+    companyName: varchar('company_name', { length: 255 }),
+    phone: varchar('phone', { length: 50 }),
+    email: varchar('email', { length: 255 }),
+    address: text('address'),
+    city: varchar('city', { length: 100 }),
+    state: varchar('state', { length: 100 }),
+    pincode: varchar('pincode', { length: 20 }),
+    notes: text('notes'),
+    status: varchar('status', { length: 50 }).default('ACTIVE').notNull(),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdBy: varchar('created_by', { length: 255 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('customers_created_by_id_idx').on(table.createdById),
+  ]
+);
 
 export const customerDestinations = pgTable(
   'customer_destinations',
