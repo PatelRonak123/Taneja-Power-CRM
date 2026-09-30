@@ -13,6 +13,7 @@ export interface CustomerFilterOptions {
   status?: string;
   page?: number;
   limit?: number;
+  createdById?: string;
 }
 
 export interface CustomerWithDestinations extends CustomerEntity {
@@ -36,6 +37,10 @@ export class CustomerRepository {
     const offset = (page - 1) * limit;
 
     const conditions = [];
+
+    if (options.createdById && options.createdById.trim() !== '') {
+      conditions.push(eq(customers.createdById, options.createdById.trim()));
+    }
 
     if (options.status && options.status.trim() !== '' && options.status.trim() !== 'ALL') {
       conditions.push(eq(customers.status, options.status.trim()));
@@ -145,23 +150,44 @@ export class CustomerRepository {
     return result.length > 0;
   }
 
-  async getMetrics(): Promise<CustomerMetricsDto> {
-    const [totalRes] = await db.select({ value: count() }).from(customers);
-    const [activeRes] = await db
-      .select({ value: count() })
-      .from(customers)
-      .where(eq(customers.status, 'ACTIVE'));
-    const [inactiveRes] = await db
-      .select({ value: count() })
-      .from(customers)
-      .where(eq(customers.status, 'INACTIVE'));
-    const [totalDestRes] = await db.select({ value: count() }).from(customerDestinations);
+  async getMetrics(createdById?: string): Promise<CustomerMetricsDto> {
+    const baseConditions = [];
+    if (createdById && createdById.trim() !== '') {
+      baseConditions.push(eq(customers.createdById, createdById.trim()));
+    }
+
+    const whereTotal = baseConditions.length > 0 ? and(...baseConditions) : undefined;
+    const whereActive =
+      baseConditions.length > 0
+        ? and(...baseConditions, eq(customers.status, 'ACTIVE'))
+        : eq(customers.status, 'ACTIVE');
+    const whereInactive =
+      baseConditions.length > 0
+        ? and(...baseConditions, eq(customers.status, 'INACTIVE'))
+        : eq(customers.status, 'INACTIVE');
+
+    const [totalRes] = await db.select({ value: count() }).from(customers).where(whereTotal);
+    const [activeRes] = await db.select({ value: count() }).from(customers).where(whereActive);
+    const [inactiveRes] = await db.select({ value: count() }).from(customers).where(whereInactive);
+
+    let totalDestinations = 0;
+    if (createdById && createdById.trim() !== '') {
+      const [scopedDestRes] = await db
+        .select({ value: count() })
+        .from(customerDestinations)
+        .innerJoin(customers, eq(customerDestinations.customerId, customers.id))
+        .where(eq(customers.createdById, createdById.trim()));
+      totalDestinations = Number(scopedDestRes?.value || 0);
+    } else {
+      const [totalDestRes] = await db.select({ value: count() }).from(customerDestinations);
+      totalDestinations = Number(totalDestRes?.value || 0);
+    }
 
     return {
       total: Number(totalRes?.value || 0),
       active: Number(activeRes?.value || 0),
       inactive: Number(inactiveRes?.value || 0),
-      totalDestinations: Number(totalDestRes?.value || 0),
+      totalDestinations,
     };
   }
 }

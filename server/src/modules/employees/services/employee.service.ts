@@ -70,9 +70,12 @@ export class EmployeeService {
   }
 
   async createEmployee(input: CreateEmployeeInput): Promise<EmployeeResponseDto> {
-    const existing = await this.employeeRepo.findByEmail(input.email);
-    if (existing) {
-      throw AppError.conflict('An employee or user with this email address already exists');
+    const emailList = input.email.split(',').map((e) => e.trim()).filter(Boolean);
+    for (const singleEmail of emailList) {
+      const existing = await this.employeeRepo.findByEmail(singleEmail);
+      if (existing) {
+        throw AppError.conflict(`An employee or user with the email address "${singleEmail}" already exists`);
+      }
     }
 
     const passwordHash = await hashPassword(input.password);

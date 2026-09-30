@@ -18,6 +18,16 @@ import quotationRoutes from './modules/quotations/routes/quotation.routes.js';
 import amcContractRoutes from './modules/amc-contracts/routes/amc-contract.routes.js';
 import fieldServiceRoutes from './modules/field-service/routes/field-service.routes.js';
 import followUpRoutes from './modules/follow-ups/routes/follow-up.routes.js';
+import inventoryRoutes from './modules/inventory/routes/inventory.routes.js';
+import {
+  supplierRoutes,
+  purchaseOrderRoutes,
+  goodsReceiptRoutes,
+} from './modules/procurement/routes/index.js';
+import salesOrderRoutes from './modules/sales-orders/routes/sales-order.routes.js';
+import salesInvoiceRoutes from './modules/invoices/routes/sales-invoice.routes.js';
+import vendorInvoiceRoutes from './modules/invoices/routes/vendor-invoice.routes.js';
+import dispatchRoutes from './modules/dispatch/routes/dispatch.routes.js';
 import path from 'path';
 import { sendResponse } from './common/utils/responseEnvelope.js';
 
@@ -92,6 +102,14 @@ export const createApp = (): Application => {
   app.use(`${APP_CONSTANTS.API_PREFIX}/amc-contracts`, amcContractRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/field-service`, fieldServiceRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/follow-ups`, followUpRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/inventory`, inventoryRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/suppliers`, supplierRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/purchase-orders`, purchaseOrderRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/goods-receipts`, goodsReceiptRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/sales-orders`, salesOrderRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/sales-invoices`, salesInvoiceRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/vendor-invoices`, vendorInvoiceRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/dispatches`, dispatchRoutes);
 
   // 404 Handler
   app.use(notFoundMiddleware);

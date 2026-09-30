@@ -216,16 +216,44 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
 
                     {/* Contact Details */}
                     <TableCell>
-                      <div className="flex flex-col gap-0.5">
+                      <div className="flex flex-col gap-0.5 max-w-[200px]">
                         {emp.phone ? (
                           <div className="flex items-center gap-1.5 font-medium text-slate-800 text-xs">
                             <Phone size={11} className="text-slate-400 shrink-0" />
-                            <span className="tabular-nums">{emp.phone}</span>
+                            {emp.phone.includes(',') ? (
+                              <div className="flex items-center gap-1 min-w-0">
+                                <span className="tabular-nums truncate">{emp.phone.split(',')[0].trim()}</span>
+                                <span
+                                  className="text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded shrink-0 cursor-help"
+                                  title={emp.phone.split(',').map((p) => p.trim()).join('\n')}
+                                >
+                                  +{emp.phone.split(',').length - 1}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="tabular-nums truncate">{emp.phone}</span>
+                            )}
                           </div>
                         ) : (
                           <span className="text-slate-400 text-xs italic">No phone</span>
                         )}
-                        <span className="text-slate-500 text-xs truncate">{emp.email}</span>
+                        {emp.email ? (
+                          emp.email.includes(',') ? (
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="text-slate-500 text-xs truncate" title={emp.email.split(',')[0].trim()}>
+                                {emp.email.split(',')[0].trim()}
+                              </span>
+                              <span
+                                className="text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-1 py-0.2 rounded shrink-0 cursor-help"
+                                title={emp.email.split(',').map((e) => e.trim()).join('\n')}
+                              >
+                                +{emp.email.split(',').length - 1}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-500 text-xs truncate" title={emp.email}>{emp.email}</span>
+                          )
+                        ) : null}
                       </div>
                     </TableCell>
 

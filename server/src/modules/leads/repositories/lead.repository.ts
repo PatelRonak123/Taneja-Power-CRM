@@ -213,14 +213,18 @@ export class LeadRepository {
     };
   }
 
-  private async ensureCustomerForLead(data: {
-    customerName: string;
-    companyName?: string | null;
-    email?: string | null;
-    phone?: string | null;
-    address?: string | null;
-    linkedClientId?: string | null;
-  }): Promise<string | undefined> {
+  private async ensureCustomerForLead(
+    data: {
+      customerName: string;
+      companyName?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      address?: string | null;
+      linkedClientId?: string | null;
+    },
+    user?: JwtPayload,
+    creatorName?: string | null
+  ): Promise<string | undefined> {
     try {
       // 1. If linkedClientId is passed, verify customer exists
       if (data.linkedClientId && data.linkedClientId.trim() !== '') {
@@ -300,6 +304,8 @@ export class LeadRepository {
             phone: data.phone ? data.phone.trim() : null,
             address: data.address ? data.address.trim() : null,
             status: 'ACTIVE',
+            createdById: user?.userId || null,
+            createdBy: creatorName || (user as any)?.fullName || null,
             createdAt: new Date(),
             updatedAt: new Date(),
           })
@@ -343,14 +349,18 @@ export class LeadRepository {
       }
     }
 
-    const linkedClientId = await this.ensureCustomerForLead({
-      customerName: data.customerName,
-      companyName: data.companyName,
-      email: data.email,
-      phone: data.phone,
-      address: data.address,
-      linkedClientId: data.linkedClientId,
-    });
+    const linkedClientId = await this.ensureCustomerForLead(
+      {
+        customerName: data.customerName,
+        companyName: data.companyName,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        linkedClientId: data.linkedClientId,
+      },
+      user,
+      creatorName
+    );
 
     const [created] = await db
       .insert(leads)

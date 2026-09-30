@@ -96,14 +96,28 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           error={errors.price}
         />
 
-        <Input
-          label="Initial Inventory Quantity *"
-          type="number"
-          placeholder="0"
-          value={formData.stockQuantity || ''}
-          onChange={(e) => handleChange('stockQuantity', parseInt(e.target.value, 10) || 0)}
-          error={errors.stockQuantity}
-        />
+        {product ? (
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Stock Quantity (Audit Locked)
+            </label>
+            <div className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-[13px] text-slate-700 flex items-center justify-between">
+              <span className="font-semibold text-slate-900">{product.stockQuantity} units</span>
+              <span className="text-[11px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                Adjust via Inventory
+              </span>
+            </div>
+          </div>
+        ) : (
+          <Input
+            label="Initial Inventory Quantity *"
+            type="number"
+            placeholder="0"
+            value={formData.stockQuantity || ''}
+            onChange={(e) => handleChange('stockQuantity', parseInt(e.target.value, 10) || 0)}
+            error={errors.stockQuantity}
+          />
+        )}
       </div>
 
       <div>

@@ -29,8 +29,19 @@ export const createEmployeeSchema = z.object({
   body: z
     .object({
       fullName: z.string().min(2, 'Full name must be at least 2 characters long'),
-      email: z.string().email('Invalid email address'),
-      phone: z.string().max(50, 'Phone number must not exceed 50 characters').optional().nullable(),
+      email: z
+        .string()
+        .max(255, 'Email field must not exceed 255 characters')
+        .refine(
+          (val) => {
+            const parts = val.split(',').map((p) => p.trim()).filter(Boolean);
+            if (parts.length === 0) return false;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return parts.every((email) => emailRegex.test(email));
+          },
+          { message: 'Invalid email address or format. Please ensure all email addresses are valid.' }
+        ),
+      phone: z.string().max(255, 'Phone number must not exceed 255 characters').optional().nullable(),
       workType: z
         .enum([APP_CONSTANTS.WORK_TYPES.OFFICE, APP_CONSTANTS.WORK_TYPES.FIELD], {
           errorMap: () => ({ message: 'Work type must be OFFICE or FIELD' }),
@@ -66,7 +77,7 @@ export const updateEmployeeSchema = z.object({
   body: z
     .object({
       fullName: z.string().min(2, 'Full name must be at least 2 characters long').optional(),
-      phone: z.string().max(50, 'Phone number must not exceed 50 characters').optional().nullable(),
+      phone: z.string().max(255, 'Phone number must not exceed 255 characters').optional().nullable(),
       workType: z
         .enum([APP_CONSTANTS.WORK_TYPES.OFFICE, APP_CONSTANTS.WORK_TYPES.FIELD], {
           errorMap: () => ({ message: 'Work type must be OFFICE or FIELD' }),

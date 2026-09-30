@@ -23,6 +23,9 @@ import {
   FileSpreadsheet,
   Wrench,
   CalendarClock,
+  Truck,
+  ShoppingCart,
+  Receipt,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -137,6 +140,38 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       description: 'Maintenance contracts & schedule',
     },
     {
+      id: 'procurement-management',
+      path: '/procurement',
+      aliasPaths: ['/admin/procurement'],
+      label: 'Procurement & Orders',
+      icon: Truck,
+      description: 'Suppliers, POs & GRN',
+    },
+    {
+      id: 'sales-order-management',
+      path: '/sales-orders',
+      aliasPaths: ['/admin/sales-orders'],
+      label: 'Sales Orders / Customer PO',
+      icon: ShoppingCart,
+      description: 'Customer purchase orders & confirmations',
+    },
+    {
+      id: 'invoice-management',
+      path: '/invoices',
+      aliasPaths: ['/admin/invoices'],
+      label: 'Invoices (Sales & Vendor)',
+      icon: Receipt,
+      description: 'Sales tax invoices & vendor purchase bills',
+    },
+    {
+      id: 'dispatch-management',
+      path: '/dispatches',
+      aliasPaths: ['/admin/dispatches'],
+      label: 'Dispatch / Delivery Challan',
+      icon: Truck,
+      description: 'Shipments & physical stock delivery',
+    },
+    {
       id: 'task-management',
       path: '/tasks',
       aliasPaths: ['/admin/tasks'],
@@ -171,10 +206,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
   ];
 
   const designation = (user?.designation || '').toLowerCase();
-  const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('sales');
-  const isServiceOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('service');
-  const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designation.includes('accountant');
-  const isHrOffice = (user?.role === 'USER' || (user as any)?.role === 'HR') && user?.workType === 'OFFICE' && (designation.includes('hr') || designation.includes('human resources'));
+  const isSalesOffice = (user?.role === 'USER' || (user as any)?.role === 'SALES') && designation.includes('sales');
+  const isServiceOffice = (user?.role === 'USER' || (user as any)?.role === 'SERVICE') && designation.includes('service');
+  const isAccountantOffice = user?.role === 'USER' && designation.includes('accountant');
+  const isHrOffice = (user?.role === 'USER' || (user as any)?.role === 'HR') && (designation.includes('hr') || designation.includes('human resources'));
 
   const coreNavItems = isAdmin
     ? [
@@ -260,6 +295,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           icon: Zap,
         },
         {
+          id: 'accountant-procurement',
+          path: '/procurement',
+          aliasPaths: ['/admin/procurement'],
+          label: 'Procurement & Orders',
+          icon: Truck,
+        },
+        {
+          id: 'accountant-sales-orders',
+          path: '/sales-orders',
+          aliasPaths: ['/admin/sales-orders'],
+          label: 'Sales Orders',
+          icon: ShoppingCart,
+        },
+        {
+          id: 'accountant-invoices',
+          path: '/invoices',
+          aliasPaths: ['/admin/invoices'],
+          label: 'Invoices (Sales & Vendor)',
+          icon: Receipt,
+        },
+        {
+          id: 'accountant-dispatches',
+          path: '/dispatches',
+          aliasPaths: ['/admin/dispatches'],
+          label: 'Dispatch / Challans',
+          icon: Truck,
+        },
+        {
           id: 'employee-amc-contracts',
           path: '/amc-contracts',
           aliasPaths: [],
@@ -329,8 +392,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           id: 'employee-tasks',
           path: '/tasks',
           aliasPaths: ['/admin/tasks'],
-          label: 'My Tasks',
+          label: 'Field Task Management',
           icon: ClipboardList,
+          description: 'Create, assign & track field work orders',
         },
         {
           id: 'employee-attendance',
@@ -386,18 +450,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           icon: FileSpreadsheet,
         },
         {
+          id: 'employee-sales-orders',
+          path: '/sales-orders',
+          aliasPaths: ['/admin/sales-orders'],
+          label: 'Sales Orders',
+          icon: ShoppingCart,
+        },
+        {
           id: 'employee-tasks',
           path: '/tasks',
           aliasPaths: ['/admin/tasks'],
-          label: 'My Tasks',
+          label: 'Field Task Management',
           icon: ClipboardList,
-        },
-        {
-          id: 'employee-amc-contracts',
-          path: '/amc-contracts',
-          aliasPaths: [],
-          label: 'AMC Contracts',
-          icon: ShieldCheck,
+          description: 'Create, assign \u0026 track field work orders',
         },
         { id: 'products', path: '/products', aliasPaths: ['/equipment'], label: 'Equipment & Inventory', icon: Zap },
         {
@@ -432,11 +497,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           icon: FileSpreadsheet,
         },
         {
+          id: 'employee-sales-orders',
+          path: '/sales-orders',
+          aliasPaths: ['/admin/sales-orders'],
+          label: 'Sales Orders',
+          icon: ShoppingCart,
+        },
+        {
           id: 'employee-tasks',
           path: '/tasks',
           aliasPaths: ['/admin/tasks'],
-          label: 'My Tasks',
+          label: 'Field Task Management',
           icon: ClipboardList,
+          description: 'Create, assign \u0026 track field work orders',
         },
         {
           id: 'employee-follow-ups',
@@ -444,13 +517,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           aliasPaths: ['/admin/follow-ups'],
           label: 'Follow-ups',
           icon: CalendarClock,
-        },
-        {
-          id: 'employee-amc-contracts',
-          path: '/amc-contracts',
-          aliasPaths: [],
-          label: 'AMC Contracts',
-          icon: ShieldCheck,
         },
         { id: 'products', path: '/products', aliasPaths: ['/equipment'], label: 'Equipment & Inventory', icon: Zap },
         {

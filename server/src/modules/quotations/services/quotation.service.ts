@@ -29,6 +29,7 @@ import { emailService } from '../../../common/services/email.service.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { JwtPayload } from '../../../common/auth/jwt.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
+import { isSalesOfficeUser, isServiceOfficeUser } from '../../../common/middleware/auth.middleware.js';
 
 export class QuotationService {
   constructor(
@@ -47,6 +48,30 @@ export class QuotationService {
 
     if (authUser.designation === 'Accountant Office') {
       throw AppError.forbidden('Accountant Office is not permitted to create quotations');
+    }
+
+    if (isSalesOfficeUser(authUser)) {
+      const type = input.quotationType || APP_CONSTANTS.QUOTATION_TYPES.PRODUCT;
+      if (
+        type !== APP_CONSTANTS.QUOTATION_TYPES.PRODUCT &&
+        type !== APP_CONSTANTS.QUOTATION_TYPES.TECHNICAL
+      ) {
+        throw AppError.forbidden(
+          'Sales Office employees can only create Normal Product Supply and Technical Equipment quotations.'
+        );
+      }
+    }
+
+    if (isServiceOfficeUser(authUser)) {
+      const type = input.quotationType;
+      if (
+        type !== APP_CONSTANTS.QUOTATION_TYPES.SERVICE &&
+        type !== APP_CONSTANTS.QUOTATION_TYPES.AMC
+      ) {
+        throw AppError.forbidden(
+          'Service Office employees can only create Service/Repair/Testing and AMC quotations.'
+        );
+      }
     }
 
     // 1. Authoritative customer validation & snapshot preparation
@@ -345,8 +370,36 @@ export class QuotationService {
       throw AppError.forbidden('Accountant Office is not permitted to update quotations');
     }
 
-    if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+    if (
+      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      quotation.createdById !== authUser.userId &&
+      quotation.salespersonId !== authUser.userId
+    ) {
       throw AppError.forbidden('You are not authorized to update this quotation');
+    }
+
+    if (isSalesOfficeUser(authUser)) {
+      const targetType = input.quotationType || quotation.quotationType;
+      if (
+        targetType !== APP_CONSTANTS.QUOTATION_TYPES.PRODUCT &&
+        targetType !== APP_CONSTANTS.QUOTATION_TYPES.TECHNICAL
+      ) {
+        throw AppError.forbidden(
+          'Sales Office employees can only manage Normal Product Supply and Technical Equipment quotations.'
+        );
+      }
+    }
+
+    if (isServiceOfficeUser(authUser)) {
+      const targetType = input.quotationType || quotation.quotationType;
+      if (
+        targetType !== APP_CONSTANTS.QUOTATION_TYPES.SERVICE &&
+        targetType !== APP_CONSTANTS.QUOTATION_TYPES.AMC
+      ) {
+        throw AppError.forbidden(
+          'Service Office employees can only manage Service/Repair/Testing and AMC quotations.'
+        );
+      }
     }
 
     // Allow updating quotation details directly
@@ -685,7 +738,11 @@ export class QuotationService {
       throw AppError.forbidden('Accountant Office is not permitted to create quotation revisions');
     }
 
-    if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+    if (
+      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      quotation.createdById !== authUser.userId &&
+      quotation.salespersonId !== authUser.userId
+    ) {
       throw AppError.forbidden('You are not authorized to create revisions for this quotation');
     }
 
@@ -1021,7 +1078,11 @@ export class QuotationService {
       throw AppError.forbidden('Accountant Office is not permitted to submit quotations for approval');
     }
 
-    if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+    if (
+      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      quotation.createdById !== authUser.userId &&
+      quotation.salespersonId !== authUser.userId
+    ) {
       throw AppError.forbidden('You can only submit your own quotations for approval');
     }
 
@@ -1254,7 +1315,13 @@ export class QuotationService {
       throw AppError.forbidden('Accountant Office is not permitted to withdraw quotations');
     }
 
-    if (authUser.role === APP_CONSTANTS.ROLES.USER && quotation.salespersonId !== authUser.userId) {
+    if (
+      (authUser.role === APP_CONSTANTS.ROLES.USER ||
+        (authUser.role as string) === 'SERVICE' ||
+        (authUser.role as string) === 'SALES') &&
+      quotation.createdById !== authUser.userId &&
+      quotation.salespersonId !== authUser.userId
+    ) {
       throw AppError.forbidden('You can only withdraw your own quotations');
     }
 
@@ -1321,11 +1388,32 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
     if (
-      authUser?.role === APP_CONSTANTS.ROLES.USER &&
-      authUser?.designation !== 'Accountant Office' &&
-      quotation.salespersonId !== authUser.userId
+      authUser &&
+      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      authUser.designation !== 'Accountant Office'
     ) {
-      throw AppError.notFound('Quotation not found');
+      if (
+        quotation.createdById !== authUser.userId &&
+        quotation.salespersonId !== authUser.userId
+      ) {
+        throw AppError.notFound('Quotation not found');
+      }
+
+      if (
+        isSalesOfficeUser(authUser) &&
+        quotation.quotationType !== APP_CONSTANTS.QUOTATION_TYPES.PRODUCT &&
+        quotation.quotationType !== APP_CONSTANTS.QUOTATION_TYPES.TECHNICAL
+      ) {
+        throw AppError.notFound('Quotation not found');
+      }
+
+      if (
+        isServiceOfficeUser(authUser) &&
+        quotation.quotationType !== APP_CONSTANTS.QUOTATION_TYPES.SERVICE &&
+        quotation.quotationType !== APP_CONSTANTS.QUOTATION_TYPES.AMC
+      ) {
+        throw AppError.notFound('Quotation not found');
+      }
     }
     return quotation;
   }
@@ -1334,9 +1422,29 @@ export class QuotationService {
    * List quotations with pagination and filters
    */
   async listQuotations(options: QuotationFilterOptions, authUser?: JwtPayload) {
-    // If the authenticated user is a normal sales employee (USER role), strictly scope to their assigned quotations
-    if (authUser?.role === APP_CONSTANTS.ROLES.USER && authUser?.designation !== 'Accountant Office') {
-      options.salespersonId = authUser.userId;
+    // If the authenticated user is an office employee (USER role, except Accountant Office),
+    // strictly scope to only quotations they created and their allowed categories
+    if (
+      authUser &&
+      (authUser.role === APP_CONSTANTS.ROLES.USER ||
+        (authUser.role as string) === 'SERVICE' ||
+        (authUser.role as string) === 'SALES') &&
+      authUser.designation !== 'Accountant Office'
+    ) {
+      options.createdById = authUser.userId;
+      options.salespersonId = undefined; // clear out any parameter override
+
+      if (isSalesOfficeUser(authUser)) {
+        options.allowedTypes = [
+          APP_CONSTANTS.QUOTATION_TYPES.PRODUCT,
+          APP_CONSTANTS.QUOTATION_TYPES.TECHNICAL,
+        ];
+      } else if (isServiceOfficeUser(authUser)) {
+        options.allowedTypes = [
+          APP_CONSTANTS.QUOTATION_TYPES.SERVICE,
+          APP_CONSTANTS.QUOTATION_TYPES.AMC,
+        ];
+      }
     }
 
     const page = Number(options.page) || 1;
@@ -1370,8 +1478,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
     if (
-      authUser?.role === APP_CONSTANTS.ROLES.USER &&
-      authUser?.designation !== 'Accountant Office' &&
+      authUser &&
+      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      authUser.designation !== 'Accountant Office' &&
+      quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
     ) {
       throw AppError.notFound('Quotation not found');
@@ -1389,8 +1499,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
     if (
-      authUser?.role === APP_CONSTANTS.ROLES.USER &&
-      authUser?.designation !== 'Accountant Office' &&
+      authUser &&
+      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      authUser.designation !== 'Accountant Office' &&
+      quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
     ) {
       throw AppError.notFound('Quotation not found');
@@ -1413,8 +1525,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
     if (
-      authUser?.role === APP_CONSTANTS.ROLES.USER &&
-      authUser?.designation !== 'Accountant Office' &&
+      authUser &&
+      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      authUser.designation !== 'Accountant Office' &&
+      quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
     ) {
       throw AppError.notFound('Quotation not found');
@@ -1432,8 +1546,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
     if (
-      authUser?.role === APP_CONSTANTS.ROLES.USER &&
-      authUser?.designation !== 'Accountant Office' &&
+      authUser &&
+      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      authUser.designation !== 'Accountant Office' &&
+      quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
     ) {
       throw AppError.notFound('Quotation not found');
@@ -1451,8 +1567,10 @@ export class QuotationService {
       throw AppError.notFound('Quotation not found');
     }
     if (
-      authUser?.role === APP_CONSTANTS.ROLES.USER &&
-      authUser?.designation !== 'Accountant Office' &&
+      authUser &&
+      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      authUser.designation !== 'Accountant Office' &&
+      quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
     ) {
       throw AppError.notFound('Quotation not found');

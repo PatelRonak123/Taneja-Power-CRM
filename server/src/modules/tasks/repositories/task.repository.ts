@@ -11,6 +11,7 @@ export interface TaskFilterOptions {
   assignedTo?: string;
   customerId?: string;
   scheduledDate?: string;
+  createdBy?: string;
   page?: number;
   limit?: number;
 }
@@ -91,6 +92,10 @@ export class TaskRepository {
 
     if (options.customerId && options.customerId.trim() !== '' && options.customerId.trim() !== 'ALL') {
       conditions.push(eq(tasks.customerId, options.customerId.trim()));
+    }
+
+    if (options.createdBy && options.createdBy.trim() !== '') {
+      conditions.push(eq(tasks.createdBy, options.createdBy.trim()));
     }
 
     if (options.scheduledDate && options.scheduledDate.trim() !== '') {
@@ -297,6 +302,25 @@ export class TaskRepository {
       .select({ value: count() })
       .from(tasks)
       .where(eq(tasks.status, 'CANCELLED'));
+
+    return {
+      total: Number(totalRes?.value || 0),
+      created: Number(createdRes?.value || 0),
+      assigned: Number(assignedRes?.value || 0),
+      inProgress: Number(inProgressRes?.value || 0),
+      completed: Number(completedRes?.value || 0),
+      cancelled: Number(cancelledRes?.value || 0),
+    };
+  }
+
+  async getMetricsForCreatedBy(createdById: string): Promise<TaskMetricsDto> {
+    const scope = eq(tasks.createdBy, createdById);
+    const [totalRes] = await db.select({ value: count() }).from(tasks).where(scope);
+    const [createdRes] = await db.select({ value: count() }).from(tasks).where(and(scope, eq(tasks.status, 'CREATED')));
+    const [assignedRes] = await db.select({ value: count() }).from(tasks).where(and(scope, eq(tasks.status, 'ASSIGNED')));
+    const [inProgressRes] = await db.select({ value: count() }).from(tasks).where(and(scope, eq(tasks.status, 'IN_PROGRESS')));
+    const [completedRes] = await db.select({ value: count() }).from(tasks).where(and(scope, eq(tasks.status, 'COMPLETED')));
+    const [cancelledRes] = await db.select({ value: count() }).from(tasks).where(and(scope, eq(tasks.status, 'CANCELLED')));
 
     return {
       total: Number(totalRes?.value || 0),

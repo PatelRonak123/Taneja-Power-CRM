@@ -46,6 +46,36 @@ export class TaskService {
     };
   }
 
+  /**
+   * Lists only tasks created by the specified user, with metrics scoped to
+   * their own tasks. Used for Service Office users who should only see and
+   * track tasks they personally created.
+   */
+  async listTasksForCreatedBy(createdById: string, options: Omit<TaskFilterOptions, 'createdBy'>) {
+    const page = options.page || 1;
+    const limit = options.limit || 10;
+    const scopedOptions: TaskFilterOptions = { ...options, createdBy: createdById };
+
+    const [{ data, total }, metrics] = await Promise.all([
+      this.taskRepo.findAll(scopedOptions),
+      this.taskRepo.getMetricsForCreatedBy(createdById),
+    ]);
+
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    return {
+      tasks: data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+      metrics,
+    };
+  }
+
+
   async getTaskById(id: string): Promise<TaskWithDetails> {
     const task = await this.taskRepo.findById(id);
     if (!task) {

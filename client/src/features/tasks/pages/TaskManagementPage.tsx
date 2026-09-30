@@ -29,6 +29,17 @@ import { Button } from '../../../components/ui/Button';
 export const TaskManagementPage: React.FC = () => {
   const { user } = useAuthStore();
   const isManagement = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const designation = (user?.designation || '').toLowerCase();
+  const isServiceOffice =
+    user?.role === 'USER' &&
+    user?.workType === 'OFFICE' &&
+    designation.includes('service');
+  const isSalesOffice =
+    user?.role === 'USER' &&
+    user?.workType === 'OFFICE' &&
+    designation.includes('sales');
+  // Both Sales Office and Service Office can manage tasks (create / assign / track)
+  const canManageTasks = isManagement || isServiceOffice || isSalesOffice;
 
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -98,7 +109,7 @@ export const TaskManagementPage: React.FC = () => {
   // Task Cancel Modal State
   const [selectedTaskForCancel, setSelectedTaskForCancel] = useState<TaskItem | null>(null);
 
-  // Load Reference Data (Active Customers for all; Employees ONLY for Admin/Manager)
+  // Load Reference Data (Active Customers for all; Employees filtered by office type)
   useEffect(() => {
     customerService
       .getCustomers({ status: 'ACTIVE', limit: 100 })
@@ -109,8 +120,8 @@ export const TaskManagementPage: React.FC = () => {
       })
       .catch(() => {});
 
-    // For USER: never execute employeeService.getEmployees() (avoids 403)
     if (isManagement) {
+      // Admin/Manager can see all employees
       employeeService
         .getEmployees({ status: 'ACTIVE', limit: 100 })
         .then((res) => {
@@ -119,8 +130,28 @@ export const TaskManagementPage: React.FC = () => {
           }
         })
         .catch(() => {});
+    } else if (isServiceOffice) {
+      // Service Office: only Service-type field employees
+      taskService
+        .getFieldEmployees()
+        .then((res) => {
+          if (res.success && Array.isArray(res.data)) {
+            setEmployeesList(res.data);
+          }
+        })
+        .catch(() => {});
+    } else if (isSalesOffice) {
+      // Sales Office: only Sales-type field employees
+      taskService
+        .getSalesFieldEmployees()
+        .then((res) => {
+          if (res.success && Array.isArray(res.data)) {
+            setEmployeesList(res.data);
+          }
+        })
+        .catch(() => {});
     }
-  }, [isManagement]);
+  }, [isManagement, isServiceOffice, isSalesOffice]);
 
   // Fetch Tasks with filters & pagination
   const fetchTasks = async (targetPage: number = page) => {
@@ -130,14 +161,14 @@ export const TaskManagementPage: React.FC = () => {
         search: searchQuery.trim() || undefined,
         status: statusFilter !== 'ALL' ? statusFilter : undefined,
         priority: priorityFilter !== 'ALL' ? priorityFilter : undefined,
-        assignedTo: isManagement && employeeFilter !== 'ALL' ? employeeFilter : undefined,
+        assignedTo: canManageTasks && employeeFilter !== 'ALL' ? employeeFilter : undefined,
         customerId: customerFilter !== 'ALL' ? customerFilter : undefined,
         scheduledDate: dateFilter.trim() || undefined,
         page: targetPage,
         limit,
       };
 
-      const response = isManagement
+      const response = canManageTasks
         ? await taskService.getTasks(queryParams)
         : await taskService.getMyTasks(queryParams);
 
@@ -354,36 +385,42 @@ export const TaskManagementPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/60">
               <ClipboardList size={12} className="text-blue-600" />
-              {isManagement ? 'Field Work Order Dispatch' : 'My Assigned Tasks'}
+              {canManageTasks ? 'Field Work Order Dispatch' : 'My Assigned Tasks'}
             </span>
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 tabular-nums">
               {totalCount} Total Orders
             </span>
           </div>
           <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
-            {isManagement ? 'Field Task & Dispatch Management' : 'My Tasks & Work Orders'}
+            {canManageTasks ? 'Field Task & Dispatch Management' : 'My Tasks & Work Orders'}
           </h1>
           <p className="text-[13px] text-slate-500 leading-relaxed">
-            {isManagement
-              ? 'Schedule customer service visits, dispatch technicians to customer destination sites, and monitor real-time work order fulfillment with SLA tracking.'
+            {canManageTasks
+              ? isServiceOffice
+                ? 'Schedule service visits, dispatch field technicians to customer sites, and monitor work order fulfillment.'
+                : isSalesOffice
+                ? 'Schedule sales visits, dispatch field sales reps to customer sites, and track work order fulfillment.'
+                : 'Schedule customer service visits, dispatch technicians to customer destination sites, and monitor real-time work order fulfillment with SLA tracking.'
               : 'Review your scheduled customer visits, complete assigned work orders, and track task resolution progress.'}
           </p>
         </div>
 
-        {isManagement && (
+        {canManageTasks && (
           <div className="flex items-center gap-2.5 shrink-0">
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => {
-                setSelectedTaskIdForTracking(null);
-                setIsTrackingDrawerOpen(true);
-              }}
-              className="text-orange-700 border-orange-200 bg-orange-50/60 hover:bg-orange-100"
-            >
-              <Radio size={14} className="animate-pulse text-orange-600 mr-1.5" />
-              <span>Live Route Dispatch ({metrics.inProgress} Active)</span>
-            </Button>
+            {isManagement && (
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => {
+                  setSelectedTaskIdForTracking(null);
+                  setIsTrackingDrawerOpen(true);
+                }}
+                className="text-orange-700 border-orange-200 bg-orange-50/60 hover:bg-orange-100"
+              >
+                <Radio size={14} className="animate-pulse text-orange-600 mr-1.5" />
+                <span>Live Route Dispatch ({metrics.inProgress} Active)</span>
+              </Button>
+            )}
 
             <Button
               variant="primary"
@@ -416,7 +453,7 @@ export const TaskManagementPage: React.FC = () => {
         setDateFilter={setDateFilter}
         employees={employeesList}
         customers={customersList}
-        showEmployeeFilter={isManagement}
+        showEmployeeFilter={canManageTasks}
         onSearchSubmit={handleSearchSubmit}
         onClearFilters={handleClearFilters}
         onRefresh={() => fetchTasks(page)}
@@ -434,7 +471,7 @@ export const TaskManagementPage: React.FC = () => {
         limit={limit}
         totalPages={totalPages}
         totalCount={totalCount}
-        isManagement={isManagement}
+        isManagement={canManageTasks}
         onPageChange={(p) => {
           setPage(p);
           fetchTasks(p);
@@ -466,7 +503,7 @@ export const TaskManagementPage: React.FC = () => {
       {/* Task Detail Modal */}
       <TaskDetailModal
         task={selectedTaskForDetail}
-        isManagement={isManagement}
+        isManagement={canManageTasks}
         onClose={() => setSelectedTaskForDetail(null)}
         onEdit={(task) => {
           setSelectedTaskForDetail(null);

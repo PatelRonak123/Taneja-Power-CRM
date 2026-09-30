@@ -19,6 +19,64 @@ export const isHrUser = (user?: JwtPayload): boolean => {
   return roleStr === 'HR' || designation.includes('hr') || designation.includes('human resources');
 };
 
+export const isServiceOfficeUser = (user?: JwtPayload): boolean => {
+  if (!user) return false;
+  const roleStr = String(user.role || '').toUpperCase();
+  return (
+    (roleStr === APP_CONSTANTS.ROLES.USER || roleStr === 'SERVICE') &&
+    (user.workType === APP_CONSTANTS.WORK_TYPES.OFFICE || !user.workType) &&
+    String(user.designation || '').toLowerCase().includes('service')
+  );
+};
+
+export const isSalesOfficeUser = (user?: JwtPayload): boolean => {
+  if (!user) return false;
+  const roleStr = String(user.role || '').toUpperCase();
+  return (
+    (roleStr === APP_CONSTANTS.ROLES.USER || roleStr === 'SALES') &&
+    (user.workType === APP_CONSTANTS.WORK_TYPES.OFFICE || !user.workType) &&
+    String(user.designation || '').toLowerCase().includes('sales')
+  );
+};
+
+/**
+ * Returns true for any Office USER who is permitted to manage field tasks:
+ * - Service Office (designation includes 'service')
+ * - Sales Office (designation includes 'sales')
+ */
+export const isOfficeTaskManager = (user?: JwtPayload): boolean =>
+  isServiceOfficeUser(user) || isSalesOfficeUser(user);
+
+/**
+ * Allows ADMIN, MANAGER, Sales Office, or Service Office employees to access
+ * field-task management routes.
+ */
+export const requireTaskManager = (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void => {
+  if (!req.user) {
+    return next(AppError.unauthorized());
+  }
+
+  const role = req.user.role;
+  if (
+    role === APP_CONSTANTS.ROLES.ADMIN ||
+    role === APP_CONSTANTS.ROLES.MANAGER ||
+    isOfficeTaskManager(req.user)
+  ) {
+    return next();
+  }
+
+  return next(AppError.forbidden('You do not have permission to access this resource'));
+};
+
+/**
+ * @deprecated Use requireTaskManager instead.
+ */
+export const requireManagementOrServiceOffice = requireTaskManager;
+
 export const authenticate = (req: Request, _res: Response, next: NextFunction): void => {
   let token: string | undefined = req.cookies?.access_token;
 
@@ -82,7 +140,11 @@ export const denyDesignations = (...blockedDesignations: string[]) => {
       return next(AppError.unauthorized());
     }
 
-    if (req.user.designation && blockedDesignations.includes(req.user.designation)) {
+    const designation = (req.user.designation || '').toLowerCase();
+    if (
+      designation &&
+      blockedDesignations.some((b) => designation.includes(b.toLowerCase()))
+    ) {
       return next(AppError.forbidden('You do not have permission to access this resource'));
     }
 

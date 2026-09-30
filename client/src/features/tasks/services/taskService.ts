@@ -6,6 +6,7 @@ import {
   UpdateTaskPayload,
   CancelTaskPayload,
 } from '../types/task.types';
+import { Employee } from '../../admin/types/employee.types';
 
 export const taskService = {
   getTasks: async (params?: TaskQueryParams): Promise<ApiEnvelope<TaskItem[]>> => {
@@ -20,6 +21,21 @@ export const taskService = {
     return apiClient.get(`/tasks/${id}`) as unknown as Promise<ApiEnvelope<TaskItem>>;
   },
 
+  /**
+   * Fetches only active FIELD employees with service-type designations.
+   * Used by Service Office users for task assignment dropdown.
+   */
+  getFieldEmployees: async (): Promise<ApiEnvelope<Employee[]>> => {
+    return apiClient.get('/tasks/field-employees') as unknown as Promise<ApiEnvelope<Employee[]>>;
+  },
+
+  /**
+   * Fetches only active FIELD employees with sales-type designations.
+   * Used by Sales Office users for task assignment dropdown.
+   */
+  getSalesFieldEmployees: async (): Promise<ApiEnvelope<Employee[]>> => {
+    return apiClient.get('/tasks/sales-field-employees') as unknown as Promise<ApiEnvelope<Employee[]>>;
+  },
   startTask: async (id: string, payload?: { latitude?: number | null; longitude?: number | null }): Promise<ApiEnvelope<TaskItem>> => {
     return apiClient.post(`/tasks/${id}/start`, payload || {}) as unknown as Promise<ApiEnvelope<TaskItem>>;
   },
@@ -52,3 +68,4 @@ export const taskService = {
     return apiClient.get(`/tasks/${id}/tracking`) as unknown as Promise<ApiEnvelope<TaskItem>>;
   },
 };
+

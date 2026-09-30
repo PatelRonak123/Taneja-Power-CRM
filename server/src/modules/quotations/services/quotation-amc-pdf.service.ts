@@ -870,7 +870,7 @@ export class QuotationAmcPdfService {
    */
   private static renderPage3GeneralRules(
     doc: PDFKit.PDFDocument,
-    data: PdfQuotationData,
+    data: PdfQuotationData, 
     company: CompanyProfileConfig
   ) {
     this.renderHeader(doc, data, company, 'GENERAL RULES — ANNEXURE 1');

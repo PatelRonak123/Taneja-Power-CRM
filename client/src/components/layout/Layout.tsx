@@ -30,6 +30,10 @@ import { CustomerManagementPage } from "../../features/customers/pages/CustomerM
 import { LeadManagementPage } from "../../features/leads/pages/LeadManagementPage";
 import { PipelinePage } from "../../features/leads/pages/PipelinePage";
 import { FollowUpManagementPage } from "../../features/follow-ups/pages/FollowUpManagementPage";
+import { ProcurementPage } from "../../features/procurement/pages/ProcurementPage";
+import { SalesOrdersPage } from "../../features/sales-orders/pages/SalesOrdersPage";
+import { InvoicesPage } from "../../features/invoices/pages/InvoicesPage";
+import { DispatchesPage } from "../../features/dispatch/pages/DispatchesPage";
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -53,16 +57,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     // Role / Designation flags
     const designation = (user?.designation || "").toLowerCase();
     const isSalesOffice =
-      user?.role === "USER" &&
-      user?.workType === "OFFICE" &&
+      (user?.role === "USER" || (user as any)?.role === "SALES") &&
       designation.includes("sales");
     const isAccountantOffice =
       user?.role === "USER" &&
-      user?.workType === "OFFICE" &&
       designation.includes("accountant");
     const isHrOffice =
       (user?.role === "USER" || (user as any)?.role === "HR") &&
-      user?.workType === "OFFICE" &&
       (designation.includes("hr") || designation.includes("human resources"));
 
     if (
@@ -149,10 +150,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       currentPath === "/amc-contracts" ||
       currentPath === "/admin/amc-contracts"
     ) {
+      if (isSalesOffice) {
+        return <EmployeeDashboardPage />;
+      }
       return <AmcContractListPage />;
     }
 
     if (currentPath.startsWith("/amc-contracts/")) {
+      if (isSalesOffice) {
+        return <EmployeeDashboardPage />;
+      }
       return <AmcContractDetailPage />;
     }
 
@@ -208,6 +215,38 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     if (currentPath === "/products" || currentPath === "/equipment") {
       return <ProductsPage />;
+    }
+
+    if (
+      currentPath === "/procurement" ||
+      currentPath === "/admin/procurement" ||
+      currentPath.startsWith("/procurement/")
+    ) {
+      return <ProcurementPage />;
+    }
+
+    if (
+      currentPath === "/sales-orders" ||
+      currentPath === "/admin/sales-orders" ||
+      currentPath.startsWith("/sales-orders/")
+    ) {
+      return <SalesOrdersPage />;
+    }
+
+    if (
+      currentPath === "/invoices" ||
+      currentPath === "/admin/invoices" ||
+      currentPath.startsWith("/invoices/")
+    ) {
+      return <InvoicesPage />;
+    }
+
+    if (
+      currentPath === "/dispatches" ||
+      currentPath === "/admin/dispatches" ||
+      currentPath.startsWith("/dispatches/")
+    ) {
+      return <DispatchesPage />;
     }
 
     if (currentPath === "/analytics") {

@@ -60,19 +60,19 @@ router.delete(
 
 router.post(
   '/:customerId/destinations',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  requirePermission('customers:create'),
   validateRequest(createDestinationSchema),
   destinationController.create
 );
 router.put(
   '/:customerId/destinations/:destinationId',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  requirePermission('customers:edit'),
   validateRequest(updateDestinationSchema),
   destinationController.update
 );
 router.delete(
   '/:customerId/destinations/:destinationId',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN),
+  requirePermission('customers:edit'),
   validateRequest(destinationParamSchema),
   destinationController.delete
 );

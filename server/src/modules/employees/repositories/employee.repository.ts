@@ -79,7 +79,20 @@ export class EmployeeRepository {
   }
 
   async findByEmail(email: string): Promise<UserEntity | undefined> {
-    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    const trimmed = email.trim();
+    const result = await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          eq(users.email, trimmed),
+          ilike(users.email, trimmed),
+          ilike(users.email, `%, ${trimmed}%`),
+          ilike(users.email, `${trimmed},%`),
+          ilike(users.email, `%,${trimmed}%`)
+        )
+      )
+      .limit(1);
     return result[0];
   }
 

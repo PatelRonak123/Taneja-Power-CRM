@@ -23,7 +23,7 @@ interface DestinationsDrawerProps {
   onEditDestination: (destination: CustomerDestination) => void;
   onDeleteDestination: (destination: CustomerDestination) => void;
   deletingDestinationId: string | null;
-  isAdmin?: boolean;
+  canManage?: boolean;
 }
 
 export const DestinationsDrawer: React.FC<DestinationsDrawerProps> = ({
@@ -35,7 +35,7 @@ export const DestinationsDrawer: React.FC<DestinationsDrawerProps> = ({
   onEditDestination,
   onDeleteDestination,
   deletingDestinationId,
-  isAdmin = false,
+  canManage = true,
 }) => {
   if (!customer) return null;
 
@@ -77,7 +77,7 @@ export const DestinationsDrawer: React.FC<DestinationsDrawerProps> = ({
             </span>
           </div>
 
-          {isAdmin && (
+          {canManage && (
             <Button
               variant="primary"
               size="sm"
@@ -104,7 +104,7 @@ export const DestinationsDrawer: React.FC<DestinationsDrawerProps> = ({
             <p className="text-xs text-slate-500 max-w-sm">
               Add factory locations, corporate offices, or field facilities to track work orders and GPS coordinates.
             </p>
-            {isAdmin && (
+            {canManage && (
               <Button
                 variant="primary"
                 size="sm"
@@ -166,7 +166,7 @@ export const DestinationsDrawer: React.FC<DestinationsDrawerProps> = ({
                   )}
                 </div>
 
-                {isAdmin && (
+                {canManage && (
                   <div className="pt-2.5 border-t border-slate-100 flex items-center justify-end gap-1.5">
                     <button
                       type="button"
