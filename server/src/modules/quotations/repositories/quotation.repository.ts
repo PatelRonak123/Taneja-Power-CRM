@@ -200,14 +200,16 @@ export class QuotationRepository {
     }
 
     if (options.startDate && options.startDate.trim() !== '') {
-      const start = new Date(options.startDate.trim());
+      const startStr = options.startDate.trim();
+      const start = new Date(startStr.includes('T') ? startStr : `${startStr}T00:00:00.000Z`);
       if (!isNaN(start.getTime())) {
         conditions.push(gte(quotations.createdAt, start));
       }
     }
 
     if (options.endDate && options.endDate.trim() !== '') {
-      const end = new Date(options.endDate.trim());
+      const endStr = options.endDate.trim();
+      const end = new Date(endStr.includes('T') ? endStr : `${endStr}T23:59:59.999Z`);
       if (!isNaN(end.getTime())) {
         conditions.push(lte(quotations.createdAt, end));
       }

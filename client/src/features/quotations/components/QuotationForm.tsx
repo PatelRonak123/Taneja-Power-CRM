@@ -10,9 +10,11 @@ import {
 } from '../types/quotation.types';
 import { customerService } from '../../customers/services/customerService';
 import { productService } from '../../products/services/productService';
-import { Customer, CustomerDestination } from '../../customers/types/customer.types';
+import { Customer, CustomerDestination, CustomerStatus } from '../../customers/types/customer.types';
+import { CustomerModal } from '../../customers/components/CustomerModal';
 import { Product } from '../../products/types/product.types';
 import { Button } from '../../../components/ui/Button';
+import { toast } from '../../../utils/toast';
 import {
   Plus,
   Trash2,
@@ -30,6 +32,7 @@ import {
   UserCheck,
   MoveUp,
   MoveDown,
+  ExternalLink,
 } from 'lucide-react';
 
 interface Props {
@@ -277,6 +280,100 @@ export const QuotationForm: React.FC<Props> = ({
   );
 
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Add New Customer Drawer / Modal State
+  const [customerModalOpen, setCustomerModalOpen] = useState<boolean>(false);
+  const [customerFormSubmitting, setCustomerFormSubmitting] = useState<boolean>(false);
+  const [customerFormError, setCustomerFormError] = useState<string | null>(null);
+  const [customerFormData, setCustomerFormData] = useState<{
+    name: string;
+    companyName: string;
+    phone: string;
+    email: string;
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+    notes: string;
+    status: CustomerStatus;
+  }>({
+    name: '',
+    companyName: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
+    state: 'Gujarat',
+    pincode: '',
+    notes: '',
+    status: 'ACTIVE',
+  });
+
+  const handleOpenAddCustomer = () => {
+    setCustomerFormError(null);
+    setCustomerFormData({
+      name: '',
+      companyName: '',
+      phone: '',
+      email: '',
+      address: '',
+      city: '',
+      state: 'Gujarat',
+      pincode: '',
+      notes: '',
+      status: 'ACTIVE',
+    });
+    setCustomerModalOpen(true);
+  };
+
+  const handleCustomerInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setCustomerFormData((prev) => ({ ...prev, [name]: value }));
+    if (customerFormError) setCustomerFormError(null);
+  };
+
+  const handleCustomerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCustomerFormError(null);
+
+    if (!customerFormData.name.trim() || customerFormData.name.trim().length < 2) {
+      setCustomerFormError('Primary contact name must be at least 2 characters.');
+      return;
+    }
+
+    setCustomerFormSubmitting(true);
+    try {
+      const res = await customerService.createCustomer({
+        name: customerFormData.name.trim(),
+        companyName: customerFormData.companyName.trim() || undefined,
+        phone: customerFormData.phone.trim() || undefined,
+        email: customerFormData.email.trim() || undefined,
+        address: customerFormData.address.trim() || undefined,
+        city: customerFormData.city.trim() || undefined,
+        state: customerFormData.state.trim() || undefined,
+        pincode: customerFormData.pincode.trim() || undefined,
+        notes: customerFormData.notes.trim() || undefined,
+        status: customerFormData.status,
+      });
+
+      if (res.success && res.data) {
+        const newCust = res.data;
+        setCustomers((prev) => [newCust, ...prev.filter((c) => c.id !== newCust.id)]);
+        setSelectedCustomerId(newCust.id);
+        setSelectedDestinationId('');
+        setCustomerModalOpen(false);
+        toast.success(`Customer "${newCust.name}" created and selected successfully!`);
+      } else {
+        setCustomerFormError('Failed to create customer record.');
+      }
+    } catch (err: any) {
+      setCustomerFormError(err?.message || 'Failed to create customer record.');
+    } finally {
+      setCustomerFormSubmitting(false);
+    }
+  };
 
   // Load initial customers and products
   useEffect(() => {
@@ -765,20 +862,49 @@ export const QuotationForm: React.FC<Props> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           {/* Customer Selection */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">
-              Select Client / Account <span className="text-rose-500">*</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                Select Client / Account <span className="text-rose-500">*</span>
+              </label>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleOpenAddCustomer}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100/80 border border-blue-200/70 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                  title="Directly open the Add New Customer drawer"
+                >
+                  <Plus size={12} className="stroke-[2.5]" />
+                  <span>Add New Client</span>
+                </button>
+                <a
+                  href="/customers"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-slate-400 hover:text-slate-600 p-0.5 inline-flex items-center"
+                  title="Open Customer Directory in new tab"
+                >
+                  <ExternalLink size={12} />
+                </a>
+              </div>
+            </div>
             <select
               value={selectedCustomerId}
               onChange={(e) => {
+                if (e.target.value === '__ADD_NEW__') {
+                  handleOpenAddCustomer();
+                  return;
+                }
                 setSelectedCustomerId(e.target.value);
                 setSelectedDestinationId('');
               }}
-              className="px-3 py-2 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+              className="px-3 py-2 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white cursor-pointer"
               required
             >
               <option value="">
                 {loadingData ? '-- Loading Corporate Customers... --' : '-- Choose Corporate Customer --'}
+              </option>
+              <option value="__ADD_NEW__" className="text-blue-600 font-semibold bg-blue-50/80">
+                 + Add New Customer...
               </option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -1687,6 +1813,17 @@ export const QuotationForm: React.FC<Props> = ({
           {isEditing ? 'Save Quotation Changes' : 'Save as Draft Quotation'}
         </Button>
       </div>
+
+      {/* Embedded Customer Creation Drawer */}
+      <CustomerModal
+        modalMode={customerModalOpen ? 'create' : null}
+        onClose={() => setCustomerModalOpen(false)}
+        onSubmit={handleCustomerSubmit}
+        formData={customerFormData}
+        onInputChange={handleCustomerInputChange}
+        formSubmitting={customerFormSubmitting}
+        formError={customerFormError}
+      />
     </form>
   );
 };

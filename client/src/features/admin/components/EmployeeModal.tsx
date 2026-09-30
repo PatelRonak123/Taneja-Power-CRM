@@ -11,6 +11,8 @@ import {
   AlertCircle,
   Building,
   Smartphone,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { EmployeeRole, EmployeeStatus, WorkType } from '../types/employee.types';
 import { useAuthStore } from '../../../stores/authStore';
@@ -24,10 +26,12 @@ interface EmployeeModalProps {
   formData: {
     fullName: string;
     email: string;
+    emails?: string[];
     password?: string;
     role: EmployeeRole;
     workType: WorkType;
     phone: string;
+    phones?: string[];
     designation: string;
     status: EmployeeStatus;
   };
@@ -35,6 +39,12 @@ interface EmployeeModalProps {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => void;
   onWorkTypeChange: (newWorkType: WorkType) => void;
+  onEmailChange: (index: number, value: string) => void;
+  onAddEmail: () => void;
+  onRemoveEmail: (index: number) => void;
+  onPhoneChange: (index: number, value: string) => void;
+  onAddPhone: () => void;
+  onRemovePhone: (index: number) => void;
   formSubmitting: boolean;
   formError: string | null;
   showPassword: boolean;
@@ -48,6 +58,12 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   formData,
   onInputChange,
   onWorkTypeChange,
+  onEmailChange,
+  onAddEmail,
+  onRemoveEmail,
+  onPhoneChange,
+  onAddPhone,
+  onRemovePhone,
   formSubmitting,
   formError,
   showPassword,
@@ -60,6 +76,9 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     (designationLower.includes('hr') || designationLower.includes('human resources'));
 
   if (!modalMode) return null;
+
+  const emails = formData.emails && formData.emails.length > 0 ? formData.emails : [formData.email || ''];
+  const phones = formData.phones && formData.phones.length > 0 ? formData.phones : [formData.phone || ''];
 
   const title = (
     <div className="flex items-center gap-2.5">
@@ -167,7 +186,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           {/* Full Name */}
-          <div>
+          <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-slate-700 mb-1">
               Full Legal Name <span className="text-rose-500">*</span>
             </label>
@@ -185,22 +204,122 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
             </div>
           </div>
 
-          {/* Email Address */}
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">
-              Work Email Address <span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input
-                type="email"
-                name="email"
-                placeholder="e.g. v.sharma@tanejapower.com"
-                value={formData.email}
-                onChange={onInputChange}
-                className="w-full h-9 pl-9 pr-3 rounded-lg bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-colors"
-                required
-              />
+          {/* Work Email Address(es) */}
+          <div className="sm:col-span-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                Work Email Address <span className="text-rose-500">*</span>
+                {emails.length > 1 && (
+                  <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                    {emails.length} emails
+                  </span>
+                )}
+              </label>
+              <button
+                type="button"
+                onClick={onAddEmail}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-blue-50/80 hover:bg-blue-100/80 border border-blue-200/60 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+                title="Add another work email address"
+              >
+                <Plus size={12} className="stroke-[2.5]" />
+                <span>Add Email</span>
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {emails.map((emailVal, idx) => (
+                <div key={`email-row-${idx}`} className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type="email"
+                      value={emailVal}
+                      onChange={(e) => onEmailChange(idx, e.target.value)}
+                      placeholder={idx === 0 ? "e.g. v.sharma@tanejapower.com" : `Additional email #${idx + 1}`}
+                      className="w-full h-9 pl-9 pr-18 rounded-lg bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-colors"
+                      required={idx === 0}
+                    />
+                    {idx === 0 ? (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-200/70 px-1.5 py-0.5 rounded select-none">
+                        Primary
+                      </span>
+                    ) : (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-medium text-slate-400 select-none">
+                        #{idx + 1}
+                      </span>
+                    )}
+                  </div>
+                  {idx > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveEmail(idx)}
+                      className="h-9 w-9 flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
+                      title="Remove this email"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Contact Phone Number(s) */}
+          <div className="sm:col-span-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                Contact Phone Number
+                {phones.length > 1 && (
+                  <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                    {phones.length} phones
+                  </span>
+                )}
+              </label>
+              <button
+                type="button"
+                onClick={onAddPhone}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-blue-50/80 hover:bg-blue-100/80 border border-blue-200/60 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+                title="Add another phone number"
+              >
+                <Plus size={12} className="stroke-[2.5]" />
+                <span>Add Phone</span>
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {phones.map((phoneVal, idx) => (
+                <div key={`phone-row-${idx}`} className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={phoneVal}
+                      onChange={(e) => onPhoneChange(idx, e.target.value)}
+                      placeholder={idx === 0 ? "e.g. +91 98765 43210" : `Additional phone #${idx + 1}`}
+                      className="w-full h-9 pl-9 pr-18 rounded-lg bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-colors tabular-nums"
+                    />
+                    {idx === 0 ? (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200/70 px-1.5 py-0.5 rounded select-none">
+                        Primary
+                      </span>
+                    ) : (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-medium text-slate-400 select-none">
+                        #{idx + 1}
+                      </span>
+                    )}
+                  </div>
+                  {idx > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onRemovePhone(idx)}
+                      className="h-9 w-9 flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
+                      title="Remove this phone"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -275,7 +394,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           </div>
 
           {/* Dependent Job Designation Selector */}
-          <div>
+          <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-slate-700 mb-1">
               Designation ({formData.workType === 'OFFICE' ? 'Office Department' : 'Field Role'}) <span className="text-rose-500">*</span>
             </label>
@@ -309,22 +428,6 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                   </>
                 )}
               </select>
-            </div>
-          </div>
-
-          {/* Phone Number */}
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Contact Phone Number</label>
-            <div className="relative">
-              <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
-                name="phone"
-                placeholder="e.g. +91 98765 43210"
-                value={formData.phone}
-                onChange={onInputChange}
-                className="w-full h-9 pl-9 pr-3 rounded-lg bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-colors tabular-nums"
-              />
             </div>
           </div>
         </div>

@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { quotationService } from '../services/quotationService';
+import { customerService } from '../../customers/services/customerService';
+import { Customer } from '../../customers/types/customer.types';
 import { QuotationListItem } from '../types/quotation.types';
 import { QuotationStatusBadge } from '../components/QuotationStatusBadge';
 import { QuotationTypeBadge } from '../components/QuotationTypeBadge';
@@ -16,6 +18,14 @@ import {
   FileEdit,
   AlertCircle,
   RefreshCw,
+  Calendar,
+  Filter,
+  X,
+  RotateCcw,
+  Building2,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
 import {
@@ -31,13 +41,26 @@ import {
 } from '../../../components/ui/table';
 import { Button } from '../../../components/ui/Button';
 
+type DatePreset =
+  | 'ALL_TIME'
+  | 'TODAY'
+  | 'YESTERDAY'
+  | 'THIS_WEEK'
+  | 'THIS_MONTH'
+  | 'LAST_30_DAYS'
+  | 'THIS_QUARTER'
+  | 'CUSTOM';
+
 export const QuotationListPage: React.FC = () => {
   const { user } = useAuthStore();
   const designationLower = (user?.designation || '').toLowerCase();
-  const isServiceOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('service');
-  const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('accountant');
+  const isServiceOffice =
+    user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('service');
+  const isAccountantOffice =
+    user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('accountant');
 
   const [quotations, setQuotations] = useState<QuotationListItem[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,10 +68,108 @@ export const QuotationListPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState(isServiceOffice ? 'SERVICE' : '');
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [datePreset, setDatePreset] = useState<DatePreset>('ALL_TIME');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
+  // Load customer master list for dropdown filter
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const res = await customerService.getCustomers({ limit: 100 });
+        if (res.data) {
+          setCustomers(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load customers for filter', err);
+      }
+    };
+    fetchCustomers();
+  }, []);
+
+  // Handle Date Preset Selection
+  const handleDatePresetChange = (preset: DatePreset) => {
+    setDatePreset(preset);
+    setPage(1);
+
+    if (preset === 'ALL_TIME') {
+      setStartDate('');
+      setEndDate('');
+      return;
+    }
+
+    if (preset === 'CUSTOM') {
+      setShowAdvancedFilters(true);
+      return;
+    }
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    if (preset === 'TODAY') {
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+    } else if (preset === 'YESTERDAY') {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const yStr = y.toISOString().split('T')[0];
+      setStartDate(yStr);
+      setEndDate(yStr);
+    } else if (preset === 'THIS_WEEK') {
+      const d = new Date();
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(d.setDate(diff));
+      setStartDate(monday.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    } else if (preset === 'THIS_MONTH') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      setStartDate(firstDay.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    } else if (preset === 'LAST_30_DAYS') {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      setStartDate(d.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    } else if (preset === 'THIS_QUARTER') {
+      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      const firstDay = new Date(now.getFullYear(), quarterStartMonth, 1);
+      setStartDate(firstDay.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    }
+  };
+
+  // Reset all filters
+  const handleResetFilters = () => {
+    setSearch('');
+    setStatusFilter('');
+    setTypeFilter(isServiceOffice ? 'SERVICE' : '');
+    setCustomerFilter('');
+    setDatePreset('ALL_TIME');
+    setStartDate('');
+    setEndDate('');
+    setPage(1);
+  };
+
+  // Check if any filter is actively applied
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (search.trim()) count++;
+    if (statusFilter) count++;
+    if (typeFilter && !(isServiceOffice && typeFilter === 'SERVICE')) count++;
+    if (customerFilter) count++;
+    if (datePreset !== 'ALL_TIME' || startDate || endDate) count++;
+    return count;
+  }, [search, statusFilter, typeFilter, customerFilter, datePreset, startDate, endDate, isServiceOffice]);
+
+  // Fetch quotations list
   const fetchQuotations = useCallback(async () => {
     try {
       setLoading(true);
@@ -59,6 +180,9 @@ export const QuotationListPage: React.FC = () => {
         search: search.trim() || undefined,
         status: statusFilter || undefined,
         quotationType: typeFilter || undefined,
+        customerId: customerFilter || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
       });
 
       if (res.data) {
@@ -73,7 +197,7 @@ export const QuotationListPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, typeFilter]);
+  }, [page, search, statusFilter, typeFilter, customerFilter, startDate, endDate]);
 
   useEffect(() => {
     fetchQuotations();
@@ -83,6 +207,8 @@ export const QuotationListPage: React.FC = () => {
   const draftCount = quotations.filter((q) => q.status === 'DRAFT').length;
   const pendingCount = quotations.filter((q) => q.status === 'PENDING_APPROVAL').length;
   const approvedCount = quotations.filter((q) => q.status === 'APPROVED').length;
+
+  const selectedCustomerObj = customers.find((c) => c.id === customerFilter);
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto pb-10">
@@ -176,55 +302,274 @@ export const QuotationListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className="bg-card border border-border rounded-xl p-3 shadow-xs flex flex-col md:flex-row items-center gap-3">
-        <SearchInput
-          placeholder="Search by quote number, customer, company, or engineer..."
-          value={search}
-          onChange={setSearch}
-          onResetPage={() => setPage(1)}
-          wrapperClassName="flex-1 w-full min-w-70"
-          inputClassName="bg-slate-50 border-slate-200"
-          isLoading={loading}
-        />
-
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
+      {/* Filter & Search Suite */}
+      <div className="bg-card border border-border rounded-xl p-4 shadow-xs flex flex-col gap-3">
+        {/* Primary Filter Row */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+          {/* Search Input */}
+          <SearchInput
+            placeholder="Search quote #, client, company, salesperson..."
+            value={search}
+            onChange={(val) => {
+              setSearch(val);
               setPage(1);
             }}
-            className="h-9 px-3 text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
-          >
-            <option value="">All Statuses</option>
-            <option value="DRAFT">Draft</option>
-            <option value="PENDING_APPROVAL">Pending Approval</option>
-            <option value="APPROVED">Approved</option>
-            <option value="REJECTED">Rejected</option>
-            <option value="SENT">Sent</option>
-            <option value="FOLLOW_UP">Follow-up</option>
-            <option value="ACCEPTED">Accepted</option>
-            <option value="EXPIRED">Expired</option>
-          </select>
+            onResetPage={() => setPage(1)}
+            wrapperClassName="flex-1 w-full min-w-64"
+            inputClassName="bg-slate-50 border-slate-200"
+            isLoading={loading}
+          />
 
-          {/* Quotation Type Filter */}
-          <select
-            value={typeFilter}
-            onChange={(e) => {
-              setTypeFilter(e.target.value);
-              setPage(1);
-            }}
-            className="h-9 px-3 text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
-          >
-            <option value="">All Types</option>
-            <option value="PRODUCT">Product</option>
-            <option value="TECHNICAL">Technical</option>
-            <option value="SERVICE">Service</option>
-            <option value="AMC">AMC Contract</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Date Preset Filter */}
+            <div className="flex items-center gap-1.5 h-9 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700">
+              <Calendar size={13} className="text-slate-400 shrink-0" />
+              <select
+                value={datePreset}
+                onChange={(e) => handleDatePresetChange(e.target.value as DatePreset)}
+                className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer pr-1"
+                title="Filter by creation date period"
+              >
+                <option value="ALL_TIME">All Dates</option>
+                <option value="TODAY">Today</option>
+                <option value="YESTERDAY">Yesterday</option>
+                <option value="THIS_WEEK">This Week</option>
+                <option value="THIS_MONTH">This Month</option>
+                <option value="LAST_30_DAYS">Last 30 Days</option>
+                <option value="THIS_QUARTER">This Quarter</option>
+                <option value="CUSTOM">Custom Date Range...</option>
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="flex items-center gap-1.5 h-9 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700">
+              <span className="text-[11px] uppercase tracking-wider text-slate-400">Status:</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer pr-1"
+              >
+                <option value="">All Statuses</option>
+                <option value="DRAFT">Draft</option>
+                <option value="PENDING_APPROVAL">Pending Approval</option>
+                <option value="APPROVED">Approved</option>
+                <option value="REJECTED">Rejected</option>
+                <option value="SENT">Sent</option>
+                <option value="FOLLOW_UP">Follow-up</option>
+                <option value="ACCEPTED">Accepted</option>
+                <option value="EXPIRED">Expired</option>
+              </select>
+            </div>
+
+            {/* Quotation Type Filter */}
+            <div className="flex items-center gap-1.5 h-9 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700">
+              <span className="text-[11px] uppercase tracking-wider text-slate-400">Type:</span>
+              <select
+                value={typeFilter}
+                onChange={(e) => {
+                  setTypeFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer pr-1"
+              >
+                <option value="">All Types</option>
+                <option value="PRODUCT">Product Supply</option>
+                <option value="TECHNICAL">Technical High Voltage</option>
+                <option value="SERVICE">Service & Testing</option>
+                <option value="AMC">AMC Contract</option>
+              </select>
+            </div>
+
+            {/* Toggle Advanced Filters Button */}
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-xs font-semibold transition-colors cursor-pointer ${
+                showAdvancedFilters || customerFilter || datePreset === 'CUSTOM' || startDate || endDate
+                  ? 'bg-blue-50 border-blue-200 text-blue-700'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+              title="Toggle client & custom date filters"
+            >
+              <SlidersHorizontal size={13} />
+              <span>More Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">
+                  {activeFiltersCount}
+                </span>
+              )}
+              {showAdvancedFilters ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+
+            {/* Reset Filters Button */}
+            {activeFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 text-xs font-medium transition-colors cursor-pointer"
+                title="Reset all filters"
+              >
+                <RotateCcw size={12} />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Expandable Advanced Filter Panel (Custom Date Range & Customer Selector) */}
+        {showAdvancedFilters && (
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 animate-in fade-in duration-150">
+            {/* Client / Customer Filter */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                <Building2 size={12} className="text-slate-400" />
+                Filter by Customer / Account:
+              </label>
+              <select
+                value={customerFilter}
+                onChange={(e) => {
+                  setCustomerFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="h-9 px-3 text-xs text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
+              >
+                <option value="">-- All Registered Customers --</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.companyName ? `${c.companyName} (${c.name})` : c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Start Date */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                <Calendar size={12} className="text-slate-400" />
+                Created From Date:
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setDatePreset('CUSTOM');
+                  setPage(1);
+                }}
+                className="h-9 px-3 text-xs text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            {/* End Date */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                <Calendar size={12} className="text-slate-400" />
+                Created To Date:
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setDatePreset('CUSTOM');
+                  setPage(1);
+                }}
+                className="h-9 px-3 text-xs text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Active Filter Badges */}
+        {activeFiltersCount > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[11px] font-medium text-slate-400 mr-1 flex items-center gap-1">
+              <Filter size={11} /> Active Filters:
+            </span>
+
+            {search.trim() && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200">
+                Keyword: <strong className="text-slate-900">{search.trim()}</strong>
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="hover:text-rose-600 cursor-pointer ml-0.5"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            {datePreset !== 'ALL_TIME' && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-200">
+                Date: <strong className="text-blue-900">
+                  {datePreset === 'CUSTOM'
+                    ? `${startDate || 'Start'} to ${endDate || 'Now'}`
+                    : datePreset.replace('_', ' ')}
+                </strong>
+                <button
+                  type="button"
+                  onClick={() => handleDatePresetChange('ALL_TIME')}
+                  className="hover:text-rose-600 cursor-pointer ml-0.5"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            {statusFilter && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-amber-50 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200">
+                Status: <strong className="text-amber-900">{statusFilter}</strong>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('')}
+                  className="hover:text-rose-600 cursor-pointer ml-0.5"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            {typeFilter && !(isServiceOffice && typeFilter === 'SERVICE') && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-200">
+                Type: <strong className="text-purple-900">{typeFilter}</strong>
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter('')}
+                  className="hover:text-rose-600 cursor-pointer ml-0.5"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            {customerFilter && selectedCustomerObj && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200">
+                Client: <strong className="text-emerald-900">
+                  {selectedCustomerObj.companyName || selectedCustomerObj.name}
+                </strong>
+                <button
+                  type="button"
+                  onClick={() => setCustomerFilter('')}
+                  className="hover:text-rose-600 cursor-pointer ml-0.5"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-[11px] text-slate-500 hover:text-rose-600 font-semibold underline underline-offset-2 ml-1 cursor-pointer"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Quotations Data Table */}
@@ -259,9 +604,22 @@ export const QuotationListPage: React.FC = () => {
                       colSpan={9}
                       icon={<FileSpreadsheet size={24} />}
                       title="No Quotations Found"
-                      description="No matching commercial quotations found. Try adjusting your filters or create a new quotation."
+                      description={
+                        activeFiltersCount > 0
+                          ? 'No quotations match the active filter criteria. Try broadening your date range or clearing filters.'
+                          : 'No matching commercial quotations found. Create a new quotation to get started.'
+                      }
                       action={
-                        !isServiceOffice && !isAccountantOffice ? (
+                        activeFiltersCount > 0 ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            leftIcon={<RotateCcw size={14} />}
+                            onClick={handleResetFilters}
+                          >
+                            Reset Active Filters
+                          </Button>
+                        ) : !isServiceOffice && !isAccountantOffice ? (
                           <Button
                             variant="primary"
                             size="sm"

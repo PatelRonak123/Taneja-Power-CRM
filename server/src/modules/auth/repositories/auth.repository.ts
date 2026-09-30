@@ -1,10 +1,23 @@
-import { eq } from 'drizzle-orm';
+import { eq, or, ilike } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import { users, UserEntity, NewUserEntity } from '../../../database/schema/users.js';
 
 export class AuthRepository {
   async findByEmail(email: string): Promise<UserEntity | undefined> {
-    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    const trimmed = email.trim();
+    const result = await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          eq(users.email, trimmed),
+          ilike(users.email, trimmed),
+          ilike(users.email, `%, ${trimmed}%`),
+          ilike(users.email, `${trimmed},%`),
+          ilike(users.email, `%,${trimmed}%`)
+        )
+      )
+      .limit(1);
     return result[0];
   }
 

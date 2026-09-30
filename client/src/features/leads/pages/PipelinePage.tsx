@@ -38,6 +38,8 @@ const DEFAULT_STAGES: Array<{
 
 export const PipelinePage: React.FC = () => {
   const { user } = useAuthStore();
+  const isAdmin = user?.role === 'ADMIN';
+  const isManager = user?.role === 'MANAGER';
   const isAdminOrManager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const [columns, setColumns] = useState<PipelineColumn[]>([]);
   const [allLeads, setAllLeads] = useState<Lead[]>([]);
@@ -89,12 +91,13 @@ export const PipelinePage: React.FC = () => {
       const matchesPriority =
         selectedPriority === 'ALL' || (l.priority || '').toUpperCase() === selectedPriority.toUpperCase();
       const matchesScope =
+        isAdmin ||
         viewScope === 'ALL' ||
         (user?.fullName && (l.assignedExecutive || '').toLowerCase().includes(user.fullName.toLowerCase()));
 
       return matchesSearch && matchesAssignee && matchesPriority && matchesScope;
     });
-  }, [allLeads, searchQuery, selectedAssignee, selectedPriority, viewScope, user]);
+  }, [allLeads, searchQuery, selectedAssignee, selectedPriority, viewScope, user, isAdmin]);
 
   const buildPipelineColumns = (leadsList: Lead[]): PipelineColumn[] => {
     return DEFAULT_STAGES.map((stage) => {
@@ -311,7 +314,12 @@ export const PipelinePage: React.FC = () => {
       {/* Kanban Filter & View Bar */}
       <div className="bg-card p-3.5 rounded-xl border border-border shadow-xs flex flex-wrap items-center gap-2.5">
         {/* Scope View Toggle ("All Deals" vs "My Deals") */}
-        {isAdminOrManager ? (
+        {isAdmin ? (
+          <div className="flex items-center px-3 py-1.5 bg-slate-100 text-slate-800 border border-slate-200/80 rounded-lg text-xs font-semibold shrink-0">
+            <Building2 size={13} className="mr-1.5 text-slate-500" />
+            <span>All Deals</span>
+          </div>
+        ) : isManager ? (
           <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-border shrink-0">
             <button
               type="button"

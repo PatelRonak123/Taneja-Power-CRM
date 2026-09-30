@@ -53,19 +53,23 @@ export const EmployeeManagementPage: React.FC = () => {
   const [formData, setFormData] = useState<{
     fullName: string;
     email: string;
+    emails: string[];
     password?: string;
     role: EmployeeRole;
     workType: WorkType;
     phone: string;
+    phones: string[];
     designation: string;
     status: EmployeeStatus;
   }>({
     fullName: "",
     email: "",
+    emails: [""],
     password: "",
     role: "USER",
     workType: "OFFICE",
     phone: "",
+    phones: [""],
     designation: "Sales Office",
     status: "ACTIVE",
   });
@@ -131,10 +135,12 @@ export const EmployeeManagementPage: React.FC = () => {
     setFormData({
       fullName: "",
       email: "",
+      emails: [""],
       password: "",
       role: "USER",
       workType: "OFFICE",
       phone: "",
+      phones: [""],
       designation: "Sales Office",
       status: "ACTIVE",
     });
@@ -161,12 +167,24 @@ export const EmployeeManagementPage: React.FC = () => {
       initialDesignation = emp.designation || "Sales Office";
     }
 
+    const rawEmails = emp.email
+      ? emp.email.split(",").map((e) => e.trim()).filter(Boolean)
+      : [];
+    const initialEmails = rawEmails.length > 0 ? rawEmails : [""];
+
+    const rawPhones = emp.phone
+      ? emp.phone.split(",").map((p) => p.trim()).filter(Boolean)
+      : [];
+    const initialPhones = rawPhones.length > 0 ? rawPhones : [""];
+
     setFormData({
       fullName: emp.fullName || "",
-      email: emp.email || "",
+      email: initialEmails[0] || "",
+      emails: initialEmails,
       role: emp.role || "USER",
       workType: emp.workType || "OFFICE",
-      phone: emp.phone || "",
+      phone: initialPhones[0] || "",
+      phones: initialPhones,
       designation: initialDesignation,
       status: emp.status || "ACTIVE",
     });
@@ -179,6 +197,72 @@ export const EmployeeManagementPage: React.FC = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (formError) setFormError(null);
+  };
+
+  // Multi-Email Handlers
+  const handleEmailChange = (index: number, value: string) => {
+    setFormData((prev) => {
+      const updated = [...prev.emails];
+      updated[index] = value;
+      return {
+        ...prev,
+        emails: updated,
+        email: updated[0] || "",
+      };
+    });
+    if (formError) setFormError(null);
+  };
+
+  const handleAddEmail = () => {
+    setFormData((prev) => ({
+      ...prev,
+      emails: [...prev.emails, ""],
+    }));
+  };
+
+  const handleRemoveEmail = (index: number) => {
+    setFormData((prev) => {
+      const updated = prev.emails.filter((_, i) => i !== index);
+      const finalEmails = updated.length > 0 ? updated : [""];
+      return {
+        ...prev,
+        emails: finalEmails,
+        email: finalEmails[0] || "",
+      };
+    });
+  };
+
+  // Multi-Phone Handlers
+  const handlePhoneChange = (index: number, value: string) => {
+    setFormData((prev) => {
+      const updated = [...prev.phones];
+      updated[index] = value;
+      return {
+        ...prev,
+        phones: updated,
+        phone: updated[0] || "",
+      };
+    });
+    if (formError) setFormError(null);
+  };
+
+  const handleAddPhone = () => {
+    setFormData((prev) => ({
+      ...prev,
+      phones: [...prev.phones, ""],
+    }));
+  };
+
+  const handleRemovePhone = (index: number) => {
+    setFormData((prev) => {
+      const updated = prev.phones.filter((_, i) => i !== index);
+      const finalPhones = updated.length > 0 ? updated : [""];
+      return {
+        ...prev,
+        phones: finalPhones,
+        phone: finalPhones[0] || "",
+      };
+    });
   };
 
   // Work Type Switching with Auto-reconciliation of Designation
@@ -204,10 +288,37 @@ export const EmployeeManagementPage: React.FC = () => {
       return;
     }
 
-    if (!formData.email.trim() || !formData.email.includes("@")) {
-      setFormError("Please enter a valid corporate email address.");
+    // Filter non-empty emails
+    const validEmails = formData.emails
+      .map((em) => em.trim())
+      .filter(Boolean);
+
+    if (validEmails.length === 0) {
+      setFormError("Please enter at least one valid work email address.");
       return;
     }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    for (const singleEmail of validEmails) {
+      if (!emailRegex.test(singleEmail)) {
+        setFormError(`"${singleEmail}" is not a valid email address.`);
+        return;
+      }
+    }
+
+    const emailSet = new Set(validEmails.map((em) => em.toLowerCase()));
+    if (emailSet.size !== validEmails.length) {
+      setFormError("Duplicate email addresses detected. Please remove duplicates.");
+      return;
+    }
+
+    const combinedEmail = validEmails.join(", ");
+
+    // Filter non-empty phones
+    const validPhones = formData.phones
+      .map((ph) => ph.trim())
+      .filter(Boolean);
+    const combinedPhone = validPhones.length > 0 ? validPhones.join(", ") : undefined;
 
     if (modalMode === "create") {
       if (!formData.password || formData.password.length < 6) {
@@ -221,11 +332,11 @@ export const EmployeeManagementPage: React.FC = () => {
       if (modalMode === "create") {
         const response = await employeeService.createEmployee({
           fullName: formData.fullName.trim(),
-          email: formData.email.trim(),
+          email: combinedEmail,
           password: formData.password!,
           role: formData.role,
           workType: formData.workType,
-          phone: formData.phone.trim() || undefined,
+          phone: combinedPhone,
           designation: formData.designation.trim() || undefined,
           status: formData.status,
         });
@@ -244,7 +355,7 @@ export const EmployeeManagementPage: React.FC = () => {
             fullName: formData.fullName.trim(),
             role: formData.role,
             workType: formData.workType,
-            phone: formData.phone.trim() || undefined,
+            phone: combinedPhone,
             designation: formData.designation.trim() || undefined,
             status: formData.status,
           },
@@ -277,10 +388,12 @@ export const EmployeeManagementPage: React.FC = () => {
     const isConfirmed = await confirmModal({
       title: `${actionName.charAt(0).toUpperCase() + actionName.slice(1)} Employee`,
       message: `Are you sure you want to ${actionName} employee "${emp.fullName}"?${
-        newStatus === 'INACTIVE' ? ' They will no longer be able to log in to the portal.' : ''
+        newStatus === "INACTIVE"
+          ? " They will no longer be able to log in to the portal."
+          : ""
       }`,
       confirmText: actionName.charAt(0).toUpperCase() + actionName.slice(1),
-      variant: newStatus === 'INACTIVE' ? 'warning' : 'primary',
+      variant: newStatus === "INACTIVE" ? "warning" : "primary",
     });
 
     if (!isConfirmed) {
@@ -306,13 +419,14 @@ export const EmployeeManagementPage: React.FC = () => {
     }
   };
 
-  // Delete Employee
+  // Delete Employee (Soft/Hard cascade as per DB rules)
   const handleDeleteEmployee = async (emp: Employee) => {
-    const isConfirmed = await confirmModal.danger(
-      'Remove Employee',
-      `Are you sure you want to permanently remove employee "${emp.fullName}"? This action cannot be undone.`,
-      'Delete Employee'
-    );
+    const isConfirmed = await confirmModal({
+      title: "Delete Employee Account",
+      message: `Are you sure you want to permanently delete employee "${emp.fullName}" (${emp.email})? This action cannot be reversed.`,
+      confirmText: "Delete Employee",
+      variant: "danger",
+    });
 
     if (!isConfirmed) {
       return;
@@ -322,49 +436,52 @@ export const EmployeeManagementPage: React.FC = () => {
     try {
       const response = await employeeService.deleteEmployee(emp.id);
       if (response.success) {
-        toast.success(`Employee "${emp.fullName}" removed successfully.`);
-        fetchEmployees(page);
+        toast.success(`Employee "${emp.fullName}" deleted successfully.`);
+        const targetPage = employees.length === 1 && page > 1 ? page - 1 : page;
+        setPage(targetPage);
+        fetchEmployees(targetPage);
       }
     } catch (err: any) {
-      toast.error("Failed to remove employee record", err?.message);
+      toast.error("Failed to delete employee", err?.message);
     } finally {
       setDeletingEmployeeId(null);
     }
   };
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto pb-10">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-xl border border-border shadow-xs">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-            <Users size={18} />
+    <div className="space-y-4">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
+            <Users size={20} />
           </div>
           <div>
-            <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
-              Staff Management
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight leading-snug">
+              Employee Management
             </h1>
-            <p className="text-[13px] text-slate-500 font-normal mt-0.5 leading-normal">
-              Manage office and field personnel, configure designations, and administer credentials.
+            <p className="text-xs text-slate-500 font-normal">
+              Manage organization staff directory, application access roles, and
+              account credentials.
             </p>
           </div>
         </div>
-
-        <Button
-          variant="primary"
-          size="md"
-          leftIcon={<Plus size={16} />}
-          onClick={handleOpenCreate}
-          className="shrink-0"
-        >
-          Add Employee
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="primary"
+            size="md"
+            leftIcon={<Plus size={16} />}
+            onClick={handleOpenCreate}
+          >
+            Add Employee
+          </Button>
+        </div>
       </div>
 
-      {/* Metrics Header Cards */}
+      {/* KPI Metrics */}
       <EmployeeMetricsCards metrics={metrics} />
 
-      {/* Search & Filter Toolbar */}
+      {/* Filter & Search Toolbar */}
       <EmployeeToolbar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -415,6 +532,12 @@ export const EmployeeManagementPage: React.FC = () => {
         formData={formData}
         onInputChange={handleInputChange}
         onWorkTypeChange={handleWorkTypeChange}
+        onEmailChange={handleEmailChange}
+        onAddEmail={handleAddEmail}
+        onRemoveEmail={handleRemoveEmail}
+        onPhoneChange={handlePhoneChange}
+        onAddPhone={handleAddPhone}
+        onRemovePhone={handleRemovePhone}
         formSubmitting={formSubmitting}
         formError={formError}
         showPassword={showPassword}
