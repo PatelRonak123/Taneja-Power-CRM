@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { ProductController } from '../controllers/product.controller.js';
 import { validateRequest } from '../../../common/middleware/validate.middleware.js';
-import { authenticate, requireRoles } from '../../../common/middleware/auth.middleware.js';
+import { authenticate, requireRoles, requireAccountantOrAdminOrManager } from '../../../common/middleware/auth.middleware.js';
 import {
   createProductSchema,
   updateProductSchema,
@@ -17,11 +17,11 @@ const controller = new ProductController();
 router.get('/', validateRequest(listProductsSchema), controller.list);
 router.get('/:id', validateRequest(getProductByIdSchema), controller.getById);
 
-// Protected routes (Admin & Manager)
+// Protected routes (Admin, Manager & Accountant Office)
 router.post(
   '/',
   authenticate,
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  requireAccountantOrAdminOrManager,
   validateRequest(createProductSchema),
   controller.create
 );
@@ -29,7 +29,7 @@ router.post(
 router.put(
   '/:id',
   authenticate,
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  requireAccountantOrAdminOrManager,
   validateRequest(updateProductSchema),
   controller.update
 );
@@ -37,7 +37,7 @@ router.put(
 router.patch(
   '/:id',
   authenticate,
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  requireAccountantOrAdminOrManager,
   validateRequest(updateProductSchema),
   controller.update
 );

@@ -36,6 +36,15 @@ export class DispatchController {
     }
   };
 
+  getDispatchableItems = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const items = await this.dispatchService.getDispatchableItems(req.params.salesOrderId);
+      sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, items, 'Dispatchable items retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
   create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const authUser = (req as any).user;

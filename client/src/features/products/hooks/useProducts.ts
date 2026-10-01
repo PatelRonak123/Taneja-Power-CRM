@@ -15,6 +15,8 @@ export const useProducts = (params?: ProductQueryParams) => {
     mutationFn: (payload: CreateProductPayload) => productService.createProduct(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      // Also refresh the procurement product dropdown cache
+      queryClient.invalidateQueries({ queryKey: ['procurement', 'catalog-products'] });
     },
   });
 
@@ -23,6 +25,8 @@ export const useProducts = (params?: ProductQueryParams) => {
       productService.updateProduct(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      // Also refresh the procurement product dropdown cache
+      queryClient.invalidateQueries({ queryKey: ['procurement', 'catalog-products'] });
     },
   });
 

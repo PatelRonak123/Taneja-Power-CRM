@@ -53,6 +53,12 @@ export const getDispatchByIdSchema = z.object({
   }),
 });
 
+export const getDispatchableItemsSchema = z.object({
+  params: z.object({
+    salesOrderId: z.string().uuid('Invalid Sales Order ID'),
+  }),
+});
+
 export const submitDispatchSchema = z.object({
   params: z.object({
     id: z.string().uuid('Invalid Dispatch ID'),

@@ -10,6 +10,7 @@ import {
   confirmDispatchSchema,
   cancelDispatchSchema,
   listDispatchesQuerySchema,
+  getDispatchableItemsSchema,
 } from '../validators/dispatch.validator.js';
 
 const router = Router();
@@ -22,6 +23,15 @@ router.get(
   requirePermission('dispatch:read'),
   validateRequest(listDispatchesQuerySchema),
   controller.list
+);
+
+// GET /api/dispatches/sales-order/:salesOrderId/dispatchable-items - Get dispatchable items for SO
+router.get(
+  '/sales-order/:salesOrderId/dispatchable-items',
+  authenticate,
+  requirePermission('dispatch:read'),
+  validateRequest(getDispatchableItemsSchema),
+  controller.getDispatchableItems
 );
 
 // GET /api/dispatches/:id - Get dispatch by ID

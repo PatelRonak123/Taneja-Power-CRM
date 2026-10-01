@@ -78,7 +78,7 @@ export const useGoodsReceipt = (id: string, enabled = true) => {
 export const useProcurementProducts = () => {
   return useQuery({
     queryKey: PROCUREMENT_KEYS.products(),
-    queryFn: () => productService.getProducts({ limit: 200, status: 'ACTIVE' }),
+    queryFn: () => productService.getProducts({ limit: 500, status: 'ACTIVE' }),
     staleTime: 60_000,
     select: (res) => res.data ?? [],
   });

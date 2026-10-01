@@ -39,6 +39,39 @@ export const isSalesOfficeUser = (user?: JwtPayload): boolean => {
   );
 };
 
+export const isAccountantOfficeUser = (user?: JwtPayload): boolean => {
+  if (!user) return false;
+  const roleStr = String(user.role || '').toUpperCase();
+  return (
+    roleStr === APP_CONSTANTS.ROLES.USER &&
+    (user.workType === APP_CONSTANTS.WORK_TYPES.OFFICE || !user.workType) &&
+    String(user.designation || '').toLowerCase().includes('accountant')
+  );
+};
+
+/**
+ * Allows ADMIN, MANAGER, or Accountant Office users.
+ * Used for product creation/update (procurement workflow).
+ */
+export const requireAccountantOrAdminOrManager = (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void => {
+  if (!req.user) {
+    return next(AppError.unauthorized());
+  }
+  const role = req.user.role;
+  if (
+    role === APP_CONSTANTS.ROLES.ADMIN ||
+    role === APP_CONSTANTS.ROLES.MANAGER ||
+    isAccountantOfficeUser(req.user)
+  ) {
+    return next();
+  }
+  return next(AppError.forbidden('You do not have permission to access this resource'));
+};
+
 /**
  * Returns true for any Office USER who is permitted to manage field tasks:
  * - Service Office (designation includes 'service')

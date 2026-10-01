@@ -18,6 +18,11 @@ export const ProductsPage: React.FC = () => {
   const { user } = useAuthStore();
   const isManagerOrAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const isAdmin = user?.role === 'ADMIN';
+  const isAccountantOffice =
+    user?.role === 'USER' &&
+    (user?.designation || '').toLowerCase().includes('accountant');
+  // Accountant Office users can also create and edit products (for procurement workflow)
+  const canManageProducts = isManagerOrAdmin || isAccountantOffice;
 
   const {
     searchQuery,
@@ -72,7 +77,7 @@ export const ProductsPage: React.FC = () => {
         totalValuation={totalValuation}
         activeCount={activeCount}
         onAddProduct={handleOpenAddModal}
-        canCreate={isManagerOrAdmin}
+        canCreate={canManageProducts}
       />
 
       {/* Advanced Filters & View Switcher */}
@@ -102,10 +107,10 @@ export const ProductsPage: React.FC = () => {
           products={products}
           onEdit={handleOpenEditModal}
           onDelete={deleteProduct}
-          onDeployFirst={isManagerOrAdmin ? handleOpenAddModal : undefined}
+          onDeployFirst={canManageProducts ? handleOpenAddModal : undefined}
           onAdjustStock={(p) => setSelectedProductForAdjustment(p)}
           onViewHistory={(p) => setSelectedProductForHistory(p)}
-          canEdit={isManagerOrAdmin}
+          canEdit={canManageProducts}
           canDelete={isAdmin}
         />
       ) : (
@@ -113,8 +118,8 @@ export const ProductsPage: React.FC = () => {
           products={products}
           onEdit={handleOpenEditModal}
           onDelete={deleteProduct}
-          onDeployFirst={isManagerOrAdmin ? handleOpenAddModal : undefined}
-          canEdit={isManagerOrAdmin}
+          onDeployFirst={canManageProducts ? handleOpenAddModal : undefined}
+          canEdit={canManageProducts}
           canDelete={isAdmin}
         />
       )}
