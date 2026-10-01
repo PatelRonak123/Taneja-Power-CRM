@@ -8,7 +8,9 @@ import {
   CheckCircle,
   Eye,
   X,
+  AlertTriangle,
 } from 'lucide-react';
+import { ProductForm } from '../../products/modules/ProductForm/ProductForm';
 import { Supplier, PurchaseOrder, GoodsReceipt } from '../types/procurement.types';
 import { useAuthStore } from '../../../stores/authStore';
 import {
@@ -93,8 +95,16 @@ export const ProcurementPage: React.FC = () => {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN';
   const isManager = user?.role === 'MANAGER';
+  const isAccountantOffice =
+    user?.role === 'USER' &&
+    (user?.designation || '').toLowerCase().includes('accountant');
   const canApprovePo = isAdmin || isManager;
   const canPostGrn = isAdmin || isManager;
+  // Can create/edit products: ADMIN, MANAGER, or Accountant Office user
+  const canManageProducts = isAdmin || isManager || isAccountantOffice;
+
+  // ── Quick-add product modal ─────────────────────────────────────────────────
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
 
   // ── Tab ─────────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>('orders');
@@ -714,6 +724,29 @@ export const ProcurementPage: React.FC = () => {
                     <Plus className="w-3.5 h-3.5" /> <span>Add Item</span>
                   </button>
                 </div>
+
+                {/* Empty products notice */}
+                {availableProducts.length === 0 && (
+                  <div className="flex items-start gap-3 p-3 mb-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-amber-800">No products in inventory</p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        You need to add at least one product before creating a purchase order.
+                      </p>
+                    </div>
+                    {canManageProducts && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAddProductModal(true)}
+                        className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add Product
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-slate-700 font-semibold text-xs border-b border-slate-200">
@@ -735,6 +768,7 @@ export const ProcurementPage: React.FC = () => {
                           <tr key={idx} className="hover:bg-slate-50/50">
                             <td className="py-2 px-3">
                               <select required value={item.productId} onChange={(e) => { const items = [...poForm.items]; items[idx].productId = e.target.value; setPoForm({ ...poForm, items }); }} className="w-full py-1 px-2 text-xs border border-slate-200 rounded-lg">
+                                <option value="">Select Product…</option>
                                 {availableProducts.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
                               </select>
                             </td>
@@ -1043,6 +1077,28 @@ export const ProcurementPage: React.FC = () => {
                   <span>Stock movements committed to ledger under referenceType <strong>PURCHASE_RECEIPT</strong>.</span>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── MODAL: QUICK-ADD PRODUCT ──────────────────────────────────────────── */}
+      {showAddProductModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">Add New Product to Inventory</h3>
+                <p className="text-xs text-slate-500">This product will be available in the purchase order line items.</p>
+              </div>
+              <button onClick={() => setShowAddProductModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <ProductForm
+                onSuccess={() => setShowAddProductModal(false)}
+                onCancel={() => setShowAddProductModal(false)}
+              />
             </div>
           </div>
         </div>

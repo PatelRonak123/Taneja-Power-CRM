@@ -780,6 +780,27 @@ export const InvoicesPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status) && (
+                            <button
+                              onClick={() =>
+                                navigate(
+                                  `/dispatches?create=true&invoiceId=${inv.id}&salesOrderId=${inv.salesOrderId}`,
+                                  {
+                                    state: {
+                                      openCreate: true,
+                                      invoiceId: inv.id,
+                                      salesOrderId: inv.salesOrderId,
+                                      invoiceNumber: inv.invoiceNumber,
+                                    },
+                                  }
+                                )
+                              }
+                              className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Create Delivery Challan / Dispatch"
+                            >
+                              <Truck className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => setSelectedSalesInvoiceId(inv.id)}
                             className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -1120,8 +1141,20 @@ export const InvoicesPage: React.FC = () => {
 
                     {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(salesDetail.status) && (
                       <button
-                        onClick={() => navigate('/dispatches')}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors"
+                        onClick={() =>
+                          navigate(
+                            `/dispatches?create=true&invoiceId=${salesDetail.id}&salesOrderId=${salesDetail.salesOrderId}`,
+                            {
+                              state: {
+                                openCreate: true,
+                                invoiceId: salesDetail.id,
+                                salesOrderId: salesDetail.salesOrderId,
+                                invoiceNumber: salesDetail.invoiceNumber,
+                              },
+                            }
+                          )
+                        }
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm"
                       >
                         <Truck className="w-4 h-4" /> Create Delivery Challan / Dispatch
                       </button>

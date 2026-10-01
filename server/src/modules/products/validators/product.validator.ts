@@ -40,7 +40,7 @@ export const listProductsSchema = z.object({
     category: z.string().optional(),
     status: z.enum(['ACTIVE', 'INACTIVE', 'OUT_OF_STOCK']).optional(),
     page: z.coerce.number().int().positive().default(1),
-    limit: z.coerce.number().int().positive().max(100).default(10),
+    limit: z.coerce.number().int().positive().max(500).default(10),
   }),
 });
 

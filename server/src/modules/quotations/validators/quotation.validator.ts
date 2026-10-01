@@ -252,7 +252,7 @@ export const withdrawQuotationSchema = z.object({
 export const listQuotationsSchema = z.object({
   query: z.object({
     page: z.coerce.number().int().min(1).optional().default(1),
-    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+    limit: z.coerce.number().int().min(1).max(500).optional().default(10),
     search: z.string().optional(),
     status: z.string().optional(),
     quotationType: z.string().optional(),

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigationState } from '../../../app/router/navigation';
 import {
   Truck,
   Plus,
@@ -11,6 +12,7 @@ import {
   AlertTriangle,
   PackageCheck,
   Building2,
+  FileText,
 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
 import type {
@@ -27,6 +29,7 @@ import {
   useCancelDispatch,
 } from '../hooks';
 import { useSalesOrders } from '../../sales-orders/hooks';
+import { useSalesInvoices } from '../../invoices/hooks';
 import { DeliveryChallanPrintDocument } from '../components/DeliveryChallanPrintDocument';
 
 // ─── Status Badges ────────────────────────────────────────────────────────────
@@ -52,10 +55,20 @@ function StatusBadge({ status }: { status: DispatchStatus }) {
 interface CreateModalProps {
   onClose: () => void;
   initialSalesOrderId?: string;
+  initialSalesInvoiceId?: string;
 }
 
-const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSalesOrderId }) => {
+const CreateDispatchModal: React.FC<CreateModalProps> = ({
+  onClose,
+  initialSalesOrderId,
+  initialSalesInvoiceId,
+}) => {
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>(initialSalesInvoiceId || '');
   const [selectedSoId, setSelectedSoId] = useState<string>(initialSalesOrderId || '');
+  const [selectionMode, setSelectionMode] = useState<'INVOICE' | 'SALES_ORDER'>(
+    initialSalesOrderId && !initialSalesInvoiceId ? 'SALES_ORDER' : 'INVOICE'
+  );
+
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [transporterName, setTransporterName] = useState('');
   const [transporterContact, setTransporterContact] = useState('');
@@ -63,6 +76,12 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSales
   const [driverPhone, setDriverPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+
+  // Sales Invoices eligible for delivery challan (Phase 4/5)
+  const { data: invRes, isLoading: loadingInvoices } = useSalesInvoices({ limit: 500 });
+  const invoices = (invRes?.data || []).filter((inv: any) =>
+    ['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status)
+  );
 
   // Sales Orders eligible for dispatch
   const { data: soRes, isLoading: loadingSOs } = useSalesOrders();
@@ -72,10 +91,22 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSales
       so.dispatchStatus !== 'FULLY_DISPATCHED'
   );
 
+  // Auto-sync SO ID when an invoice is chosen or loaded from initial prop
+  useEffect(() => {
+    if (selectedInvoiceId && invoices.length > 0) {
+      const inv = invoices.find((i: any) => i.id === selectedInvoiceId);
+      if (inv?.salesOrderId && inv.salesOrderId !== selectedSoId) {
+        setSelectedSoId(inv.salesOrderId);
+      }
+    }
+  }, [selectedInvoiceId, invoices, selectedSoId]);
+
   // Dispatchable items query for selected SO
   const { data: dispatchable, isLoading: loadingItems } = useDispatchableItems(selectedSoId);
 
   const createDispatchMutation = useCreateDispatch();
+
+  const selectedInvoice = invoices.find((i: any) => i.id === selectedInvoiceId);
 
   const handleQtyChange = (itemId: string, maxQty: number, maxStock: number, val: string) => {
     const num = parseFloat(val);
@@ -111,6 +142,7 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSales
 
     const payload: CreateDispatchPayload = {
       salesOrderId: selectedSoId,
+      salesInvoiceId: selectedInvoiceId || undefined,
       vehicleNumber: vehicleNumber.trim() || undefined,
       transporterName: transporterName.trim() || undefined,
       transporterContact: transporterContact.trim() || undefined,
@@ -141,7 +173,11 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSales
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Create Delivery Challan / Dispatch</h2>
-              <p className="text-xs text-gray-500">From a confirmed Sales Order (Starts as DRAFT, no stock deduction yet)</p>
+              <p className="text-xs text-gray-500">
+                {selectedInvoiceId
+                  ? 'Fulfill & generate Delivery Challan against Sales Invoice'
+                  : 'From a confirmed Sales Order (Starts as DRAFT, no stock deduction yet)'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
@@ -151,29 +187,151 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSales
 
         {/* Content Form */}
         <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-6 flex-1">
-          {/* Sales Order Selection */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
-              Select Sales Order *
-            </label>
-            <select
-              value={selectedSoId}
-              onChange={(e) => {
-                setSelectedSoId(e.target.value);
-                setQuantities({});
-              }}
-              required
-              disabled={!!initialSalesOrderId || loadingSOs}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value="">-- Choose Confirmed Sales Order --</option>
-              {salesOrders.map((so: any) => (
-                <option key={so.id} value={so.id}>
-                  {so.orderNumber || so.id} — {so.customer?.companyName || so.customerNameSnapshot || 'Customer'} (Status: {so.status}, Dispatch: {so.dispatchStatus || 'NOT_DISPATCHED'})
+          {/* If opened from Invoice Page, show prominent banner */}
+          {initialSalesInvoiceId && (
+            <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 font-medium">
+              <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>
+                Auto-filling Delivery Challan for Sales Invoice{' '}
+                <strong className="font-mono text-blue-700 font-bold">
+                  {selectedInvoice?.invoiceNumber || 'Linked Invoice'}
+                </strong>
+                . Delivery details and items have been populated below.
+              </span>
+            </div>
+          )}
+
+          {/* Mode Switcher Tabs (if not pre-locked from invoice page) */}
+          {!initialSalesInvoiceId && !initialSalesOrderId && (
+            <div className="flex bg-gray-100 p-1 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectionMode('INVOICE');
+                  if (selectedInvoice?.salesOrderId) setSelectedSoId(selectedInvoice.salesOrderId);
+                  else setSelectedSoId('');
+                  setQuantities({});
+                }}
+                className={`flex-1 py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                  selectionMode === 'INVOICE'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Select by Sales Invoice (Recommended)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectionMode('SALES_ORDER');
+                  setSelectedInvoiceId('');
+                  setQuantities({});
+                }}
+                className={`flex-1 py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                  selectionMode === 'SALES_ORDER'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>Direct by Sales Order</span>
+              </button>
+            </div>
+          )}
+
+          {/* Selection Dropdown */}
+          {selectionMode === 'INVOICE' ? (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                Select Sales Invoice *
+              </label>
+              <select
+                value={selectedInvoiceId}
+                onChange={(e) => {
+                  const invId = e.target.value;
+                  setSelectedInvoiceId(invId);
+                  const inv = invoices.find((i: any) => i.id === invId);
+                  setSelectedSoId(inv?.salesOrderId || '');
+                  setQuantities({});
+                }}
+                required
+                disabled={!!initialSalesInvoiceId || loadingInvoices}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="">
+                  {loadingInvoices ? 'Loading invoices...' : '-- Choose Issued Sales Invoice --'}
                 </option>
-              ))}
-            </select>
-          </div>
+                {invoices.map((inv: any) => {
+                  const cust =
+                    inv.customerNameSnapshot ||
+                    inv.customer?.companyName ||
+                    inv.customer?.name ||
+                    'Customer';
+                  const amount = Number(inv.totalAmount || 0).toLocaleString('en-IN', {
+                    maximumFractionDigits: 2,
+                  });
+                  const soNum = inv.salesOrder?.salesOrderNumber || '—';
+                  return (
+                    <option key={inv.id} value={inv.id}>
+                      {inv.invoiceNumber} · {cust} · ₹{amount} (SO: {soNum})
+                    </option>
+                  );
+                })}
+              </select>
+
+              {/* Selected Invoice Details Snapshot */}
+              {selectedInvoice && (
+                <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-gray-900 font-mono">{selectedInvoice.invoiceNumber}</span>
+                    <span className="text-gray-600">
+                      · {selectedInvoice.customerNameSnapshot || selectedInvoice.customer?.companyName || selectedInvoice.customer?.name || 'Customer'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                      {selectedInvoice.status}
+                    </span>
+                  </div>
+                  <div className="text-gray-600">
+                    Linked SO:{' '}
+                    <strong className="text-gray-900 font-mono">
+                      {selectedInvoice.salesOrder?.salesOrderNumber || 'Linked'}
+                    </strong>
+                    {' · '}
+                    Amount:{' '}
+                    <strong className="text-blue-700 font-mono">
+                      ₹{Number(selectedInvoice.totalAmount || 0).toLocaleString('en-IN')}
+                    </strong>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                Select Sales Order *
+              </label>
+              <select
+                value={selectedSoId}
+                onChange={(e) => {
+                  setSelectedSoId(e.target.value);
+                  setQuantities({});
+                }}
+                required
+                disabled={!!initialSalesOrderId || loadingSOs}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="">
+                  {loadingSOs ? 'Loading sales orders...' : '-- Choose Confirmed Sales Order --'}
+                </option>
+                {salesOrders.map((so: any) => (
+                  <option key={so.id} value={so.id}>
+                    {so.salesOrderNumber || so.orderNumber || so.id} · {so.customer?.companyName || so.customerNameSnapshot || 'Customer'} (Status: {so.status}, Dispatch: {so.dispatchStatus || 'NOT_DISPATCHED'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Delivery & Dispatchable Items */}
           {selectedSoId && (
@@ -443,6 +601,12 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
               Sales Order Ref: <strong className="text-gray-700">{dispatch.salesOrder?.orderNumber || '—'}</strong>
+              {dispatch.salesInvoice?.invoiceNumber && (
+                <>
+                  {' · '}Invoice Ref:{' '}
+                  <strong className="text-blue-700 font-mono">{dispatch.salesInvoice.invoiceNumber}</strong>
+                </>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -696,10 +860,43 @@ export const DispatchesPage: React.FC = () => {
   const canCreateOrSubmit = isAdmin || isManager || isAccountant;
   const canDispatch = isAdmin || isManager;
 
+  const navState = useNavigationState<{
+    openCreate?: boolean;
+    invoiceId?: string;
+    salesOrderId?: string;
+    invoiceNumber?: string;
+  }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<DispatchStatus | ''>('');
   const [selectedDispatchId, setSelectedDispatchId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [initialSalesOrderId, setInitialSalesOrderId] = useState<string | undefined>();
+  const [initialSalesInvoiceId, setInitialSalesInvoiceId] = useState<string | undefined>();
+
+  useEffect(() => {
+    const queryCreate = searchParams.get('create') === 'true';
+    const queryInvoiceId = searchParams.get('invoiceId') || undefined;
+    const querySalesOrderId = searchParams.get('salesOrderId') || undefined;
+
+    if (navState?.openCreate || queryCreate || navState?.invoiceId || queryInvoiceId) {
+      const invId = navState?.invoiceId || queryInvoiceId;
+      const soId = navState?.salesOrderId || querySalesOrderId;
+      setInitialSalesInvoiceId(invId);
+      setInitialSalesOrderId(soId);
+      setShowCreateModal(true);
+
+      // Clean search params if present so refresh doesn't reopen unexpectedly
+      if (queryCreate) {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('create');
+        nextParams.delete('invoiceId');
+        nextParams.delete('salesOrderId');
+        setSearchParams(nextParams, { replace: true });
+      }
+    }
+  }, [navState, searchParams, setSearchParams]);
 
   const { data: res, isLoading, refetch } = useDispatches({
     search: search.trim() || undefined,
@@ -863,7 +1060,17 @@ export const DispatchesPage: React.FC = () => {
       </div>
 
       {/* Create Modal */}
-      {showCreateModal && <CreateDispatchModal onClose={() => setShowCreateModal(false)} />}
+      {showCreateModal && (
+        <CreateDispatchModal
+          onClose={() => {
+            setShowCreateModal(false);
+            setInitialSalesOrderId(undefined);
+            setInitialSalesInvoiceId(undefined);
+          }}
+          initialSalesOrderId={initialSalesOrderId}
+          initialSalesInvoiceId={initialSalesInvoiceId}
+        />
+      )}
 
       {/* Detail Drawer */}
       {selectedDispatchId && (

@@ -70,6 +70,40 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
 
   const createSO = useCreateSalesOrder();
 
+  // Fetch APPROVED quotations for the dropdown
+  const [approvedQuotations, setApprovedQuotations] = React.useState<Array<{
+    id: string;
+    quotationNumber: string;
+    customerName: string;
+    companyName?: string | null;
+    grandTotal?: string | null;
+  }>>([]);
+  const [loadingQuotations, setLoadingQuotations] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoadingQuotations(true);
+    import('../../quotations/services/quotationService').then(({ quotationService }) => {
+      quotationService.getQuotations({ status: 'APPROVED', limit: 500 } as any)
+        .then((res) => {
+          if (cancelled) return;
+          const list = (res.data ?? []).map((q: any) => ({
+            id: q.id,
+            quotationNumber: q.quotationNumber,
+            customerName: q.customer?.name ?? 'Unknown Customer',
+            companyName: q.customer?.companyName,
+            grandTotal: q.currentRevision?.grandTotal,
+          }));
+          setApprovedQuotations(list);
+        })
+        .catch(() => { if (!cancelled) setApprovedQuotations([]); })
+        .finally(() => { if (!cancelled) setLoadingQuotations(false); });
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const selectedQuotation = approvedQuotations.find((q) => q.id === form.quotationId);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.quotationId.trim()) return;
@@ -97,19 +131,50 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Quotation ID <span className="text-red-500">*</span>
+              Select Quotation <span className="text-red-500">*</span>
             </label>
-            <input
-              id="so-quotation-id"
-              type="text"
-              required
-              placeholder="Paste approved quotation UUID"
-              value={form.quotationId}
-              onChange={(e) => setForm((f) => ({ ...f, quotationId: e.target.value.trim() }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Only APPROVED quotations are accepted. Totals are recalculated server-side.
+            {loadingQuotations ? (
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-400 flex items-center gap-2">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                Loading approved quotations…
+              </div>
+            ) : approvedQuotations.length === 0 ? (
+              <div className="w-full px-3 py-2.5 border border-amber-300 rounded-lg text-sm text-amber-700 bg-amber-50 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                No approved quotations found. Please approve a quotation first.
+              </div>
+            ) : (
+              <select
+                id="so-quotation-select"
+                required
+                value={form.quotationId}
+                onChange={(e) => setForm((f) => ({ ...f, quotationId: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                <option value="">— Select an approved quotation —</option>
+                {approvedQuotations.map((q) => (
+                  <option key={q.id} value={q.id}>
+                    {q.quotationNumber}
+                    {q.customerName ? ` · ${q.customerName}` : ''}
+                    {q.companyName ? ` (${q.companyName})` : ''}
+                    {q.grandTotal ? ` · ₹${Number(q.grandTotal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            {/* Show selected quotation details pill */}
+            {selectedQuotation && (
+              <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg">
+                <span className="text-xs font-mono font-semibold text-indigo-700">{selectedQuotation.quotationNumber}</span>
+                <span className="text-xs text-gray-400">·</span>
+                <span className="text-xs text-gray-700">{selectedQuotation.customerName}</span>
+                {selectedQuotation.companyName && (
+                  <span className="text-xs text-gray-400">· {selectedQuotation.companyName}</span>
+                )}
+              </div>
+            )}
+            <p className="mt-1 text-xs text-gray-400">
+              Only APPROVED quotations are listed. Totals are recalculated server-side.
             </p>
           </div>
 
@@ -171,7 +236,7 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
             <button
               type="submit"
               id="so-create-submit"
-              disabled={createSO.isPending || !form.quotationId.trim()}
+              disabled={createSO.isPending || !form.quotationId.trim() || loadingQuotations}
               className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {createSO.isPending ? 'Creating…' : 'Create Sales Order'}
