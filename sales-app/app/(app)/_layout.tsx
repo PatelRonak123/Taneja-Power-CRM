@@ -34,6 +34,13 @@ export default function AppStackLayout() {
         }}
       />
       <Stack.Screen
+        name="field-service/new"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
         name="field-service/[id]"
         options={{
           headerShown: false,
@@ -49,6 +56,13 @@ export default function AppStackLayout() {
       />
       <Stack.Screen
         name="field-service/[id]/photos"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="field-service/[id]/observations"
         options={{
           headerShown: false,
           presentation: 'card',

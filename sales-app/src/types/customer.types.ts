@@ -20,6 +20,7 @@ export interface Customer {
   id: string;
   name: string;
   companyName: string | null;
+  contactPerson?: string | null;
   phone: string;
   email: string | null;
   address: string;

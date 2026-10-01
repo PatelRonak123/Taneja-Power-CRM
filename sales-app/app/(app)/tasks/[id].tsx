@@ -29,6 +29,7 @@ import {
   Radio,
   RefreshCw,
   ShieldCheck,
+  FileText,
 } from 'lucide-react-native';
 import { ScreenContainer } from '../../../src/components/ui/ScreenContainer';
 import { Card } from '../../../src/components/ui/Card';
@@ -668,16 +669,32 @@ export default function TaskDetailsScreen() {
               ) : null}
             </View>
 
-            <Button
-              title="View Customer Profile"
-              variant="secondary"
-              icon={<ExternalLink size={16} color={theme.colors.textPrimary} />}
-              onPress={() => router.push({
-                pathname: '/(app)/customers/[id]',
-                params: { id: task.customerId },
-              })}
-              style={styles.customerButton}
-            />
+            <View style={styles.customerActionRow}>
+              <Button
+                title="Create Service Report (FSR)"
+                variant="primary"
+                icon={<FileText size={16} color="#FFFFFF" />}
+                onPress={() => router.push({
+                  pathname: '/(app)/field-service/new',
+                  params: {
+                    customerId: task.customerId,
+                    destinationId: task.destinationId,
+                    taskId: task.id,
+                  },
+                })}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Customer Profile"
+                variant="secondary"
+                icon={<ExternalLink size={16} color={theme.colors.textPrimary} />}
+                onPress={() => router.push({
+                  pathname: '/(app)/customers/[id]',
+                  params: { id: task.customerId },
+                })}
+                style={{ flex: 1 }}
+              />
+            </View>
           </Card>
         ) : null}
 
@@ -986,5 +1003,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
     maxWidth: 240,
+  },
+  customerActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: theme.spacing.md,
   },
 });

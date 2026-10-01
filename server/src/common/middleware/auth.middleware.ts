@@ -120,6 +120,11 @@ export const authenticate = (req: Request, _res: Response, next: NextFunction): 
     }
   }
 
+  // Also accept token from query parameter (e.g. for downloading PDF reports via Linking or browser)
+  if (!token && typeof req.query?.token === 'string') {
+    token = req.query.token;
+  }
+
   if (!token) {
     return next(AppError.unauthorized('Authentication token missing or invalid'));
   }
