@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigationState } from '../../../app/router/navigation';
+import { useSearchParams, useNavigationState, navigate } from '../../../app/router/navigation';
 import {
   Truck,
   Plus,
@@ -13,6 +13,8 @@ import {
   PackageCheck,
   Building2,
   FileText,
+  ShoppingCart,
+  CheckCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
 import type {
@@ -356,75 +358,190 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Items Table */}
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
-                      Dispatch Items & Stock Availability
-                    </h3>
-                    <div className="border border-gray-200 rounded-xl overflow-hidden">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-gray-50 border-b border-gray-200 font-semibold text-gray-600">
-                          <tr>
-                            <th className="py-2.5 px-3">Item / SKU</th>
-                            <th className="py-2.5 px-2 text-right">Ordered</th>
-                            <th className="py-2.5 px-2 text-right">Prev. Dispatched</th>
-                            <th className="py-2.5 px-2 text-right text-blue-600">Remaining</th>
-                            <th className="py-2.5 px-2 text-right text-emerald-600 font-bold">Physical Stock</th>
-                            <th className="py-2.5 px-3 text-right w-32">Dispatch Qty</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {dispatchable.items.map((item) => {
-                            const defaultQty = Math.min(item.remainingDispatchableQuantity, item.currentPhysicalStock);
-                            const currentVal = quantities[item.salesOrderItemId] !== undefined ? quantities[item.salesOrderItemId] : defaultQty;
-                            const isOutOfStock = item.currentPhysicalStock <= 0;
+                  {/* Items Table & Shortage Assessment */}
+                  {(() => {
+                    const shortageAnalysis = dispatchable.items.map((item) => {
+                      const ordered = Number(item.orderedQuantity) || 0;
+                      const prevDispatched = Number(item.previouslyDispatchedQuantity) || 0;
+                      const orderRemaining = Math.max(0, ordered - prevDispatched);
+                      const physicalStock = Number(item.currentPhysicalStock) || 0;
+                      const defaultQty = Math.min(orderRemaining, physicalStock);
+                      const currentVal =
+                        quantities[item.salesOrderItemId] !== undefined
+                          ? quantities[item.salesOrderItemId]
+                          : defaultQty;
+                      const balanceAfterDispatch = Math.max(0, orderRemaining - currentVal);
+                      const hasShortage = physicalStock < orderRemaining;
 
-                            return (
-                              <tr key={item.salesOrderItemId} className="hover:bg-gray-50/50">
-                                <td className="py-2.5 px-3">
-                                  <div className="font-semibold text-gray-900">{item.productName}</div>
-                                  <div className="text-[10px] text-gray-400 font-mono">{item.sku || 'No SKU'}</div>
-                                </td>
-                                <td className="py-2.5 px-2 text-right text-gray-600 font-mono">
-                                  {item.orderedQuantity} {item.unit}
-                                </td>
-                                <td className="py-2.5 px-2 text-right text-gray-500 font-mono">
-                                  {item.previouslyDispatchedQuantity}
-                                </td>
-                                <td className="py-2.5 px-2 text-right font-semibold text-blue-700 font-mono">
-                                  {item.remainingDispatchableQuantity}
-                                </td>
-                                <td className="py-2.5 px-2 text-right font-bold font-mono">
-                                  <span className={item.currentPhysicalStock > 0 ? 'text-emerald-700' : 'text-rose-600 font-bold'}>
-                                    {item.currentPhysicalStock}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 text-right">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max={Math.min(item.remainingDispatchableQuantity, item.currentPhysicalStock)}
-                                    step="any"
-                                    value={currentVal}
-                                    disabled={isOutOfStock || item.remainingDispatchableQuantity <= 0}
-                                    onChange={(e) =>
-                                      handleQtyChange(
-                                        item.salesOrderItemId,
-                                        item.remainingDispatchableQuantity,
-                                        item.currentPhysicalStock,
-                                        e.target.value
-                                      )
-                                    }
-                                    className="w-24 px-2 py-1 border border-gray-300 rounded text-right font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
-                                  />
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                      return {
+                        item,
+                        ordered,
+                        prevDispatched,
+                        orderRemaining,
+                        physicalStock,
+                        currentVal,
+                        balanceAfterDispatch,
+                        hasShortage,
+                      };
+                    });
+
+                    const hasAnyShortage = shortageAnalysis.some((s) => s.hasShortage);
+                    const shortageItems = shortageAnalysis.filter((s) => s.hasShortage);
+
+                    return (
+                      <div className="space-y-3">
+                        {/* Shortage Warning Banner */}
+                        {hasAnyShortage && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                            <div className="flex items-start gap-2.5">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-xs font-bold text-amber-900">
+                                  Stock Shortage Detected — Partial Dispatch Available
+                                </p>
+                                <p className="text-[11px] text-amber-700 mt-0.5">
+                                  Physical warehouse stock is insufficient to completely fulfill the order ({shortageItems.map((i) => `${i.item.productName}: In Stock ${i.physicalStock} / Required ${i.orderRemaining}`).join(', ')}). You can dispatch available physical stock now; the remaining shortage will stay pending until stock is purchased.
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onClose();
+                                navigate('/procurement?createPo=true&soNumber=' + encodeURIComponent(dispatchable.orderNumber), {
+                                  source: 'delivery-challan',
+                                  soNumber: dispatchable.orderNumber,
+                                  soId: dispatchable.salesOrderId,
+                                  shortages: shortageItems.map((s) => ({
+                                    productId: s.item.productId,
+                                    productName: s.item.productName,
+                                    sku: s.item.sku || undefined,
+                                    unit: s.item.unit,
+                                    shortageQty: s.orderRemaining - s.physicalStock,
+                                    orderedQty: s.ordered,
+                                    inStock: s.physicalStock,
+                                  })),
+                                });
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-xs transition-colors whitespace-nowrap self-start sm:self-auto"
+                            >
+                              <ShoppingCart className="w-3.5 h-3.5" />
+                              Purchase Shortage
+                            </button>
+                          </div>
+                        )}
+
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                              Dispatch Items & Stock Fulfillment
+                            </h3>
+                            {hasAnyShortage ? (
+                              <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                                Partial Stock Available
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                100% In Stock
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="border border-gray-200 rounded-xl overflow-hidden">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-gray-50 border-b border-gray-200 font-semibold text-gray-600">
+                                <tr>
+                                  <th className="py-2.5 px-3">Item / SKU</th>
+                                  <th className="py-2.5 px-2 text-center">Ordered</th>
+                                  <th className="py-2.5 px-2 text-center">Prev. Dispatched</th>
+                                  <th className="py-2.5 px-2 text-center text-emerald-700 font-bold">In Stock</th>
+                                  <th className="py-2.5 px-3 text-center w-28">Dispatch Qty</th>
+                                  <th className="py-2.5 px-3 text-center">Remaining / Short</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {shortageAnalysis.map(
+                                  ({
+                                    item,
+                                    ordered,
+                                    prevDispatched,
+                                    orderRemaining,
+                                    physicalStock,
+                                    currentVal,
+                                    balanceAfterDispatch,
+                                    hasShortage,
+                                  }) => {
+                                    const isOutOfStock = physicalStock <= 0;
+
+                                    return (
+                                      <tr
+                                        key={item.salesOrderItemId}
+                                        className={hasShortage ? 'bg-amber-50/30 hover:bg-amber-50/50' : 'hover:bg-gray-50/50'}
+                                      >
+                                        <td className="py-2.5 px-3">
+                                          <div className="font-semibold text-gray-900">{item.productName}</div>
+                                          <div className="text-[10px] text-gray-400 font-mono">{item.sku || 'No SKU'}</div>
+                                        </td>
+                                        <td className="py-2.5 px-2 text-center text-gray-800 font-medium">
+                                          {ordered} <span className="text-[10px] text-gray-500 font-normal">{item.unit}</span>
+                                        </td>
+                                        <td className="py-2.5 px-2 text-center text-gray-500 font-mono">
+                                          {prevDispatched}
+                                        </td>
+                                        <td className="py-2.5 px-2 text-center">
+                                          <span
+                                            className={`inline-block font-mono text-xs font-semibold px-2 py-0.5 rounded ${
+                                              physicalStock >= orderRemaining
+                                                ? 'bg-emerald-50 text-emerald-700'
+                                                : physicalStock > 0
+                                                ? 'bg-amber-50 text-amber-700'
+                                                : 'bg-rose-50 text-rose-700'
+                                            }`}
+                                          >
+                                            {physicalStock}
+                                          </span>
+                                        </td>
+                                        <td className="py-2.5 px-3 text-center">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            max={Math.min(orderRemaining, physicalStock)}
+                                            step="any"
+                                            value={currentVal}
+                                            disabled={isOutOfStock || orderRemaining <= 0}
+                                            onChange={(e) =>
+                                              handleQtyChange(
+                                                item.salesOrderItemId,
+                                                orderRemaining,
+                                                physicalStock,
+                                                e.target.value
+                                              )
+                                            }
+                                            className="w-24 px-2 py-1 border border-gray-300 rounded text-center font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                                          />
+                                        </td>
+                                        <td className="py-2.5 px-3 text-center">
+                                          {balanceAfterDispatch > 0 ? (
+                                            <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-full">
+                                              {balanceAfterDispatch} short
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center text-xs text-emerald-600 font-medium">
+                                              <CheckCircle className="w-3.5 h-3.5 mr-1" /> Fulfilled
+                                            </span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  }
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Logistics / Transport Details */}
                   <div>
@@ -600,7 +717,7 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
               <StatusBadge status={dispatch.status} />
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Sales Order Ref: <strong className="text-gray-700">{dispatch.salesOrder?.orderNumber || '—'}</strong>
+              Sales Order Ref: <strong className="text-gray-700">{dispatch.salesOrder?.salesOrderNumber || dispatch.salesOrder?.orderNumber || '—'}</strong>
               {dispatch.salesInvoice?.invoiceNumber && (
                 <>
                   {' · '}Invoice Ref:{' '}
@@ -689,22 +806,41 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
                     <th className="py-2 px-2 text-center">Unit</th>
                     <th className="py-2 px-2 text-right">SO Ordered</th>
                     <th className="py-2 px-3 text-right font-bold text-slate-900">Dispatched Qty</th>
+                    <th className="py-2 px-3 text-center">Remaining Balance</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {(dispatch.items || []).map((it) => (
-                    <tr key={it.id} className="hover:bg-gray-50/50">
-                      <td className="py-2.5 px-3">
-                        <div className="font-semibold text-gray-900">{it.productNameSnapshot}</div>
-                        <div className="text-[10px] text-gray-400 font-mono">{it.skuSnapshot || '—'}</div>
-                      </td>
-                      <td className="py-2.5 px-2 text-center text-gray-500">{it.unitSnapshot || 'NOS'}</td>
-                      <td className="py-2.5 px-2 text-right font-mono text-gray-600">{it.orderedQuantity}</td>
-                      <td className="py-2.5 px-3 text-right font-bold font-mono text-sm text-slate-900">
-                        {it.dispatchQuantity}
-                      </td>
-                    </tr>
-                  ))}
+                  {(dispatch.items || []).map((it) => {
+                    const ordered = Number(it.orderedQuantity) || 0;
+                    const prevDispatched = Number(it.previouslyDispatchedQuantity) || 0;
+                    const thisDispatch = Number(it.dispatchQuantity) || 0;
+                    const totalDispatched = prevDispatched + thisDispatch;
+                    const remaining = Math.max(0, ordered - totalDispatched);
+                    return (
+                      <tr key={it.id} className="hover:bg-gray-50/50">
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-gray-900">{it.productNameSnapshot}</div>
+                          <div className="text-[10px] text-gray-400 font-mono">{it.skuSnapshot || '—'}</div>
+                        </td>
+                        <td className="py-2.5 px-2 text-center text-gray-500">{it.unitSnapshot || 'NOS'}</td>
+                        <td className="py-2.5 px-2 text-right font-mono text-gray-600">{it.orderedQuantity}</td>
+                        <td className="py-2.5 px-3 text-right font-bold font-mono text-sm text-slate-900">
+                          {it.dispatchQuantity}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {remaining > 0 ? (
+                            <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                              {remaining} pending
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-xs text-emerald-600 font-medium">
+                              <CheckCircle className="w-3.5 h-3.5 mr-1" /> Complete
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1013,7 +1149,7 @@ export const DispatchesPage: React.FC = () => {
                       )}
                     </td>
                     <td className="py-3 px-3 font-medium text-gray-800">
-                      {disp.salesOrder?.orderNumber || '—'}
+                      {disp.salesOrder?.salesOrderNumber || disp.salesOrder?.orderNumber || '—'}
                     </td>
                     <td className="py-3 px-3">
                       <div className="font-semibold text-gray-900">{disp.customerNameSnapshot}</div>

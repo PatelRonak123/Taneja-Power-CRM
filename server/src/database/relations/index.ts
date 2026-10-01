@@ -141,7 +141,7 @@ export const salesOrdersRelations = relations(salesOrders, ({ one, many }) => ({
   items: many(salesOrderItems),
 }));
 
-export const salesOrderItemsRelations = relations(salesOrderItems, ({ one }) => ({
+export const salesOrderItemsRelations = relations(salesOrderItems, ({ one, many }) => ({
   salesOrder: one(salesOrders, {
     fields: [salesOrderItems.salesOrderId],
     references: [salesOrders.id],
@@ -150,6 +150,7 @@ export const salesOrderItemsRelations = relations(salesOrderItems, ({ one }) => 
     fields: [salesOrderItems.productId],
     references: [products.id],
   }),
+  dispatchItems: many(dispatchItems),
 }));
 
 // ─── Invoice Relations ────────────────────────────────────────────────────────

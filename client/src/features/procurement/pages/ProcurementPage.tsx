@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Truck,
   FileText,
@@ -10,6 +10,7 @@ import {
   X,
   AlertTriangle,
 } from 'lucide-react';
+import { useSearchParams, useNavigationState } from '../../../app/router/navigation';
 import { ProductForm } from '../../products/modules/ProductForm/ProductForm';
 import { Supplier, PurchaseOrder, GoodsReceipt } from '../types/procurement.types';
 import { useAuthStore } from '../../../stores/authStore';
@@ -116,6 +117,23 @@ export const ProcurementPage: React.FC = () => {
   const [poStatusFilter, setPoStatusFilter] = useState('');
   const [grnSearch, setGrnSearch] = useState('');
 
+  // ── Navigation & Query State ─────────────────────────────────────────────────
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navState = useNavigationState<{
+    source?: string;
+    soNumber?: string;
+    soId?: string;
+    shortages?: Array<{
+      productId: string;
+      productName: string;
+      sku?: string;
+      unit?: string;
+      shortageQty: number;
+      orderedQty?: number;
+      inStock?: number;
+    }>;
+  }>();
+
   // ── Modal / selection state ──────────────────────────────────────────────────
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -124,6 +142,39 @@ export const ProcurementPage: React.FC = () => {
   const [showPoModal, setShowPoModal] = useState(false);
   const [selectedPo, setSelectedPo] = useState<PurchaseOrder | null>(null);
   const [poForm, setPoForm] = useState(defaultPoForm());
+
+  // Listen for navigation from Sales Order shortage workflow
+  useEffect(() => {
+    const shouldCreatePo = searchParams.get('createPo') === 'true';
+    const soNumber = searchParams.get('soNumber') || navState?.soNumber;
+
+    if (shouldCreatePo) {
+      setActiveTab('orders');
+      setShowPoModal(true);
+
+      const items =
+        navState?.shortages && navState.shortages.length > 0
+          ? navState.shortages.map((s) => ({
+              productId: s.productId,
+              quantity: s.shortageQty > 0 ? s.shortageQty : 1,
+              unitCost: 0,
+              taxRate: 18,
+            }))
+          : defaultPoForm().items;
+
+      setPoForm({
+        ...defaultPoForm(),
+        notes: soNumber ? `Procurement to fulfill stock shortage for Sales Order ${soNumber}` : '',
+        items,
+      });
+
+      // Clear the query parameter so closing and reopening doesn't re-trigger unintentionally
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('createPo');
+      nextParams.delete('soNumber');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, navState]);
 
   const [showGrnModal, setShowGrnModal] = useState(false);
   const [selectedGrn, setSelectedGrn] = useState<GoodsReceipt | null>(null);
@@ -700,6 +751,17 @@ export const ProcurementPage: React.FC = () => {
               </button>
             </div>
             <form onSubmit={handleSavePo} className="p-6 flex flex-col gap-5">
+              {poForm.notes && poForm.notes.includes('Sales Order') && (
+                <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-amber-900">Sales Order Stock Shortage Fulfillment</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      This purchase order was initiated from a Sales Order to purchase required stock deficit. Items and quantities have been pre-filled.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Supplier *</label>
@@ -714,6 +776,17 @@ export const ProcurementPage: React.FC = () => {
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Expected Delivery Date</label>
                   <input type="date" value={poForm.expectedDeliveryDate} onChange={(e) => setPoForm({ ...poForm, expectedDeliveryDate: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Procurement Notes / Reference</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Procurement to fulfill stock shortage for Sales Order SO-..."
+                  value={poForm.notes}
+                  onChange={(e) => setPoForm({ ...poForm, notes: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
 
               {/* Items Table */}
@@ -769,6 +842,11 @@ export const ProcurementPage: React.FC = () => {
                             <td className="py-2 px-3">
                               <select required value={item.productId} onChange={(e) => { const items = [...poForm.items]; items[idx].productId = e.target.value; setPoForm({ ...poForm, items }); }} className="w-full py-1 px-2 text-xs border border-slate-200 rounded-lg">
                                 <option value="">Select Product…</option>
+                                {item.productId && !availableProducts.some((p) => p.id === item.productId) && (
+                                  <option value={item.productId}>
+                                    {navState?.shortages?.find((s) => s.productId === item.productId)?.productName || 'Selected Product'} {navState?.shortages?.find((s) => s.productId === item.productId)?.sku ? `(${navState.shortages.find((s) => s.productId === item.productId)?.sku})` : ''}
+                                  </option>
+                                )}
                                 {availableProducts.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
                               </select>
                             </td>

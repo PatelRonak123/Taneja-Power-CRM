@@ -27,7 +27,14 @@ export interface SalesOrderWithDetails extends SalesOrderEntity {
   customer?: { id: string; name: string; companyName: string | null; email: string | null; phone: string | null };
   quotation?: { id: string; quotationNumber: string; quotationType: string };
   quotationRevision?: { id: string; revisionNumber: number };
-  items: SalesOrderItemEntity[];
+  items: (SalesOrderItemEntity & {
+    product?: { id: string; name: string; sku: string | null; stockQuantity: number } | null;
+    dispatchItems?: Array<{
+      id: string;
+      dispatchQuantity: string | number;
+      dispatch?: { id: string; status: string } | null;
+    }>;
+  })[];
   createdByUser?: { id: string; fullName: string; email: string };
   confirmedByUser?: { id: string; fullName: string; email: string } | null;
   cancelledByUser?: { id: string; fullName: string; email: string } | null;
@@ -41,7 +48,33 @@ export class SalesOrderRepository {
         customer: { columns: { id: true, name: true, companyName: true, email: true, phone: true } },
         quotation: { columns: { id: true, quotationNumber: true, quotationType: true } },
         quotationRevision: { columns: { id: true, revisionNumber: true } },
-        items: { orderBy: (items: any, { asc }: any) => [asc(items.sortOrder)] },
+        items: {
+          orderBy: (items: any, { asc }: any) => [asc(items.sortOrder)],
+          with: {
+            product: {
+              columns: {
+                id: true,
+                name: true,
+                sku: true,
+                stockQuantity: true,
+              },
+            },
+            dispatchItems: {
+              columns: {
+                id: true,
+                dispatchQuantity: true,
+              },
+              with: {
+                dispatch: {
+                  columns: {
+                    id: true,
+                    status: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         createdByUser: { columns: { id: true, fullName: true, email: true } },
         confirmedByUser: { columns: { id: true, fullName: true, email: true } },
         cancelledByUser: { columns: { id: true, fullName: true, email: true } },
@@ -77,7 +110,33 @@ export class SalesOrderRepository {
         with: {
           customer: { columns: { id: true, name: true, companyName: true } },
           quotation: { columns: { id: true, quotationNumber: true, quotationType: true } },
-          items: { orderBy: (items: any, { asc }: any) => [asc(items.sortOrder)] },
+          items: {
+            orderBy: (items: any, { asc }: any) => [asc(items.sortOrder)],
+            with: {
+              product: {
+                columns: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  stockQuantity: true,
+                },
+              },
+              dispatchItems: {
+                columns: {
+                  id: true,
+                  dispatchQuantity: true,
+                },
+                with: {
+                  dispatch: {
+                    columns: {
+                      id: true,
+                      status: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
           createdByUser: { columns: { id: true, fullName: true, email: true } },
           confirmedByUser: { columns: { id: true, fullName: true, email: true } },
           cancelledByUser: { columns: { id: true, fullName: true, email: true } },

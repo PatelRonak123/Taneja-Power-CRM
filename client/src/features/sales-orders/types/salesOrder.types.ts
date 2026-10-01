@@ -24,6 +24,17 @@ export interface SalesOrderItem {
   lineSubtotal: string;
   lineTotal: string;
   sortOrder: number;
+  product?: {
+    id: string;
+    name: string;
+    sku: string | null;
+    stockQuantity: number;
+  } | null;
+  dispatchItems?: Array<{
+    id: string;
+    dispatchQuantity: string | number;
+    dispatch?: { id: string; status: string } | null;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,6 +69,7 @@ export interface SalesOrder {
   totalAmount: string;
 
   status: SalesOrderStatus;
+  dispatchStatus?: 'NOT_DISPATCHED' | 'PARTIALLY_DISPATCHED' | 'FULLY_DISPATCHED' | string;
 
   createdBy: string;
   confirmedBy: string | null;

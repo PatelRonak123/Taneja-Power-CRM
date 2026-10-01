@@ -57,7 +57,9 @@ export interface Dispatch {
   items?: DispatchItem[];
   salesOrder?: {
     id: string;
-    orderNumber: string;
+    orderNumber?: string;
+    salesOrderNumber?: string;
+    customerPoNumber?: string | null;
     status: string;
     dispatchStatus: string;
   };
