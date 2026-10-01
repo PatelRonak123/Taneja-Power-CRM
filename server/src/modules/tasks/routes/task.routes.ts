@@ -38,10 +38,10 @@ router.get(
   taskController.getSalesFieldEmployees
 );
 
-// 3. Admin & Manager Live Route Tracking Overview (must be defined before /:id)
+// 3. Live Route Tracking Overview (Admin, Manager, Service Office & Sales Office - must be defined before /:id)
 router.get(
   '/active-tracking',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  requireTaskManager,
   taskController.getActiveTracking
 );
 

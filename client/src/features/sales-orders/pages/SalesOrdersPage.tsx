@@ -80,6 +80,10 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
   }>>([]);
   const [loadingQuotations, setLoadingQuotations] = React.useState(true);
 
+  // Fetch full details of the chosen quotation to evaluate stock levels
+  const [selectedQuotationDetail, setSelectedQuotationDetail] = React.useState<any>(null);
+  const [loadingQuotationDetail, setLoadingQuotationDetail] = React.useState(false);
+
   React.useEffect(() => {
     let cancelled = false;
     setLoadingQuotations(true);
@@ -102,7 +106,35 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
     return () => { cancelled = true; };
   }, []);
 
+  React.useEffect(() => {
+    if (!form.quotationId) {
+      setSelectedQuotationDetail(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingQuotationDetail(true);
+    import('../../quotations/services/quotationService').then(({ quotationService }) => {
+      quotationService.getQuotationById(form.quotationId)
+        .then((res: any) => {
+          if (!cancelled && res?.data) {
+            setSelectedQuotationDetail(res.data);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setLoadingQuotationDetail(false);
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.quotationId]);
+
   const selectedQuotation = approvedQuotations.find((q) => q.id === form.quotationId);
+  const quotationItemsList = selectedQuotationDetail?.currentRevision?.items || [];
+  const hasShortage = quotationItemsList.some(
+    (it: any) => (it.stockQuantity ?? 0) < Number(it.quantity)
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,20 +147,23 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
               <ShoppingCart className="w-5 h-5 text-indigo-600" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">Create Sales Order</h2>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Create Sales Order</h2>
+              <p className="text-xs text-gray-500">From an approved customer quotation</p>
+            </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Select Quotation <span className="text-red-500">*</span>
@@ -173,6 +208,94 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
                 )}
               </div>
             )}
+
+            {/* Stock Availability & Fulfillment Breakdown */}
+            {loadingQuotationDetail ? (
+              <div className="mt-3 py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-500 flex items-center gap-2">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                Checking current warehouse stock levels…
+              </div>
+            ) : quotationItemsList.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Stock Availability & Fulfillment Assessment
+                  </span>
+                  {hasShortage ? (
+                    <span className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 text-rose-600" /> Stock Shortage Detected
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3 text-emerald-600" /> Complete Stock Available
+                    </span>
+                  )}
+                </div>
+
+                <div className="border border-gray-200 rounded-xl overflow-hidden text-xs">
+                  <table className="w-full text-left">
+                    <thead className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200">
+                      <tr>
+                        <th className="py-2 px-3">Item / SKU</th>
+                        <th className="py-2 px-2 text-right">Required</th>
+                        <th className="py-2 px-2 text-right">In Stock</th>
+                        <th className="py-2 px-2 text-right text-emerald-700">Can Fulfill</th>
+                        <th className="py-2 px-3 text-right">Fulfillment Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {quotationItemsList.map((it: any) => {
+                        const requiredQty = Number(it.quantity);
+                        const inStock = it.stockQuantity ?? 0;
+                        const canFulfill = Math.min(requiredQty, inStock);
+                        const shortage = Math.max(0, requiredQty - inStock);
+
+                        return (
+                          <tr key={it.id} className="hover:bg-gray-50/50">
+                            <td className="py-2 px-3 font-medium text-gray-900">
+                              <div>{it.productName}</div>
+                              {it.productSku && (
+                                <div className="text-[10px] text-gray-400 font-mono">{it.productSku}</div>
+                              )}
+                            </td>
+                            <td className="py-2 px-2 text-right font-mono text-gray-700">
+                              {requiredQty} {it.unit}
+                            </td>
+                            <td className="py-2 px-2 text-right font-mono text-gray-900 font-bold">
+                              {inStock}
+                            </td>
+                            <td className="py-2 px-2 text-right font-mono text-emerald-700 font-semibold">
+                              {canFulfill} {it.unit}
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              {shortage > 0 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 font-mono">
+                                  Shortage: {shortage} {it.unit}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  In Stock
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {hasShortage && (
+                  <p className="text-[11px] text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200 flex items-start gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <span>
+                      <strong>Procurement Note:</strong> You can create this Sales Order now. A Purchase Order can be raised directly from the Sales Order screen to purchase the shortage before dispatch.
+                    </span>
+                  </p>
+                )}
+              </div>
+            ) : null}
+
             <p className="mt-1 text-xs text-gray-400">
               Only APPROVED quotations are listed. Totals are recalculated server-side.
             </p>
@@ -393,50 +516,181 @@ const DetailDrawer: React.FC<DetailDrawerProps> = ({
           </div>
         </section>
 
-        {/* Line Items */}
-        <section>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Line Items</p>
-          <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Product</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">Qty</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">Unit Price</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">Tax</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {so.items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{item.productNameSnapshot}</p>
-                      {item.skuSnapshot && <p className="text-xs text-gray-500">{item.skuSnapshot}</p>}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-700">{item.quantity} {item.unitSnapshot}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">{fmt(item.unitPrice)}</td>
-                    <td className="px-4 py-3 text-right text-gray-500">{Number(item.taxRate)}%</td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">{fmt(item.lineTotal)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        {/* Shortage Warning Banner */}
+        {(() => {
+          const isFullyDispatched = so.dispatchStatus === 'FULLY_DISPATCHED';
+          const isCancelled = so.status === 'CANCELLED';
 
-          {/* Totals */}
-          <div className="mt-3 border border-gray-200 rounded-xl p-4 space-y-2 text-sm">
-            <div className="flex justify-between text-gray-600">
-              <span>Subtotal</span><span>{fmt(so.subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-gray-600">
-              <span>Tax</span><span>{fmt(so.taxAmount)}</span>
-            </div>
-            <div className="flex justify-between font-semibold text-gray-900 text-base border-t pt-2 mt-2">
-              <span>Total</span><span>{fmt(so.totalAmount)}</span>
-            </div>
-          </div>
-        </section>
+          const shortageAnalysis = (so.items || []).map((item) => {
+            const ordered = Number(item.quantity) || 0;
+            const alreadyDispatched = isFullyDispatched
+              ? ordered
+              : (item.dispatchItems || [])
+                  .filter((di: any) => di.dispatch?.status === 'DISPATCHED')
+                  .reduce((sum: number, di: any) => sum + Number(di.dispatchQuantity || 0), 0);
+            const remainingToDispatch = Math.max(0, ordered - alreadyDispatched);
+            const stock = Number(item.product?.stockQuantity ?? 0);
+            const fulfillable = Math.min(remainingToDispatch, stock);
+            const shortage = isFullyDispatched || isCancelled ? 0 : Math.max(0, remainingToDispatch - stock);
+            return {
+              item,
+              ordered,
+              alreadyDispatched,
+              remainingToDispatch,
+              stock,
+              fulfillable,
+              shortage,
+            };
+          });
+          const shortageItems = shortageAnalysis.filter((s) => s.shortage > 0);
+          const hasShortages = shortageItems.length > 0;
+
+          return (
+            <>
+              {hasShortages && !isCancelled && !isFullyDispatched && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-900">Stock Shortage Detected — Procurement Required</p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        Current warehouse stock is insufficient for {shortageItems.length} item{shortageItems.length > 1 ? 's' : ''}. Need to purchase{' '}
+                        <span className="font-semibold">
+                          {shortageItems.reduce((acc, s) => acc + s.shortage, 0)} units
+                        </span>{' '}
+                        to fulfill the remaining balance of this order.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    id="so-detail-raise-po"
+                    type="button"
+                    onClick={() => {
+                      navigate('/procurement?createPo=true&soNumber=' + encodeURIComponent(so.salesOrderNumber), {
+                        source: 'sales-order',
+                        soNumber: so.salesOrderNumber,
+                        soId: so.id,
+                        shortages: shortageItems.map((s) => ({
+                          productId: s.item.productId,
+                          productName: s.item.productNameSnapshot,
+                          sku: s.item.skuSnapshot,
+                          unit: s.item.unitSnapshot,
+                          shortageQty: s.shortage,
+                          orderedQty: s.ordered,
+                          inStock: s.stock,
+                        })),
+                      });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition-colors whitespace-nowrap"
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    Raise PO for Shortage ({shortageItems.reduce((acc, s) => acc + s.shortage, 0)} units)
+                  </button>
+                </div>
+              )}
+
+              {/* Line Items */}
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Line Items &amp; Stock Fulfillment</p>
+                  {isFullyDispatched ? (
+                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" /> 100% Dispatched / Delivered
+                    </span>
+                  ) : hasShortages ? (
+                    <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                      Shortage: {shortageItems.reduce((acc, s) => acc + s.shortage, 0)} units
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      100% In Stock
+                    </span>
+                  )}
+                </div>
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Product</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600">Ordered</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600">Delivered</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600">In Stock</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600">Can Fulfill</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600">Status</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {shortageAnalysis.map(
+                        ({ item, ordered, alreadyDispatched, remainingToDispatch, stock, fulfillable, shortage }) => (
+                          <tr key={item.id} className={shortage > 0 ? 'bg-amber-50/40' : undefined}>
+                            <td className="px-3 py-3">
+                              <p className="font-medium text-gray-900">{item.productNameSnapshot}</p>
+                              {item.skuSnapshot && <p className="text-xs text-gray-500">{item.skuSnapshot}</p>}
+                            </td>
+                            <td className="px-3 py-3 text-center text-gray-800 font-semibold">
+                              {ordered} <span className="text-xs text-gray-500 font-normal">{item.unitSnapshot}</span>
+                            </td>
+                            <td className="px-3 py-3 text-center text-gray-600 font-mono text-xs">
+                              {alreadyDispatched} {item.unitSnapshot}
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              <span
+                                className={`inline-block font-mono text-xs font-semibold px-2 py-0.5 rounded ${
+                                  stock >= remainingToDispatch
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : stock > 0
+                                    ? 'bg-amber-50 text-amber-700'
+                                    : 'bg-rose-50 text-rose-700'
+                                }`}
+                              >
+                                {stock}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              <span className="font-mono text-xs font-semibold text-emerald-700">
+                                {fulfillable}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              {isFullyDispatched || remainingToDispatch === 0 ? (
+                                <span className="inline-flex items-center text-xs text-emerald-600 font-medium">
+                                  <CheckCircle className="w-3.5 h-3.5 mr-1" /> Delivered
+                                </span>
+                              ) : shortage > 0 ? (
+                                <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                                  {shortage} short
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center text-xs text-blue-600 font-medium">
+                                  <CheckCircle className="w-3.5 h-3.5 mr-1" /> Ready
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-right font-medium text-gray-900">{fmt(item.lineTotal)}</td>
+                          </tr>
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Totals */}
+                <div className="mt-3 border border-gray-200 rounded-xl p-4 space-y-2 text-sm">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Subtotal</span><span>{fmt(so.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Tax</span><span>{fmt(so.taxAmount)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-gray-900 text-base border-t pt-2 mt-2">
+                    <span>Total</span><span>{fmt(so.totalAmount)}</span>
+                  </div>
+                </div>
+              </section>
+            </>
+          );
+        })()}
 
         {/* Cancellation Info */}
         {so.status === 'CANCELLED' && so.cancellationReason && (
@@ -459,6 +713,51 @@ const DetailDrawer: React.FC<DetailDrawerProps> = ({
       {/* Action Footer */}
       {so.status !== 'CANCELLED' && (
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex gap-3 flex-wrap">
+          {(() => {
+            const isFullyDispatched = so.dispatchStatus === 'FULLY_DISPATCHED';
+            if (isFullyDispatched) return null;
+
+            const shortageItems = (so.items || [])
+              .map((item) => {
+                const ordered = Number(item.quantity) || 0;
+                const alreadyDispatched = (item.dispatchItems || [])
+                  .filter((di: any) => di.dispatch?.status === 'DISPATCHED')
+                  .reduce((sum: number, di: any) => sum + Number(di.dispatchQuantity || 0), 0);
+                const remainingToDispatch = Math.max(0, ordered - alreadyDispatched);
+                const stock = Number(item.product?.stockQuantity ?? 0);
+                return {
+                  productId: item.productId,
+                  productName: item.productNameSnapshot,
+                  sku: item.skuSnapshot,
+                  unit: item.unitSnapshot,
+                  shortageQty: remainingToDispatch - stock,
+                  orderedQty: ordered,
+                  inStock: stock,
+                  remainingToDispatch,
+                };
+              })
+              .filter((it) => it.remainingToDispatch > 0 && it.inStock < it.remainingToDispatch);
+
+            if (shortageItems.length === 0) return null;
+
+            return (
+              <button
+                id="so-detail-footer-raise-po"
+                type="button"
+                onClick={() => {
+                  navigate('/procurement?createPo=true&soNumber=' + encodeURIComponent(so.salesOrderNumber), {
+                    source: 'sales-order',
+                    soNumber: so.salesOrderNumber,
+                    soId: so.id,
+                    shortages: shortageItems,
+                  });
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg transition-colors"
+              >
+                <ShoppingCart className="w-4 h-4 text-amber-700" /> Purchase Shortage
+              </button>
+            );
+          })()}
           {so.status === 'DRAFT' && (
             <button
               id="so-detail-submit"
@@ -682,17 +981,42 @@ export const SalesOrdersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {salesOrders.map((so: SalesOrder) => (
-                  <tr key={so.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <span className="font-mono text-xs font-semibold text-indigo-700">{so.salesOrderNumber}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900 truncate max-w-32">{so.customer?.name ?? '—'}</p>
-                      {so.customer?.companyName && (
-                        <p className="text-xs text-gray-500 truncate max-w-32">{so.customer.companyName}</p>
-                      )}
-                    </td>
+                {salesOrders.map((so: SalesOrder) => {
+                  const isFullyDispatched = so.dispatchStatus === 'FULLY_DISPATCHED';
+                  const isCancelled = so.status === 'CANCELLED';
+                  const shortages =
+                    isFullyDispatched || isCancelled
+                      ? []
+                      : (so.items || []).filter((item) => {
+                          const ordered = Number(item.quantity) || 0;
+                          const dispatched = (item.dispatchItems || [])
+                            .filter((di: any) => di.dispatch?.status === 'DISPATCHED')
+                            .reduce((sum: number, di: any) => sum + Number(di.dispatchQuantity || 0), 0);
+                          const remaining = Math.max(0, ordered - dispatched);
+                          const stock = Number(item.product?.stockQuantity ?? 0);
+                          return remaining > 0 && stock < remaining;
+                        });
+
+                  return (
+                    <tr key={so.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-xs font-semibold text-indigo-700">{so.salesOrderNumber}</span>
+                        {isFullyDispatched ? (
+                          <span className="block mt-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 w-fit">
+                            Delivered
+                          </span>
+                        ) : shortages.length > 0 && !isCancelled ? (
+                          <span className="block mt-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 w-fit">
+                            Shortage ({shortages.length} item{shortages.length > 1 ? 's' : ''})
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-gray-900 truncate max-w-32">{so.customer?.name ?? '—'}</p>
+                        {so.customer?.companyName && (
+                          <p className="text-xs text-gray-500 truncate max-w-32">{so.customer.companyName}</p>
+                        )}
+                      </td>
                     <td className="px-4 py-3 text-gray-600 text-xs font-mono">
                       {so.customerPoNumber ?? '—'}
                     </td>
@@ -751,7 +1075,8 @@ export const SalesOrdersPage: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
 

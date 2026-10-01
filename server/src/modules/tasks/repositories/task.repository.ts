@@ -332,7 +332,13 @@ export class TaskRepository {
     };
   }
 
-  async findActiveTrackingTasks(): Promise<TaskWithDetails[]> {
+  async findActiveTrackingTasks(createdById?: string): Promise<TaskWithDetails[]> {
+    const conditions = [eq(tasks.status, 'IN_PROGRESS')];
+    if (createdById) {
+      conditions.push(eq(tasks.createdBy, createdById));
+    }
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+
     const rows = await db
       .select({
         task: tasks,
@@ -377,7 +383,7 @@ export class TaskRepository {
       .leftJoin(customerDestinations, eq(tasks.destinationId, customerDestinations.id))
       .leftJoin(assignedUsers, eq(tasks.assignedTo, assignedUsers.id))
       .leftJoin(createdByUsers, eq(tasks.createdBy, createdByUsers.id))
-      .where(eq(tasks.status, 'IN_PROGRESS'))
+      .where(whereClause)
       .orderBy(desc(tasks.lastLocationUpdatedAt), desc(tasks.startedAt));
 
     return rows.map((r) => ({
