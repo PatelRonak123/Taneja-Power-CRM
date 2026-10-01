@@ -49,10 +49,12 @@ export const DeliveryChallanPrintDocument: React.FC<Props> = ({ dispatch }) => {
                 <span className="text-slate-500">Dispatch Date:</span>{' '}
                 <strong className="text-slate-900">{formatDate(dispatch.dispatchDate)}</strong>
               </div>
-              {dispatch.salesOrder?.orderNumber && (
+              {(dispatch.salesOrder?.salesOrderNumber || dispatch.salesOrder?.orderNumber) && (
                 <div>
                   <span className="text-slate-500">SO Ref:</span>{' '}
-                  <strong className="text-slate-800">{dispatch.salesOrder.orderNumber}</strong>
+                  <strong className="text-slate-800">
+                    {dispatch.salesOrder.salesOrderNumber || dispatch.salesOrder.orderNumber}
+                  </strong>
                 </div>
               )}
               {dispatch.salesInvoice?.invoiceNumber && (

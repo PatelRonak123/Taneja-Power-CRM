@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigationState, navigate } from '../../../app/router/navigation';
 import {
   Truck,
   Plus,
@@ -11,6 +12,9 @@ import {
   AlertTriangle,
   PackageCheck,
   Building2,
+  FileText,
+  ShoppingCart,
+  CheckCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
 import type {
@@ -27,6 +31,7 @@ import {
   useCancelDispatch,
 } from '../hooks';
 import { useSalesOrders } from '../../sales-orders/hooks';
+import { useSalesInvoices } from '../../invoices/hooks';
 import { DeliveryChallanPrintDocument } from '../components/DeliveryChallanPrintDocument';
 
 // ─── Status Badges ────────────────────────────────────────────────────────────
@@ -52,10 +57,20 @@ function StatusBadge({ status }: { status: DispatchStatus }) {
 interface CreateModalProps {
   onClose: () => void;
   initialSalesOrderId?: string;
+  initialSalesInvoiceId?: string;
 }
 
-const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSalesOrderId }) => {
+const CreateDispatchModal: React.FC<CreateModalProps> = ({
+  onClose,
+  initialSalesOrderId,
+  initialSalesInvoiceId,
+}) => {
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>(initialSalesInvoiceId || '');
   const [selectedSoId, setSelectedSoId] = useState<string>(initialSalesOrderId || '');
+  const [selectionMode, setSelectionMode] = useState<'INVOICE' | 'SALES_ORDER'>(
+    initialSalesOrderId && !initialSalesInvoiceId ? 'SALES_ORDER' : 'INVOICE'
+  );
+
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [transporterName, setTransporterName] = useState('');
   const [transporterContact, setTransporterContact] = useState('');
@@ -63,6 +78,12 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSales
   const [driverPhone, setDriverPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+
+  // Sales Invoices eligible for delivery challan (Phase 4/5)
+  const { data: invRes, isLoading: loadingInvoices } = useSalesInvoices({ limit: 500 });
+  const invoices = (invRes?.data || []).filter((inv: any) =>
+    ['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status)
+  );
 
   // Sales Orders eligible for dispatch
   const { data: soRes, isLoading: loadingSOs } = useSalesOrders();
@@ -72,10 +93,22 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSales
       so.dispatchStatus !== 'FULLY_DISPATCHED'
   );
 
+  // Auto-sync SO ID when an invoice is chosen or loaded from initial prop
+  useEffect(() => {
+    if (selectedInvoiceId && invoices.length > 0) {
+      const inv = invoices.find((i: any) => i.id === selectedInvoiceId);
+      if (inv?.salesOrderId && inv.salesOrderId !== selectedSoId) {
+        setSelectedSoId(inv.salesOrderId);
+      }
+    }
+  }, [selectedInvoiceId, invoices, selectedSoId]);
+
   // Dispatchable items query for selected SO
   const { data: dispatchable, isLoading: loadingItems } = useDispatchableItems(selectedSoId);
 
   const createDispatchMutation = useCreateDispatch();
+
+  const selectedInvoice = invoices.find((i: any) => i.id === selectedInvoiceId);
 
   const handleQtyChange = (itemId: string, maxQty: number, maxStock: number, val: string) => {
     const num = parseFloat(val);
@@ -111,6 +144,7 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSales
 
     const payload: CreateDispatchPayload = {
       salesOrderId: selectedSoId,
+      salesInvoiceId: selectedInvoiceId || undefined,
       vehicleNumber: vehicleNumber.trim() || undefined,
       transporterName: transporterName.trim() || undefined,
       transporterContact: transporterContact.trim() || undefined,
@@ -141,7 +175,11 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSales
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Create Delivery Challan / Dispatch</h2>
-              <p className="text-xs text-gray-500">From a confirmed Sales Order (Starts as DRAFT, no stock deduction yet)</p>
+              <p className="text-xs text-gray-500">
+                {selectedInvoiceId
+                  ? 'Fulfill & generate Delivery Challan against Sales Invoice'
+                  : 'From a confirmed Sales Order (Starts as DRAFT, no stock deduction yet)'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
@@ -151,29 +189,151 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSales
 
         {/* Content Form */}
         <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-6 flex-1">
-          {/* Sales Order Selection */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
-              Select Sales Order *
-            </label>
-            <select
-              value={selectedSoId}
-              onChange={(e) => {
-                setSelectedSoId(e.target.value);
-                setQuantities({});
-              }}
-              required
-              disabled={!!initialSalesOrderId || loadingSOs}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value="">-- Choose Confirmed Sales Order --</option>
-              {salesOrders.map((so: any) => (
-                <option key={so.id} value={so.id}>
-                  {so.orderNumber || so.id} — {so.customer?.companyName || so.customerNameSnapshot || 'Customer'} (Status: {so.status}, Dispatch: {so.dispatchStatus || 'NOT_DISPATCHED'})
+          {/* If opened from Invoice Page, show prominent banner */}
+          {initialSalesInvoiceId && (
+            <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 font-medium">
+              <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>
+                Auto-filling Delivery Challan for Sales Invoice{' '}
+                <strong className="font-mono text-blue-700 font-bold">
+                  {selectedInvoice?.invoiceNumber || 'Linked Invoice'}
+                </strong>
+                . Delivery details and items have been populated below.
+              </span>
+            </div>
+          )}
+
+          {/* Mode Switcher Tabs (if not pre-locked from invoice page) */}
+          {!initialSalesInvoiceId && !initialSalesOrderId && (
+            <div className="flex bg-gray-100 p-1 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectionMode('INVOICE');
+                  if (selectedInvoice?.salesOrderId) setSelectedSoId(selectedInvoice.salesOrderId);
+                  else setSelectedSoId('');
+                  setQuantities({});
+                }}
+                className={`flex-1 py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                  selectionMode === 'INVOICE'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Select by Sales Invoice (Recommended)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectionMode('SALES_ORDER');
+                  setSelectedInvoiceId('');
+                  setQuantities({});
+                }}
+                className={`flex-1 py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                  selectionMode === 'SALES_ORDER'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>Direct by Sales Order</span>
+              </button>
+            </div>
+          )}
+
+          {/* Selection Dropdown */}
+          {selectionMode === 'INVOICE' ? (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                Select Sales Invoice *
+              </label>
+              <select
+                value={selectedInvoiceId}
+                onChange={(e) => {
+                  const invId = e.target.value;
+                  setSelectedInvoiceId(invId);
+                  const inv = invoices.find((i: any) => i.id === invId);
+                  setSelectedSoId(inv?.salesOrderId || '');
+                  setQuantities({});
+                }}
+                required
+                disabled={!!initialSalesInvoiceId || loadingInvoices}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="">
+                  {loadingInvoices ? 'Loading invoices...' : '-- Choose Issued Sales Invoice --'}
                 </option>
-              ))}
-            </select>
-          </div>
+                {invoices.map((inv: any) => {
+                  const cust =
+                    inv.customerNameSnapshot ||
+                    inv.customer?.companyName ||
+                    inv.customer?.name ||
+                    'Customer';
+                  const amount = Number(inv.totalAmount || 0).toLocaleString('en-IN', {
+                    maximumFractionDigits: 2,
+                  });
+                  const soNum = inv.salesOrder?.salesOrderNumber || '—';
+                  return (
+                    <option key={inv.id} value={inv.id}>
+                      {inv.invoiceNumber} · {cust} · ₹{amount} (SO: {soNum})
+                    </option>
+                  );
+                })}
+              </select>
+
+              {/* Selected Invoice Details Snapshot */}
+              {selectedInvoice && (
+                <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-gray-900 font-mono">{selectedInvoice.invoiceNumber}</span>
+                    <span className="text-gray-600">
+                      · {selectedInvoice.customerNameSnapshot || selectedInvoice.customer?.companyName || selectedInvoice.customer?.name || 'Customer'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                      {selectedInvoice.status}
+                    </span>
+                  </div>
+                  <div className="text-gray-600">
+                    Linked SO:{' '}
+                    <strong className="text-gray-900 font-mono">
+                      {selectedInvoice.salesOrder?.salesOrderNumber || 'Linked'}
+                    </strong>
+                    {' · '}
+                    Amount:{' '}
+                    <strong className="text-blue-700 font-mono">
+                      ₹{Number(selectedInvoice.totalAmount || 0).toLocaleString('en-IN')}
+                    </strong>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                Select Sales Order *
+              </label>
+              <select
+                value={selectedSoId}
+                onChange={(e) => {
+                  setSelectedSoId(e.target.value);
+                  setQuantities({});
+                }}
+                required
+                disabled={!!initialSalesOrderId || loadingSOs}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="">
+                  {loadingSOs ? 'Loading sales orders...' : '-- Choose Confirmed Sales Order --'}
+                </option>
+                {salesOrders.map((so: any) => (
+                  <option key={so.id} value={so.id}>
+                    {so.salesOrderNumber || so.orderNumber || so.id} · {so.customer?.companyName || so.customerNameSnapshot || 'Customer'} (Status: {so.status}, Dispatch: {so.dispatchStatus || 'NOT_DISPATCHED'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Delivery & Dispatchable Items */}
           {selectedSoId && (
@@ -198,75 +358,190 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({ onClose, initialSales
                     </div>
                   </div>
 
-                  {/* Items Table */}
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
-                      Dispatch Items & Stock Availability
-                    </h3>
-                    <div className="border border-gray-200 rounded-xl overflow-hidden">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-gray-50 border-b border-gray-200 font-semibold text-gray-600">
-                          <tr>
-                            <th className="py-2.5 px-3">Item / SKU</th>
-                            <th className="py-2.5 px-2 text-right">Ordered</th>
-                            <th className="py-2.5 px-2 text-right">Prev. Dispatched</th>
-                            <th className="py-2.5 px-2 text-right text-blue-600">Remaining</th>
-                            <th className="py-2.5 px-2 text-right text-emerald-600 font-bold">Physical Stock</th>
-                            <th className="py-2.5 px-3 text-right w-32">Dispatch Qty</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {dispatchable.items.map((item) => {
-                            const defaultQty = Math.min(item.remainingDispatchableQuantity, item.currentPhysicalStock);
-                            const currentVal = quantities[item.salesOrderItemId] !== undefined ? quantities[item.salesOrderItemId] : defaultQty;
-                            const isOutOfStock = item.currentPhysicalStock <= 0;
+                  {/* Items Table & Shortage Assessment */}
+                  {(() => {
+                    const shortageAnalysis = dispatchable.items.map((item) => {
+                      const ordered = Number(item.orderedQuantity) || 0;
+                      const prevDispatched = Number(item.previouslyDispatchedQuantity) || 0;
+                      const orderRemaining = Math.max(0, ordered - prevDispatched);
+                      const physicalStock = Number(item.currentPhysicalStock) || 0;
+                      const defaultQty = Math.min(orderRemaining, physicalStock);
+                      const currentVal =
+                        quantities[item.salesOrderItemId] !== undefined
+                          ? quantities[item.salesOrderItemId]
+                          : defaultQty;
+                      const balanceAfterDispatch = Math.max(0, orderRemaining - currentVal);
+                      const hasShortage = physicalStock < orderRemaining;
 
-                            return (
-                              <tr key={item.salesOrderItemId} className="hover:bg-gray-50/50">
-                                <td className="py-2.5 px-3">
-                                  <div className="font-semibold text-gray-900">{item.productName}</div>
-                                  <div className="text-[10px] text-gray-400 font-mono">{item.sku || 'No SKU'}</div>
-                                </td>
-                                <td className="py-2.5 px-2 text-right text-gray-600 font-mono">
-                                  {item.orderedQuantity} {item.unit}
-                                </td>
-                                <td className="py-2.5 px-2 text-right text-gray-500 font-mono">
-                                  {item.previouslyDispatchedQuantity}
-                                </td>
-                                <td className="py-2.5 px-2 text-right font-semibold text-blue-700 font-mono">
-                                  {item.remainingDispatchableQuantity}
-                                </td>
-                                <td className="py-2.5 px-2 text-right font-bold font-mono">
-                                  <span className={item.currentPhysicalStock > 0 ? 'text-emerald-700' : 'text-rose-600 font-bold'}>
-                                    {item.currentPhysicalStock}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 text-right">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max={Math.min(item.remainingDispatchableQuantity, item.currentPhysicalStock)}
-                                    step="any"
-                                    value={currentVal}
-                                    disabled={isOutOfStock || item.remainingDispatchableQuantity <= 0}
-                                    onChange={(e) =>
-                                      handleQtyChange(
-                                        item.salesOrderItemId,
-                                        item.remainingDispatchableQuantity,
-                                        item.currentPhysicalStock,
-                                        e.target.value
-                                      )
-                                    }
-                                    className="w-24 px-2 py-1 border border-gray-300 rounded text-right font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
-                                  />
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                      return {
+                        item,
+                        ordered,
+                        prevDispatched,
+                        orderRemaining,
+                        physicalStock,
+                        currentVal,
+                        balanceAfterDispatch,
+                        hasShortage,
+                      };
+                    });
+
+                    const hasAnyShortage = shortageAnalysis.some((s) => s.hasShortage);
+                    const shortageItems = shortageAnalysis.filter((s) => s.hasShortage);
+
+                    return (
+                      <div className="space-y-3">
+                        {/* Shortage Warning Banner */}
+                        {hasAnyShortage && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                            <div className="flex items-start gap-2.5">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-xs font-bold text-amber-900">
+                                  Stock Shortage Detected — Partial Dispatch Available
+                                </p>
+                                <p className="text-[11px] text-amber-700 mt-0.5">
+                                  Physical warehouse stock is insufficient to completely fulfill the order ({shortageItems.map((i) => `${i.item.productName}: In Stock ${i.physicalStock} / Required ${i.orderRemaining}`).join(', ')}). You can dispatch available physical stock now; the remaining shortage will stay pending until stock is purchased.
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onClose();
+                                navigate('/procurement?createPo=true&soNumber=' + encodeURIComponent(dispatchable.orderNumber), {
+                                  source: 'delivery-challan',
+                                  soNumber: dispatchable.orderNumber,
+                                  soId: dispatchable.salesOrderId,
+                                  shortages: shortageItems.map((s) => ({
+                                    productId: s.item.productId,
+                                    productName: s.item.productName,
+                                    sku: s.item.sku || undefined,
+                                    unit: s.item.unit,
+                                    shortageQty: s.orderRemaining - s.physicalStock,
+                                    orderedQty: s.ordered,
+                                    inStock: s.physicalStock,
+                                  })),
+                                });
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-xs transition-colors whitespace-nowrap self-start sm:self-auto"
+                            >
+                              <ShoppingCart className="w-3.5 h-3.5" />
+                              Purchase Shortage
+                            </button>
+                          </div>
+                        )}
+
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                              Dispatch Items & Stock Fulfillment
+                            </h3>
+                            {hasAnyShortage ? (
+                              <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                                Partial Stock Available
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                100% In Stock
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="border border-gray-200 rounded-xl overflow-hidden">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-gray-50 border-b border-gray-200 font-semibold text-gray-600">
+                                <tr>
+                                  <th className="py-2.5 px-3">Item / SKU</th>
+                                  <th className="py-2.5 px-2 text-center">Ordered</th>
+                                  <th className="py-2.5 px-2 text-center">Prev. Dispatched</th>
+                                  <th className="py-2.5 px-2 text-center text-emerald-700 font-bold">In Stock</th>
+                                  <th className="py-2.5 px-3 text-center w-28">Dispatch Qty</th>
+                                  <th className="py-2.5 px-3 text-center">Remaining / Short</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {shortageAnalysis.map(
+                                  ({
+                                    item,
+                                    ordered,
+                                    prevDispatched,
+                                    orderRemaining,
+                                    physicalStock,
+                                    currentVal,
+                                    balanceAfterDispatch,
+                                    hasShortage,
+                                  }) => {
+                                    const isOutOfStock = physicalStock <= 0;
+
+                                    return (
+                                      <tr
+                                        key={item.salesOrderItemId}
+                                        className={hasShortage ? 'bg-amber-50/30 hover:bg-amber-50/50' : 'hover:bg-gray-50/50'}
+                                      >
+                                        <td className="py-2.5 px-3">
+                                          <div className="font-semibold text-gray-900">{item.productName}</div>
+                                          <div className="text-[10px] text-gray-400 font-mono">{item.sku || 'No SKU'}</div>
+                                        </td>
+                                        <td className="py-2.5 px-2 text-center text-gray-800 font-medium">
+                                          {ordered} <span className="text-[10px] text-gray-500 font-normal">{item.unit}</span>
+                                        </td>
+                                        <td className="py-2.5 px-2 text-center text-gray-500 font-mono">
+                                          {prevDispatched}
+                                        </td>
+                                        <td className="py-2.5 px-2 text-center">
+                                          <span
+                                            className={`inline-block font-mono text-xs font-semibold px-2 py-0.5 rounded ${
+                                              physicalStock >= orderRemaining
+                                                ? 'bg-emerald-50 text-emerald-700'
+                                                : physicalStock > 0
+                                                ? 'bg-amber-50 text-amber-700'
+                                                : 'bg-rose-50 text-rose-700'
+                                            }`}
+                                          >
+                                            {physicalStock}
+                                          </span>
+                                        </td>
+                                        <td className="py-2.5 px-3 text-center">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            max={Math.min(orderRemaining, physicalStock)}
+                                            step="any"
+                                            value={currentVal}
+                                            disabled={isOutOfStock || orderRemaining <= 0}
+                                            onChange={(e) =>
+                                              handleQtyChange(
+                                                item.salesOrderItemId,
+                                                orderRemaining,
+                                                physicalStock,
+                                                e.target.value
+                                              )
+                                            }
+                                            className="w-24 px-2 py-1 border border-gray-300 rounded text-center font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                                          />
+                                        </td>
+                                        <td className="py-2.5 px-3 text-center">
+                                          {balanceAfterDispatch > 0 ? (
+                                            <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-full">
+                                              {balanceAfterDispatch} short
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center text-xs text-emerald-600 font-medium">
+                                              <CheckCircle className="w-3.5 h-3.5 mr-1" /> Fulfilled
+                                            </span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  }
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Logistics / Transport Details */}
                   <div>
@@ -442,7 +717,13 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
               <StatusBadge status={dispatch.status} />
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Sales Order Ref: <strong className="text-gray-700">{dispatch.salesOrder?.orderNumber || '—'}</strong>
+              Sales Order Ref: <strong className="text-gray-700">{dispatch.salesOrder?.salesOrderNumber || dispatch.salesOrder?.orderNumber || '—'}</strong>
+              {dispatch.salesInvoice?.invoiceNumber && (
+                <>
+                  {' · '}Invoice Ref:{' '}
+                  <strong className="text-blue-700 font-mono">{dispatch.salesInvoice.invoiceNumber}</strong>
+                </>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -525,22 +806,41 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
                     <th className="py-2 px-2 text-center">Unit</th>
                     <th className="py-2 px-2 text-right">SO Ordered</th>
                     <th className="py-2 px-3 text-right font-bold text-slate-900">Dispatched Qty</th>
+                    <th className="py-2 px-3 text-center">Remaining Balance</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {(dispatch.items || []).map((it) => (
-                    <tr key={it.id} className="hover:bg-gray-50/50">
-                      <td className="py-2.5 px-3">
-                        <div className="font-semibold text-gray-900">{it.productNameSnapshot}</div>
-                        <div className="text-[10px] text-gray-400 font-mono">{it.skuSnapshot || '—'}</div>
-                      </td>
-                      <td className="py-2.5 px-2 text-center text-gray-500">{it.unitSnapshot || 'NOS'}</td>
-                      <td className="py-2.5 px-2 text-right font-mono text-gray-600">{it.orderedQuantity}</td>
-                      <td className="py-2.5 px-3 text-right font-bold font-mono text-sm text-slate-900">
-                        {it.dispatchQuantity}
-                      </td>
-                    </tr>
-                  ))}
+                  {(dispatch.items || []).map((it) => {
+                    const ordered = Number(it.orderedQuantity) || 0;
+                    const prevDispatched = Number(it.previouslyDispatchedQuantity) || 0;
+                    const thisDispatch = Number(it.dispatchQuantity) || 0;
+                    const totalDispatched = prevDispatched + thisDispatch;
+                    const remaining = Math.max(0, ordered - totalDispatched);
+                    return (
+                      <tr key={it.id} className="hover:bg-gray-50/50">
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-gray-900">{it.productNameSnapshot}</div>
+                          <div className="text-[10px] text-gray-400 font-mono">{it.skuSnapshot || '—'}</div>
+                        </td>
+                        <td className="py-2.5 px-2 text-center text-gray-500">{it.unitSnapshot || 'NOS'}</td>
+                        <td className="py-2.5 px-2 text-right font-mono text-gray-600">{it.orderedQuantity}</td>
+                        <td className="py-2.5 px-3 text-right font-bold font-mono text-sm text-slate-900">
+                          {it.dispatchQuantity}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {remaining > 0 ? (
+                            <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                              {remaining} pending
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-xs text-emerald-600 font-medium">
+                              <CheckCircle className="w-3.5 h-3.5 mr-1" /> Complete
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -696,10 +996,43 @@ export const DispatchesPage: React.FC = () => {
   const canCreateOrSubmit = isAdmin || isManager || isAccountant;
   const canDispatch = isAdmin || isManager;
 
+  const navState = useNavigationState<{
+    openCreate?: boolean;
+    invoiceId?: string;
+    salesOrderId?: string;
+    invoiceNumber?: string;
+  }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<DispatchStatus | ''>('');
   const [selectedDispatchId, setSelectedDispatchId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [initialSalesOrderId, setInitialSalesOrderId] = useState<string | undefined>();
+  const [initialSalesInvoiceId, setInitialSalesInvoiceId] = useState<string | undefined>();
+
+  useEffect(() => {
+    const queryCreate = searchParams.get('create') === 'true';
+    const queryInvoiceId = searchParams.get('invoiceId') || undefined;
+    const querySalesOrderId = searchParams.get('salesOrderId') || undefined;
+
+    if (navState?.openCreate || queryCreate || navState?.invoiceId || queryInvoiceId) {
+      const invId = navState?.invoiceId || queryInvoiceId;
+      const soId = navState?.salesOrderId || querySalesOrderId;
+      setInitialSalesInvoiceId(invId);
+      setInitialSalesOrderId(soId);
+      setShowCreateModal(true);
+
+      // Clean search params if present so refresh doesn't reopen unexpectedly
+      if (queryCreate) {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('create');
+        nextParams.delete('invoiceId');
+        nextParams.delete('salesOrderId');
+        setSearchParams(nextParams, { replace: true });
+      }
+    }
+  }, [navState, searchParams, setSearchParams]);
 
   const { data: res, isLoading, refetch } = useDispatches({
     search: search.trim() || undefined,
@@ -816,7 +1149,7 @@ export const DispatchesPage: React.FC = () => {
                       )}
                     </td>
                     <td className="py-3 px-3 font-medium text-gray-800">
-                      {disp.salesOrder?.orderNumber || '—'}
+                      {disp.salesOrder?.salesOrderNumber || disp.salesOrder?.orderNumber || '—'}
                     </td>
                     <td className="py-3 px-3">
                       <div className="font-semibold text-gray-900">{disp.customerNameSnapshot}</div>
@@ -863,7 +1196,17 @@ export const DispatchesPage: React.FC = () => {
       </div>
 
       {/* Create Modal */}
-      {showCreateModal && <CreateDispatchModal onClose={() => setShowCreateModal(false)} />}
+      {showCreateModal && (
+        <CreateDispatchModal
+          onClose={() => {
+            setShowCreateModal(false);
+            setInitialSalesOrderId(undefined);
+            setInitialSalesInvoiceId(undefined);
+          }}
+          initialSalesOrderId={initialSalesOrderId}
+          initialSalesInvoiceId={initialSalesInvoiceId}
+        />
+      )}
 
       {/* Detail Drawer */}
       {selectedDispatchId && (

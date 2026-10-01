@@ -26,6 +26,7 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Check,
+  Plus,
 } from 'lucide-react-native';
 import { ScreenContainer } from '../../../src/components/ui/ScreenContainer';
 import { Card } from '../../../src/components/ui/Card';
@@ -34,6 +35,7 @@ import { Button } from '../../../src/components/ui/Button';
 import { useAuthStore } from '../../../src/auth/auth.store';
 import {
   canAccessFSR,
+  canCreateFSR,
   isAdminOrManager,
   isFSE,
   isSalesperson,
@@ -95,19 +97,17 @@ export default function FieldServiceScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  const canCreate = canCreateFSR(user);
+
   // Determine engineer ID filter based on role and scope
   const targetEngineerId = useMemo(() => {
-    // FSE / Technician ALWAYS scopes to their own assigned visits
-    if (isEngineer && !isAdminManager) {
-      return user?.id;
-    }
-    // Admin / Manager in 'MY_VISITS' scopes to their own visits
+    // If viewing 'MY_VISITS', scope to current engineer's assigned visits
     if (activeScope === 'MY_VISITS' && user?.id) {
       return user.id;
     }
-    // Admin / Manager 'ALL_VISITS' or Sales: do NOT send assignedEngineerId
+    // 'ALL_VISITS' or Sales: do NOT send assignedEngineerId
     return undefined;
-  }, [activeScope, isEngineer, isAdminManager, user?.id]);
+  }, [activeScope, user?.id]);
 
   // Infinite query for paginated FSR list
   const {
@@ -135,6 +135,20 @@ export default function FieldServiceScreen() {
   }, [data]);
 
   const totalReports = data?.pages?.[0]?.total ?? 0;
+
+  // Status Metrics Counts
+  const inProgressCount = useMemo(
+    () => reports.filter((r) => r.fsr.status === 'IN_PROGRESS').length,
+    [reports]
+  );
+  const draftCount = useMemo(
+    () => reports.filter((r) => r.fsr.status === 'DRAFT').length,
+    [reports]
+  );
+  const completedCount = useMemo(
+    () => reports.filter((r) => r.fsr.status === 'COMPLETED' || r.fsr.status === 'CLOSED').length,
+    [reports]
+  );
 
   // Variant helpers
   const getStatusVariant = (status: FsrStatus | string): 'primary' | 'success' | 'warning' | 'error' | 'neutral' => {
@@ -429,8 +443,6 @@ export default function FieldServiceScreen() {
             <Text style={styles.title}>
               {isSales
                 ? 'Service Visits'
-                : !isAdminManager
-                ? 'My Service Visits'
                 : activeScope === 'MY_VISITS'
                 ? 'My Service Visits'
                 : 'All Service Visits'}
@@ -441,10 +453,21 @@ export default function FieldServiceScreen() {
                 : 'Manage and track site service visits'}
             </Text>
           </View>
+
+          {canCreate && (
+            <TouchableOpacity
+              style={styles.newReportButton}
+              onPress={() => router.push('/(app)/field-service/new')}
+              activeOpacity={0.8}
+            >
+              <Plus size={16} color="#FFFFFF" />
+              <Text style={styles.newReportButtonText}>New FSR</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Scope Switcher: only for Admin / Manager who can toggle between All Visits and My Visits */}
-        {isAdminManager && (
+        {/* Scope Switcher: for Admin, Manager and Field Service Engineers */}
+        {!isSales && (
           <View style={styles.scopeSwitcherContainer}>
             <TouchableOpacity
               activeOpacity={0.7}
@@ -478,11 +501,76 @@ export default function FieldServiceScreen() {
                   activeScope === 'ALL_VISITS' && styles.scopeTabTextActive,
                 ]}
               >
-                All Visits
+                All Reports
               </Text>
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Status Metrics Bar */}
+        <View style={styles.metricsBar}>
+          <TouchableOpacity
+            style={[
+              styles.metricMiniCard,
+              selectedStatus === 'IN_PROGRESS' && styles.metricMiniCardActive,
+            ]}
+            onPress={() =>
+              setSelectedStatus((prev) => (prev === 'IN_PROGRESS' ? 'ALL' : 'IN_PROGRESS'))
+            }
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.metricMiniValue, { color: theme.colors.accentAmber }]}>
+              {inProgressCount}
+            </Text>
+            <Text style={styles.metricMiniLabel}>In Progress</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.metricMiniCard,
+              selectedStatus === 'DRAFT' && styles.metricMiniCardActive,
+            ]}
+            onPress={() =>
+              setSelectedStatus((prev) => (prev === 'DRAFT' ? 'ALL' : 'DRAFT'))
+            }
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.metricMiniValue, { color: theme.colors.primaryLight }]}>
+              {draftCount}
+            </Text>
+            <Text style={styles.metricMiniLabel}>Drafts</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.metricMiniCard,
+              selectedStatus === 'COMPLETED' && styles.metricMiniCardActive,
+            ]}
+            onPress={() =>
+              setSelectedStatus((prev) => (prev === 'COMPLETED' ? 'ALL' : 'COMPLETED'))
+            }
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.metricMiniValue, { color: theme.colors.accentEmerald }]}>
+              {completedCount}
+            </Text>
+            <Text style={styles.metricMiniLabel}>Completed</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.metricMiniCard,
+              selectedStatus === 'ALL' && styles.metricMiniCardActive,
+            ]}
+            onPress={() => setSelectedStatus('ALL')}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.metricMiniValue, { color: theme.colors.textPrimary }]}>
+              {totalReports}
+            </Text>
+            <Text style={styles.metricMiniLabel}>Total</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Search Bar + Filter Trigger Button */}
         <View style={styles.searchRow}>
@@ -747,6 +835,55 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  newReportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.primary,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+  },
+  newReportButtonText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  metricsBar: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: theme.spacing.md,
+    marginVertical: theme.spacing.xs,
+  },
+  metricMiniCard: {
+    flex: 1,
+    paddingVertical: 7,
+    paddingHorizontal: 6,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricMiniCardActive: {
+    borderColor: theme.colors.primaryLight,
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+  },
+  metricMiniValue: {
+    fontSize: 15,
+    fontWeight: theme.fontWeight.bold,
+  },
+  metricMiniLabel: {
+    fontSize: 10,
+    color: theme.colors.textMuted,
     marginTop: 2,
   },
   scopeSwitcherContainer: {

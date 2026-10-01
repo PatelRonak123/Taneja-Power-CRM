@@ -10,6 +10,10 @@ import {
 } from '../validators/customer.validator.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { CustomerEntity } from '../../../database/schema/customers.js';
+import { db } from '../../../database/db.js';
+import { users } from '../../../database/schema/users.js';
+import { tasks } from '../../../database/schema/tasks.js';
+import { eq, and } from 'drizzle-orm';
 import { JwtPayload } from '../../../common/auth/jwt.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
 
@@ -18,21 +22,79 @@ export class CustomerService {
     private readonly customerRepo: CustomerRepository = new CustomerRepository()
   ) {}
 
-  private isScopedEmployee(user?: JwtPayload): boolean {
+  private async isScopedEmployee(user?: JwtPayload): Promise<boolean> {
     if (!user) return false;
+    // Admins and Managers have global access
     if (user.role === APP_CONSTANTS.ROLES.ADMIN || user.role === APP_CONSTANTS.ROLES.MANAGER) {
       return false;
     }
+
+    let workType = user.workType;
+    let designation = (user.designation || '').toLowerCase();
+
+    // If workType or designation is missing from token, fetch from users table
+    if (!workType || !designation) {
+      try {
+        const [dbUser] = await db
+          .select({ workType: users.workType, designation: users.designation })
+          .from(users)
+          .where(eq(users.id, user.userId))
+          .limit(1);
+        if (dbUser) {
+          workType = (dbUser.workType as any) || workType;
+          designation = (dbUser.designation || designation || '').toLowerCase();
+        }
+      } catch {
+        // Fallback to token values
+      }
+    }
+
+    // Office employees (Sales Office, Service Office, Accountant Office, HR) have full customer access
+    if (workType === APP_CONSTANTS.WORK_TYPES.OFFICE) {
+      return false;
+    }
+
+    // Service field staff (Service Engineer, Solar Technician, FSE, Electrician, etc.) must be able to view/select all customers
+    const exemptKeywords = [
+      'office',
+      'accountant',
+      'hr',
+      'service',
+      'technician',
+      'tech',
+      'engineer',
+      'electrician',
+      'fse',
+      'solar',
+    ];
+
+    if (exemptKeywords.some((k) => designation.includes(k))) {
+      return false;
+    }
+
     return true;
+  }
+
+  private async hasAssignedTaskForCustomer(userId: string, customerId: string): Promise<boolean> {
+    try {
+      const rows = await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(eq(tasks.assignedTo, userId), eq(tasks.customerId, customerId)))
+        .limit(1);
+      return rows.length > 0;
+    } catch {
+      return false;
+    }
   }
 
   async listCustomers(options: CustomerFilterOptions, authUser?: JwtPayload) {
     const page = options.page || 1;
     const limit = options.limit || 10;
 
-    // Server-side Ownership Scoping for Sales and Service Employees
+    // Server-side Ownership Scoping: only pure field sales reps are scoped to their own accounts
     let scopedCreatedById: string | undefined = options.createdById;
-    if (authUser && this.isScopedEmployee(authUser)) {
+    if (authUser && (await this.isScopedEmployee(authUser))) {
       scopedCreatedById = authUser.userId;
     }
 
@@ -66,13 +128,14 @@ export class CustomerService {
       throw AppError.notFound('Customer not found');
     }
 
-    if (
-      authUser &&
-      this.isScopedEmployee(authUser) &&
-      customer.createdById &&
-      customer.createdById !== authUser.userId
-    ) {
-      throw AppError.forbidden('You do not have permission to view this customer');
+    if (authUser && (await this.isScopedEmployee(authUser))) {
+      const isOwner = customer.createdById === authUser.userId;
+      if (!isOwner) {
+        const hasTask = await this.hasAssignedTaskForCustomer(authUser.userId, id);
+        if (!hasTask) {
+          throw AppError.forbidden('You do not have permission to view this customer');
+        }
+      }
     }
 
     return customer;
@@ -110,7 +173,7 @@ export class CustomerService {
 
     if (
       authUser &&
-      this.isScopedEmployee(authUser) &&
+      (await this.isScopedEmployee(authUser)) &&
       existing.createdById &&
       existing.createdById !== authUser.userId
     ) {

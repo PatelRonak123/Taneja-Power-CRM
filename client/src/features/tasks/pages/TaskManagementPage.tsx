@@ -407,20 +407,18 @@ export const TaskManagementPage: React.FC = () => {
 
         {canManageTasks && (
           <div className="flex items-center gap-2.5 shrink-0">
-            {isManagement && (
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => {
-                  setSelectedTaskIdForTracking(null);
-                  setIsTrackingDrawerOpen(true);
-                }}
-                className="text-orange-700 border-orange-200 bg-orange-50/60 hover:bg-orange-100"
-              >
-                <Radio size={14} className="animate-pulse text-orange-600 mr-1.5" />
-                <span>Live Route Dispatch ({metrics.inProgress} Active)</span>
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => {
+                setSelectedTaskIdForTracking(null);
+                setIsTrackingDrawerOpen(true);
+              }}
+              className="text-orange-700 border-orange-200 bg-orange-50/60 hover:bg-orange-100"
+            >
+              <Radio size={14} className="animate-pulse text-orange-600 mr-1.5" />
+              <span>Live Route Dispatch ({metrics.inProgress} Active)</span>
+            </Button>
 
             <Button
               variant="primary"

@@ -151,33 +151,7 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
     }
 
     try {
-      // 1. If react-native-view-shot is available in the native binary, try snapshotting
-      let captureFn: any = null;
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const viewShot = require('react-native-view-shot');
-        captureFn = viewShot?.captureRef || null;
-      } catch {
-        captureFn = null;
-      }
-
-      if (captureFn && canvasRef.current) {
-        try {
-          const dataUrl = await captureFn(canvasRef.current, {
-            format: 'png',
-            quality: 0.9,
-            result: 'data-uri',
-          });
-          if (dataUrl && dataUrl.startsWith('data:image/png')) {
-            setCapturedPreview(dataUrl);
-            return;
-          }
-        } catch {
-          // Fall through to pure-JS generator
-        }
-      }
-
-      // 2. Pure JavaScript PNG generator (RFC 2083 standard PNG, 0 native dependencies)
+      // Pure JavaScript PNG generator (RFC 2083 standard PNG, 0 native dependencies)
       const pngDataUrl = convertPathsToPngDataUrl(allPaths, 350, 180, 3);
       setCapturedPreview(pngDataUrl);
     } catch (err: any) {

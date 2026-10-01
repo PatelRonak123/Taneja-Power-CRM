@@ -22,8 +22,13 @@ export const API_ENDPOINTS = {
     GET_BY_ID: (id: string) => `/attendance/${id}`,
   },
   CUSTOMERS: {
+    LIST: '/customers',
     GET_BY_ID: (id: string) => `/customers/${id}`,
     GET_DESTINATIONS: (customerId: string) => `/customers/${customerId}/destinations`,
+  },
+  PRODUCTS: {
+    LIST: '/products',
+    GET_BY_ID: (id: string) => `/products/${id}`,
   },
   FIELD_SERVICE: {
     LIST: '/field-service',

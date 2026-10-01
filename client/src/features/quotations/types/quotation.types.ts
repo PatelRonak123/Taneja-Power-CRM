@@ -77,6 +77,7 @@ export interface QuotationItem {
   equipmentConfiguration?: string | null;
   equipmentRating?: string | null;
   sortOrder: number;
+  stockQuantity?: number;
   createdAt: string;
   updatedAt: string;
 }

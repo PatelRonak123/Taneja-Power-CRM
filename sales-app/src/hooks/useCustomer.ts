@@ -20,3 +20,29 @@ export const useCustomerDetails = (customerId: string) => {
     enabled: Boolean(customerId),
   });
 };
+
+export const useCustomerList = (search?: string) => {
+  return useQuery({
+    queryKey: ['customers-list', search],
+    queryFn: async (): Promise<Customer[]> => {
+      const res = (await apiClient.get(API_ENDPOINTS.CUSTOMERS.LIST, {
+        params: { search: search?.trim() || undefined, limit: 100 },
+      })) as unknown as ApiEnvelope<Customer[]>;
+      return res.data || [];
+    },
+  });
+};
+
+export const useCustomerDestinations = (customerId?: string | null) => {
+  return useQuery({
+    queryKey: ['customer-destinations', customerId],
+    queryFn: async (): Promise<CustomerDestination[]> => {
+      if (!customerId) return [];
+      const res = (await apiClient.get(
+        API_ENDPOINTS.CUSTOMERS.GET_DESTINATIONS(customerId)
+      )) as unknown as ApiEnvelope<CustomerDestination[]>;
+      return res.data || [];
+    },
+    enabled: Boolean(customerId),
+  });
+};

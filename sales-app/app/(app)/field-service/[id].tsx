@@ -11,6 +11,7 @@ import {
   BackHandler,
   KeyboardAvoidingView,
   Image,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -44,6 +45,8 @@ import {
   PenTool,
   RotateCcw,
   Share2,
+  Plus,
+  Trash2,
 } from 'lucide-react-native';
 import { ScreenContainer } from '../../../src/components/ui/ScreenContainer';
 import { Card } from '../../../src/components/ui/Card';
@@ -58,6 +61,8 @@ import {
   useCompleteFsr,
   useCustomerSignOff,
   useFseSignOff,
+  useAddPart,
+  useDeletePart,
 } from '../../../src/hooks/useFsr';
 import {
   canStartFSR,
@@ -72,13 +77,20 @@ import { fsrPdfService } from '../../../src/services/fsrPdf.service';
 import { LocationService, LocationServiceError } from '../../../src/services/location.service';
 import { theme } from '../../../src/theme/theme';
 import { formatDate } from '../../../src/utils/date';
-import { FsrCallType, FsrStatus, UpdateFsrPayload } from '../../../src/types/fsr.types';
+import { FsrCallType, FsrStatus, UpdateFsrPayload, PartPayload } from '../../../src/types/fsr.types';
 
 const EQUIPMENT_STATUS_OPTIONS = [
   { label: 'Working', value: 'WORKING' },
   { label: 'Not Working', value: 'NOT_WORKING' },
   { label: 'Degraded', value: 'DEGRADED' },
   { label: 'Standby', value: 'STANDBY' },
+];
+
+const OLD_PART_STATUS_OPTIONS = [
+  { label: 'Defective Returned', value: 'DEFECTIVE_RETURNED' },
+  { label: 'Scrapped at Site', value: 'SCRAPPED' },
+  { label: 'Left With Customer', value: 'WITH_CUSTOMER' },
+  { label: 'Pending Inspection', value: 'PENDING_INSPECTION' },
 ];
 
 export default function FsrDetailScreen() {
@@ -92,6 +104,8 @@ export default function FsrDetailScreen() {
   const fseSignOffMutation = useFseSignOff();
   const customerSignOffMutation = useCustomerSignOff();
   const completeMutation = useCompleteFsr();
+  const addPartMutation = useAddPart();
+  const deletePartMutation = useDeletePart();
 
   const [isStarting, setIsStarting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -100,6 +114,18 @@ export default function FsrDetailScreen() {
   const [isCompleting, setIsCompleting] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Replacement Part Modal State
+  const [isPartModalOpen, setIsPartModalOpen] = useState(false);
+  const [partForm, setPartForm] = useState<PartPayload>({
+    partName: '',
+    partNumber: '',
+    quantity: 1,
+    oldPartStatus: 'DEFECTIVE_RETURNED',
+    replacementDetails: '',
+    remarks: '',
+  });
+  const [partError, setPartError] = useState<string | null>(null);
 
   // Form State for Edit Mode
   const [formData, setFormData] = useState({
@@ -391,6 +417,76 @@ export default function FsrDetailScreen() {
       },
     });
     Alert.alert('Success', 'Customer sign-off recorded successfully.');
+  };
+
+  // Add Replacement Part Handlers
+  const handleOpenAddPartModal = () => {
+    setPartForm({
+      partName: '',
+      partNumber: '',
+      quantity: 1,
+      oldPartStatus: 'DEFECTIVE_RETURNED',
+      replacementDetails: '',
+      remarks: '',
+    });
+    setPartError(null);
+    setIsPartModalOpen(true);
+  };
+
+  const handleSavePart = async () => {
+    if (!fsr) return;
+    if (!partForm.partName.trim()) {
+      setPartError('Part name is required');
+      return;
+    }
+    const qty = Number(partForm.quantity);
+    if (isNaN(qty) || qty <= 0) {
+      setPartError('Quantity must be greater than 0');
+      return;
+    }
+
+    try {
+      await addPartMutation.mutateAsync({
+        id: fsr.id,
+        payload: {
+          partName: partForm.partName.trim(),
+          partNumber: partForm.partNumber?.trim() || undefined,
+          quantity: qty,
+          oldPartStatus: partForm.oldPartStatus || 'DEFECTIVE_RETURNED',
+          replacementDetails: partForm.replacementDetails?.trim() || undefined,
+          remarks: partForm.remarks?.trim() || undefined,
+        },
+      });
+      setIsPartModalOpen(false);
+      Alert.alert('Success', 'Replacement part added successfully');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to add part';
+      Alert.alert('Error', msg);
+    }
+  };
+
+  const handleDeletePart = (partId?: string, partName?: string) => {
+    if (!fsr || !partId) return;
+    Alert.alert(
+      'Remove Part',
+      `Are you sure you want to remove "${partName || 'this part'}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deletePartMutation.mutateAsync({ id: fsr.id, partId });
+              Alert.alert('Success', 'Part removed');
+            } catch (err: any) {
+              const msg = err?.response?.data?.message || err?.message || 'Failed to remove part';
+              Alert.alert('Error', msg);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Complete FSR Action with Validations & Confirmation
@@ -962,16 +1058,6 @@ export default function FsrDetailScreen() {
                     numberOfLines={3}
                     style={styles.multilineInput}
                   />
-
-                  <Input
-                    label="Standby Details"
-                    placeholder="Standby equipment or contingency details"
-                    value={formData.standbyDetails}
-                    onChangeText={(val) => setFormData((prev) => ({ ...prev, standbyDetails: val }))}
-                    multiline
-                    numberOfLines={2}
-                    style={styles.multilineInput}
-                  />
                 </>
               ) : (
                 <>
@@ -989,13 +1075,6 @@ export default function FsrDetailScreen() {
                     </View>
                   )}
 
-                  {fsr.standbyDetails && (
-                    <View style={[styles.notesBlock, styles.notesBlockSpaced]}>
-                      <Text style={styles.notesLabel}>Standby Details</Text>
-                      <Text style={styles.notesContent}>{fsr.standbyDetails}</Text>
-                    </View>
-                  )}
-
                   {siteObservation?.observationsNotes && (
                     <View style={[styles.notesBlock, styles.notesBlockSpaced]}>
                       <Text style={styles.notesLabel}>Site Observations</Text>
@@ -1006,15 +1085,22 @@ export default function FsrDetailScreen() {
               )}
             </Card>
 
-            {/* Service Feedback & Charges Card */}
+            {/* Standby, Charges & Feedback Card */}
             <Card style={styles.sectionCard}>
               <View style={styles.sectionHeader}>
                 <CreditCard size={18} color={theme.colors.primaryLight} style={styles.sectionIcon} />
-                <Text style={styles.sectionTitle}>Feedback & Service Charges</Text>
+                <Text style={styles.sectionTitle}>Standby, Charges & Feedback</Text>
               </View>
 
               {isEditing ? (
                 <>
+                  <Input
+                    label="Standby Equipment"
+                    placeholder="e.g. 10kVA Standby UPS provided / None"
+                    value={formData.standbyDetails}
+                    onChangeText={(val) => setFormData((prev) => ({ ...prev, standbyDetails: val }))}
+                  />
+
                   <Input
                     label="Service Charges (₹)"
                     placeholder="0"
@@ -1031,8 +1117,8 @@ export default function FsrDetailScreen() {
                   />
 
                   <Input
-                    label="Engineer (FSE) Notes & Feedback"
-                    placeholder="Technical diagnosis or action summary"
+                    label="Engineer Recommendations & Feedback (FSE)"
+                    placeholder="Technical diagnosis, recommendations or action summary"
                     value={formData.fseFeedback}
                     onChangeText={(val) => setFormData((prev) => ({ ...prev, fseFeedback: val }))}
                     multiline
@@ -1053,8 +1139,15 @@ export default function FsrDetailScreen() {
               ) : (
                 <>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Charges</Text>
+                    <Text style={styles.detailLabel}>Standby Equipment</Text>
                     <Text style={styles.detailValue}>
+                      {fsr.standbyDetails || 'None provided'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Service Charges</Text>
+                    <Text style={[styles.detailValue, { fontWeight: '700', color: theme.colors.accentEmerald }]}>
                       {fsr.charges && Number(fsr.charges) > 0 ? `₹${Number(fsr.charges).toLocaleString()}` : '₹0 (Free / Covered)'}
                     </Text>
                   </View>
@@ -1066,22 +1159,22 @@ export default function FsrDetailScreen() {
                     </View>
                   )}
 
-                  {fsr.fseFeedback && (
-                    <View style={[styles.notesBlock, styles.notesBlockSpaced]}>
-                      <Text style={styles.notesLabel}>Engineer Feedback</Text>
-                      <Text style={styles.notesContent}>{fsr.fseFeedback}</Text>
-                    </View>
-                  )}
+                  <View style={[styles.notesBlock, styles.notesBlockSpaced]}>
+                    <Text style={styles.notesLabel}>Engineer Recommendations & Feedback (FSE)</Text>
+                    <Text style={styles.notesContent}>
+                      {fsr.fseFeedback || 'No engineer recommendations entered'}
+                    </Text>
+                  </View>
 
-                  {fsr.customerFeedback && (
-                    <View style={[styles.notesBlock, styles.notesBlockSpaced]}>
-                      <Text style={styles.notesLabel}>Customer Feedback</Text>
-                      <Text style={styles.notesContent}>{fsr.customerFeedback}</Text>
-                    </View>
-                  )}
+                  <View style={[styles.notesBlock, styles.notesBlockSpaced]}>
+                    <Text style={styles.notesLabel}>Customer Feedback</Text>
+                    <Text style={styles.notesContent}>
+                      {fsr.customerFeedback || 'No customer feedback entered'}
+                    </Text>
+                  </View>
 
-                  {!fsr.charges && !fsr.fseFeedback && !fsr.customerFeedback && (
-                    <Text style={styles.summaryItemMuted}>No feedback or charges entered yet.</Text>
+                  {!fsr.standbyDetails && !fsr.charges && !fsr.fseFeedback && !fsr.customerFeedback && (
+                    <Text style={styles.summaryItemMuted}>No standby equipment, feedback, or charges entered yet.</Text>
                   )}
                 </>
               )}
@@ -1095,19 +1188,32 @@ export default function FsrDetailScreen() {
               </View>
 
               {/* Site Observations Summary */}
-              <View style={styles.summaryItem}>
-                <View style={styles.summaryHeaderRow}>
-                  <Zap size={14} color={theme.colors.accentAmber} />
-                  <Text style={styles.summaryItemTitle}>Electrical Measurements</Text>
+              <TouchableOpacity
+                style={styles.summaryItemInteractive}
+                activeOpacity={0.7}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(app)/field-service/[id]/observations' as any,
+                    params: { id: fsr.id },
+                  })
+                }
+              >
+                <View style={styles.summaryHeaderRowBetween}>
+                  <View style={styles.summaryHeaderRow}>
+                    <Activity size={16} color={theme.colors.accentAmber} />
+                    <Text style={styles.summaryItemTitle}>Site Observations & Electrical Readings</Text>
+                  </View>
+                  <View style={styles.actionChipRow}>
+                    <Text style={styles.actionChipText}>Open</Text>
+                    <ChevronRight size={14} color={theme.colors.primaryLight} />
+                  </View>
                 </View>
-                {siteObservation ? (
-                  <Text style={styles.summaryItemText}>
-                    Input: {siteObservation.inputVoltageLN || '—'}V L-N | Output: {siteObservation.outputVoltageLN || '—'}V L-N | DC: {siteObservation.dcVoltage || '—'}V
-                  </Text>
-                ) : (
-                  <Text style={styles.summaryItemMuted}>Pending on-site measurements</Text>
-                )}
-              </View>
+                <Text style={styles.summaryItemText}>
+                  {siteObservation && (siteObservation.inputVoltageLN || siteObservation.outputVoltageLN || siteObservation.dcVoltage)
+                    ? `Input: ${siteObservation.inputVoltageLN || '—'}V | Output: ${siteObservation.outputVoltageLN || '—'}V | DC: ${siteObservation.dcVoltage || '—'}V | Load: ${siteObservation.outputLoadPercent != null ? `${siteObservation.outputLoadPercent}%` : '—'}`
+                    : 'Pending on-site measurements. Tap to enter electrical readings & site observations.'}
+                </Text>
+              </TouchableOpacity>
 
               {/* Battery Banks Summary (Interactive Phase 4 Workflow) */}
               <TouchableOpacity
@@ -1165,17 +1271,107 @@ export default function FsrDetailScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* Parts Replacement Summary */}
-              <View style={styles.summaryItem}>
-                <View style={styles.summaryHeaderRow}>
-                  <Package size={14} color={theme.colors.primaryLight} />
-                  <Text style={styles.summaryItemTitle}>Parts Replacement</Text>
+              {/* Parts Replacement Section */}
+              <View style={styles.summaryItemContainer}>
+                <View style={styles.summaryHeaderRowBetween}>
+                  <View style={styles.summaryHeaderRow}>
+                    <Package size={16} color={theme.colors.accentRose} />
+                    <Text style={styles.summaryItemTitle}>Parts Replacement ({parts?.length || 0})</Text>
+                  </View>
+                  {canEdit && (
+                    <TouchableOpacity
+                      style={styles.addPartBtn}
+                      onPress={handleOpenAddPartModal}
+                      activeOpacity={0.7}
+                    >
+                      <Plus size={14} color={theme.colors.primaryLight} />
+                      <Text style={styles.addPartBtnText}>Add Part</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <Text style={styles.summaryItemText}>
-                  {parts && parts.length > 0
-                    ? `${parts.length} replacement part(s) listed`
-                    : 'No spare parts replaced'}
-                </Text>
+
+                {parts && parts.length > 0 ? (
+                  <View style={styles.partsListContainer}>
+                    {parts.map((p, idx) => (
+                      <View key={p.id || idx} style={styles.partItemCard}>
+                        <View style={styles.partItemHeader}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.partItemName}>{p.partName}</Text>
+                            {Boolean(p.partNumber) && (
+                              <Text style={styles.partItemNumber}>P/N: {p.partNumber}</Text>
+                            )}
+                          </View>
+                          {canEdit && p.id && (
+                            <TouchableOpacity
+                              onPress={() => handleDeletePart(p.id, p.partName)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              style={styles.partDeleteBtn}
+                            >
+                              <Trash2 size={16} color={theme.colors.accentRose} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                        <View style={styles.partMetaRow}>
+                          <View style={styles.partQtyChip}>
+                            <Text style={styles.partQtyText}>Qty: {p.quantity}</Text>
+                          </View>
+                          <Badge
+                            label={
+                              p.oldPartStatus === 'DEFECTIVE_RETURNED'
+                                ? 'Defective Returned'
+                                : p.oldPartStatus === 'SCRAPPED'
+                                ? 'Scrapped'
+                                : p.oldPartStatus === 'WITH_CUSTOMER'
+                                ? 'With Customer'
+                                : p.oldPartStatus === 'PENDING_INSPECTION'
+                                ? 'Pending Insp.'
+                                : p.oldPartStatus
+                                ? p.oldPartStatus.replace(/_/g, ' ')
+                                : 'Defective'
+                            }
+                            variant={
+                              p.oldPartStatus === 'SCRAPPED'
+                                ? 'error'
+                                : p.oldPartStatus === 'WITH_CUSTOMER'
+                                ? 'warning'
+                                : 'neutral'
+                            }
+                            size="sm"
+                          />
+                        </View>
+
+                        {Boolean(p.replacementDetails) && (
+                          <Text style={styles.partDetailsText}>
+                            Details: {p.replacementDetails}
+                          </Text>
+                        )}
+
+                        {Boolean(p.remarks) && (
+                          <Text style={styles.partRemarksText}>
+                            Note: {p.remarks}
+                          </Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.partEmptyBox}>
+                    <Text style={styles.summaryItemText}>
+                      No spare parts replaced during this visit.
+                    </Text>
+                    {canEdit && (
+                      <Button
+                        title="Add Replacement Part"
+                        variant="outline"
+                        size="sm"
+                        icon={<Plus size={14} color={theme.colors.primaryLight} />}
+                        onPress={handleOpenAddPartModal}
+                        style={{ marginTop: 8 }}
+                      />
+                    )}
+                  </View>
+                )}
               </View>
             </Card>
 
@@ -1438,6 +1634,137 @@ export default function FsrDetailScreen() {
             onClose={() => setIsCustSigModalOpen(false)}
             onConfirm={handleCustomerSignOffConfirm}
           />
+
+          {/* Add Replacement Part Modal */}
+          <Modal
+            visible={isPartModalOpen}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setIsPartModalOpen(false)}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.modalOverlay}
+            >
+              <View style={styles.partModalContainer}>
+                <View style={styles.partModalHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Package size={20} color={theme.colors.primaryLight} />
+                    <Text style={styles.partModalTitle}>Add Replacement Part</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setIsPartModalOpen(false)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <X size={20} color={theme.colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                {Boolean(partError) && (
+                  <View style={styles.partErrorBox}>
+                    <AlertCircle size={14} color={theme.colors.accentRose} />
+                    <Text style={styles.partErrorText}>{partError}</Text>
+                  </View>
+                )}
+
+                <ScrollView
+                  style={styles.partModalScroll}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{ paddingBottom: 24 }}
+                >
+                  <Input
+                    label="Part Name *"
+                    placeholder="e.g. Inverter Main PCB, Cooling Fan 12V"
+                    value={partForm.partName}
+                    onChangeText={(val) => {
+                      setPartForm((prev) => ({ ...prev, partName: val }));
+                      if (partError) setPartError(null);
+                    }}
+                  />
+
+                  <Input
+                    label="Part / Serial Number"
+                    placeholder="e.g. PCB-7749-X or S/N 120938"
+                    value={partForm.partNumber || ''}
+                    onChangeText={(val) => setPartForm((prev) => ({ ...prev, partNumber: val }))}
+                  />
+
+                  <Input
+                    label="Quantity *"
+                    placeholder="1"
+                    keyboardType="numeric"
+                    value={String(partForm.quantity || '1')}
+                    onChangeText={(val) =>
+                      setPartForm((prev) => ({ ...prev, quantity: parseInt(val, 10) || 1 }))
+                    }
+                  />
+
+                  <View style={{ marginBottom: theme.spacing.md }}>
+                    <Text style={styles.inputGroupLabel}>Old Part Status</Text>
+                    <View style={styles.statusChipsContainer}>
+                      {OLD_PART_STATUS_OPTIONS.map((opt) => {
+                        const isSelected = partForm.oldPartStatus === opt.value;
+                        return (
+                          <TouchableOpacity
+                            key={opt.value}
+                            style={[
+                              styles.statusChip,
+                              isSelected && styles.statusChipActive,
+                            ]}
+                            onPress={() =>
+                              setPartForm((prev) => ({ ...prev, oldPartStatus: opt.value }))
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.statusChipText,
+                                isSelected && styles.statusChipTextActive,
+                              ]}
+                            >
+                              {opt.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <Input
+                    label="Replacement Details"
+                    placeholder="e.g. Installed new IGBT board and calibrated"
+                    value={partForm.replacementDetails || ''}
+                    onChangeText={(val) =>
+                      setPartForm((prev) => ({ ...prev, replacementDetails: val }))
+                    }
+                  />
+
+                  <Input
+                    label="Remarks"
+                    placeholder="e.g. Covered under warranty"
+                    value={partForm.remarks || ''}
+                    onChangeText={(val) => setPartForm((prev) => ({ ...prev, remarks: val }))}
+                  />
+                </ScrollView>
+
+                <View style={styles.partModalActions}>
+                  <Button
+                    title="Cancel"
+                    variant="outline"
+                    onPress={() => setIsPartModalOpen(false)}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    title="Save Part"
+                    variant="primary"
+                    loading={addPartMutation.isPending}
+                    disabled={addPartMutation.isPending}
+                    onPress={handleSavePart}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
 
           {/* Sticky Bottom Action Bar when in Edit Mode */}
           {isEditing && (
@@ -2091,5 +2418,156 @@ const styles = StyleSheet.create({
   },
   editBottomBtn: {
     flex: 1,
+  },
+  summaryItemContainer: {
+    marginTop: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  addPartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.25)',
+  },
+  addPartBtnText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.primaryLight,
+    fontWeight: theme.fontWeight.semibold,
+  },
+  partsListContainer: {
+    marginTop: 8,
+    gap: 8,
+  },
+  partItemCard: {
+    padding: 10,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  partItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  partItemName: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textPrimary,
+  },
+  partItemNumber: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginTop: 1,
+  },
+  partDeleteBtn: {
+    padding: 4,
+  },
+  partMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  partQtyChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  partQtyText: {
+    fontSize: 11,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textPrimary,
+  },
+  partDetailsText: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginTop: 4,
+  },
+  partRemarksText: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  partEmptyBox: {
+    marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  partModalContainer: {
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: theme.borderRadius.lg,
+    borderTopRightRadius: theme.borderRadius.lg,
+    maxHeight: '90%',
+    padding: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  partModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  partModalTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textPrimary,
+  },
+  partErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    padding: 8,
+    borderRadius: theme.borderRadius.sm,
+    marginBottom: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  partErrorText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.accentRose,
+  },
+  partModalScroll: {
+    maxHeight: 400,
+  },
+  inputGroupLabel: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.textSecondary,
+    marginBottom: 6,
+  },
+  statusChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  partModalActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
   },
 });

@@ -350,3 +350,27 @@ export interface FseSignOffPayload {
   fseSignature: string; // base64 data url
   fseSignatureDate?: string | null;
 }
+
+export interface CreateFsrPayload {
+  customerId: string;
+  destinationId?: string | null;
+  productId?: string | null;
+  serviceEngineerId: string;
+  visitDate: string;
+  problemReported?: string | null;
+  reasonForVisit?: string | null;
+  callType: FsrCallType;
+  status?: FsrStatus;
+  warrantyStatus?: FsrWarrantyStatus;
+  billingStatus?: FsrBillingStatus;
+  productModel?: string | null;
+  productMake?: string | null;
+  productSerialNumber?: string | null;
+  equipmentStatus?: string;
+  charges?: number | string;
+  chargesRemarks?: string | null;
+  standbyDetails?: string | null;
+  fseFeedback?: string | null;
+  customerFeedback?: string | null;
+  customerContactName?: string | null;
+}

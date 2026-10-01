@@ -14,6 +14,7 @@ import {
   FseSignOffPayload,
   FsrAttachment,
   UpdateFsrPayload,
+  CreateFsrPayload,
 } from '../types/fsr.types';
 
 export const fsrService = {
@@ -42,6 +43,17 @@ export const fsrService = {
       limit: response.meta?.limit || 10,
       totalPages: response.meta?.totalPages || 1,
     };
+  },
+
+  /**
+   * Create new Field Service Report (POST /api/v1/field-service)
+   */
+  async create(payload: CreateFsrPayload): Promise<FsrDetailedView> {
+    const response = (await apiClient.post(
+      API_ENDPOINTS.FIELD_SERVICE.CREATE,
+      payload
+    )) as unknown as ApiEnvelope<FsrDetailedView>;
+    return response.data;
   },
 
   /**

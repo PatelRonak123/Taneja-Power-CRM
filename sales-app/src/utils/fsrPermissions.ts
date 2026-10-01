@@ -57,6 +57,9 @@ export const isFSE = (user?: User | null): boolean => {
   if (!user) return false;
   if (isAdminOrManager(user)) return true;
 
+  const role = (user.role || '').toLowerCase();
+  if (role.includes('service')) return true;
+
   // Office employees are never field engineers
   if (user.workType === 'OFFICE') {
     return false;

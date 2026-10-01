@@ -13,6 +13,7 @@ import {
   FseSignOffPayload,
   FsrAttachment,
   UpdateFsrPayload,
+  CreateFsrPayload,
 } from '../types/fsr.types';
 
 export const fsrKeys = {
@@ -72,6 +73,24 @@ export const useFsrDetail = (id: string) => {
 export const useFieldServiceReports = useFsrList;
 export const useInfiniteFieldServiceReports = useInfiniteFsrList;
 export const useFieldServiceReport = useFsrDetail;
+
+/**
+ * Hook to create a new FSR (POST /api/v1/field-service)
+ */
+export const useCreateFsr = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<FsrDetailedView, Error, CreateFsrPayload>({
+    mutationFn: (payload: CreateFsrPayload) => fsrService.create(payload),
+    onSuccess: (data) => {
+      if (data?.fsr?.id) {
+        queryClient.setQueryData(fsrKeys.detail(data.fsr.id), data);
+      }
+      queryClient.invalidateQueries({ queryKey: fsrKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: fsrKeys.infiniteLists() });
+    },
+  });
+};
 
 /**
  * Hook to start an FSR (DRAFT -> IN_PROGRESS)

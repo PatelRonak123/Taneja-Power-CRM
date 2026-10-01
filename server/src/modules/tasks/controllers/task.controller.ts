@@ -247,7 +247,14 @@ export class TaskController {
 
   getActiveTracking = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.taskService.getActiveTrackingTasks();
+      const userId = req.user?.userId;
+      const isOfficeManager = isOfficeTaskManager(req.user);
+
+      // If Service Office or Sales Office user, fetch in-progress tasks created by them
+      const result = isOfficeManager && userId
+        ? await this.taskService.getActiveTrackingTasks(userId)
+        : await this.taskService.getActiveTrackingTasks();
+
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,

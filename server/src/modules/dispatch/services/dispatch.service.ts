@@ -73,6 +73,68 @@ export class DispatchService {
   }
 
   /**
+   * Get Dispatchable items, remaining dispatchable quantities, and physical stock for a Sales Order
+   */
+  async getDispatchableItems(salesOrderId: string) {
+    const soRes = await db.execute(
+      sql`SELECT so.*, c.name as customer_name, c.company_name as customer_company_name
+          FROM sales_orders so
+          LEFT JOIN customers c ON c.id = so.customer_id
+          WHERE so.id = ${salesOrderId}`
+    );
+    const soRows = soRes.rows || soRes;
+    if (!soRows || soRows.length === 0) {
+      throw AppError.notFound(`Sales Order "${salesOrderId}" not found`, 'SALES_ORDER_NOT_FOUND');
+    }
+    const so = soRows[0] as any;
+
+    const itemsRes = await db.execute(
+      sql`SELECT soi.*, COALESCE(p.stock_quantity, 0) as physical_stock
+          FROM sales_order_items soi
+          LEFT JOIN products p ON p.id = soi.product_id
+          WHERE soi.sales_order_id = ${salesOrderId}
+          ORDER BY soi.sort_order ASC`
+    );
+    const itemsRows = (itemsRes.rows || itemsRes) as any[];
+
+    const items = [];
+    for (const item of itemsRows) {
+      const orderedQuantity = Number(item.quantity || 0);
+      const previouslyDispatched = await this.dispatchRepo.getDispatchedQuantityForSoItem(item.id);
+      const remainingDispatchable = Math.max(0, orderedQuantity - previouslyDispatched);
+      const currentPhysicalStock = Number(item.physical_stock || 0);
+
+      items.push({
+        salesOrderItemId: item.id,
+        productId: item.product_id,
+        productName: item.product_name_snapshot,
+        sku: item.sku_snapshot || null,
+        description: item.description_snapshot || null,
+        hsnSac: item.hsn_sac_snapshot || null,
+        unit: item.unit_snapshot || 'NOS',
+        orderedQuantity,
+        previouslyDispatchedQuantity: previouslyDispatched,
+        remainingDispatchableQuantity: remainingDispatchable,
+        currentPhysicalStock,
+      });
+    }
+
+    return {
+      salesOrderId: so.id,
+      orderNumber: so.sales_order_number,
+      customerId: so.customer_id,
+      customerName: so.customer_company_name || so.customer_name || 'Customer',
+      shippingAddress: so.shipping_address || '',
+      shippingCity: so.shipping_city || undefined,
+      shippingState: so.shipping_state || undefined,
+      shippingPincode: so.shipping_pincode || undefined,
+      soStatus: so.status,
+      dispatchStatus: so.dispatch_status,
+      items,
+    };
+  }
+
+  /**
    * Create a new Dispatch from an eligible Sales Order (and optional Invoice).
    *
    * INVARIANT: Starts in DRAFT. Does NOT alter inventory or write stock movements.

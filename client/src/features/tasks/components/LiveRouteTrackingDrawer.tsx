@@ -148,7 +148,7 @@ export const LiveRouteTrackingDrawer: React.FC<LiveRouteTrackingDrawerProps> = (
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-extrabold tracking-tight">
-                    Admin Live Route Dispatch Monitoring
+                    Live Route Dispatch Monitoring
                   </h2>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     {activeTasks.length} Active Sessions
@@ -245,7 +245,7 @@ export const LiveRouteTrackingDrawer: React.FC<LiveRouteTrackingDrawerProps> = (
                 <Radio size={32} className="mx-auto text-slate-300 mb-2" />
                 <h3 className="text-sm font-bold text-slate-700">No Active Field Tracking Sessions</h3>
                 <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                  There are currently no tasks in progress. When a sales engineer starts an assigned work order from the mobile app, live GPS telemetry will appear here automatically.
+                  There are currently no tasks in progress. When a field engineer starts an assigned work order from the mobile app, live GPS telemetry will appear here automatically.
                 </p>
               </div>
             )}
@@ -442,7 +442,7 @@ export const LiveRouteTrackingDrawer: React.FC<LiveRouteTrackingDrawerProps> = (
           <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500 sticky bottom-0">
             <div className="flex items-center gap-1.5">
               <Shield size={14} className="text-slate-400" />
-              <span>Encrypted Admin telemetry channel</span>
+              <span>Encrypted live telemetry channel</span>
             </div>
             <button
               type="button"

@@ -407,8 +407,8 @@ export class TaskService {
     return (await this.taskRepo.findById(id))!;
   }
 
-  async getActiveTrackingTasks(): Promise<TaskWithDetails[]> {
-    return this.taskRepo.findActiveTrackingTasks();
+  async getActiveTrackingTasks(createdById?: string): Promise<TaskWithDetails[]> {
+    return this.taskRepo.findActiveTrackingTasks(createdById);
   }
 
   async getTaskTracking(id: string, userId: string, userRole: string): Promise<TaskWithDetails> {

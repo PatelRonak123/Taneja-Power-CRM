@@ -47,7 +47,7 @@ export class SalesInvoiceRepository {
 
   async find(query: ListSalesInvoicesQuery, tx: any = db): Promise<{ data: any[]; total: number }> {
     const page = Math.max(1, query.page || 1);
-    const limit = Math.max(1, Math.min(query.limit || 10, 100));
+    const limit = Math.max(1, Math.min(query.limit || 10, 500));
     const offset = (page - 1) * limit;
 
     const conditions: any[] = [];

@@ -20,6 +20,8 @@ import {
   ArrowRight,
   MapPin,
   Sparkles,
+  Wrench,
+  Plus,
 } from 'lucide-react-native';
 import { ScreenContainer } from '../../../src/components/ui/ScreenContainer';
 import { Card } from '../../../src/components/ui/Card';
@@ -27,6 +29,8 @@ import { Badge } from '../../../src/components/ui/Badge';
 import { useAuthStore } from '../../../src/auth/auth.store';
 import { useMyTasks } from '../../../src/hooks/useTasks';
 import { useTodayAttendance } from '../../../src/hooks/useAttendance';
+import { useFsrList } from '../../../src/hooks/useFsr';
+import { canAccessFSR, canCreateFSR, isFSE } from '../../../src/utils/fsrPermissions';
 import { theme } from '../../../src/theme/theme';
 import { formatDate, formatTime } from '../../../src/utils/date';
 import { TaskItem } from '../../../src/types/task.types';
@@ -50,10 +54,33 @@ export default function DashboardScreen() {
     refetch: refetchAttendance,
   } = useTodayAttendance();
 
-  const isRefreshing = tasksRefetching || attendanceRefetching;
+  const hasFsr = canAccessFSR(user);
+  const canCreateReport = canCreateFSR(user);
+  const isEngineer = isFSE(user);
+
+  const {
+    data: fsrData,
+    isRefetching: fsrRefetching,
+    refetch: refetchFsr,
+  } = useFsrList({
+    assignedEngineerId: isEngineer && user?.role !== 'ADMIN' && user?.role !== 'MANAGER' ? user?.id : undefined,
+    limit: 10,
+  });
+
+  const fsrReports = fsrData?.reports || [];
+  const fsrActiveCount = fsrReports.filter(
+    (r) => r.fsr.status === 'IN_PROGRESS' || r.fsr.status === 'DRAFT'
+  ).length;
+  const fsrCompletedCount = fsrReports.filter(
+    (r) => r.fsr.status === 'COMPLETED' || r.fsr.status === 'CLOSED'
+  ).length;
+
+  const isRefreshing = tasksRefetching || attendanceRefetching || fsrRefetching;
 
   const handleRefresh = async () => {
-    await Promise.all([refetchTasks(), refetchAttendance()]);
+    const promises: Promise<any>[] = [refetchTasks(), refetchAttendance()];
+    if (hasFsr) promises.push(refetchFsr());
+    await Promise.all(promises);
   };
 
   const todayFormatted = new Intl.DateTimeFormat('en-IN', {
@@ -203,6 +230,63 @@ export default function DashboardScreen() {
             <ChevronRight size={16} color={theme.colors.primaryLight} />
           </TouchableOpacity>
         </Card>
+
+        {/* Field Service Quick Overview (for Service Field role & managers) */}
+        {hasFsr && (
+          <Card elevated style={styles.fsrCard}>
+            <View style={styles.fsrCardHeader}>
+              <View style={styles.fsrIconWrapper}>
+                <Wrench size={18} color={theme.colors.primaryLight} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fsrCardTitle}>Field Service Operations</Text>
+                <Text style={styles.fsrCardSub}>
+                  {fsrActiveCount > 0
+                    ? `${fsrActiveCount} active service ${fsrActiveCount === 1 ? 'visit' : 'visits'}`
+                    : 'Manage customer UPS site service visits'}
+                </Text>
+              </View>
+              {canCreateReport && (
+                <TouchableOpacity
+                  style={styles.fsrNewBtn}
+                  onPress={() => router.push('/(app)/field-service/new')}
+                  activeOpacity={0.8}
+                >
+                  <Plus size={13} color="#FFFFFF" />
+                  <Text style={styles.fsrNewBtnText}>New FSR</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.fsrStatsRow}>
+              <View style={styles.fsrStatItem}>
+                <Text style={styles.fsrStatVal}>{fsrReports.length}</Text>
+                <Text style={styles.fsrStatLabel}>Visits</Text>
+              </View>
+              <View style={styles.fsrStatItem}>
+                <Text style={[styles.fsrStatVal, { color: theme.colors.accentAmber }]}>
+                  {fsrActiveCount}
+                </Text>
+                <Text style={styles.fsrStatLabel}>In Progress</Text>
+              </View>
+              <View style={styles.fsrStatItem}>
+                <Text style={[styles.fsrStatVal, { color: theme.colors.accentEmerald }]}>
+                  {fsrCompletedCount}
+                </Text>
+                <Text style={styles.fsrStatLabel}>Completed</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.fsrLink}
+              onPress={() => router.push('/(app)/(tabs)/field-service')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.fsrLinkText}>Open Field Service Dashboard</Text>
+              <ChevronRight size={16} color={theme.colors.primaryLight} />
+            </TouchableOpacity>
+          </Card>
+        )}
 
         {/* Task Metrics Grid */}
         <View style={styles.sectionHeader}>
@@ -451,6 +535,83 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.xs,
   },
   attendanceLinkText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.primaryLight,
+  },
+  fsrCard: {
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+  },
+  fsrCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: theme.spacing.sm,
+  },
+  fsrIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsrCardTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textPrimary,
+  },
+  fsrCardSub: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginTop: 1,
+  },
+  fsrNewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.primary,
+  },
+  fsrNewBtnText: {
+    fontSize: 11,
+    fontWeight: theme.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  fsrStatsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    marginVertical: 4,
+  },
+  fsrStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  fsrStatVal: {
+    fontSize: 16,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textPrimary,
+  },
+  fsrStatLabel: {
+    fontSize: 10,
+    color: theme.colors.textMuted,
+    marginTop: 2,
+  },
+  fsrLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: theme.spacing.xs + 2,
+  },
+  fsrLinkText: {
     fontSize: theme.fontSize.xs,
     fontWeight: theme.fontWeight.semibold,
     color: theme.colors.primaryLight,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Truck,
   FileText,
@@ -8,7 +8,10 @@ import {
   CheckCircle,
   Eye,
   X,
+  AlertTriangle,
 } from 'lucide-react';
+import { useSearchParams, useNavigationState } from '../../../app/router/navigation';
+import { ProductForm } from '../../products/modules/ProductForm/ProductForm';
 import { Supplier, PurchaseOrder, GoodsReceipt } from '../types/procurement.types';
 import { useAuthStore } from '../../../stores/authStore';
 import {
@@ -93,8 +96,16 @@ export const ProcurementPage: React.FC = () => {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN';
   const isManager = user?.role === 'MANAGER';
+  const isAccountantOffice =
+    user?.role === 'USER' &&
+    (user?.designation || '').toLowerCase().includes('accountant');
   const canApprovePo = isAdmin || isManager;
   const canPostGrn = isAdmin || isManager;
+  // Can create/edit products: ADMIN, MANAGER, or Accountant Office user
+  const canManageProducts = isAdmin || isManager || isAccountantOffice;
+
+  // ── Quick-add product modal ─────────────────────────────────────────────────
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
 
   // ── Tab ─────────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>('orders');
@@ -106,6 +117,23 @@ export const ProcurementPage: React.FC = () => {
   const [poStatusFilter, setPoStatusFilter] = useState('');
   const [grnSearch, setGrnSearch] = useState('');
 
+  // ── Navigation & Query State ─────────────────────────────────────────────────
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navState = useNavigationState<{
+    source?: string;
+    soNumber?: string;
+    soId?: string;
+    shortages?: Array<{
+      productId: string;
+      productName: string;
+      sku?: string;
+      unit?: string;
+      shortageQty: number;
+      orderedQty?: number;
+      inStock?: number;
+    }>;
+  }>();
+
   // ── Modal / selection state ──────────────────────────────────────────────────
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -114,6 +142,39 @@ export const ProcurementPage: React.FC = () => {
   const [showPoModal, setShowPoModal] = useState(false);
   const [selectedPo, setSelectedPo] = useState<PurchaseOrder | null>(null);
   const [poForm, setPoForm] = useState(defaultPoForm());
+
+  // Listen for navigation from Sales Order shortage workflow
+  useEffect(() => {
+    const shouldCreatePo = searchParams.get('createPo') === 'true';
+    const soNumber = searchParams.get('soNumber') || navState?.soNumber;
+
+    if (shouldCreatePo) {
+      setActiveTab('orders');
+      setShowPoModal(true);
+
+      const items =
+        navState?.shortages && navState.shortages.length > 0
+          ? navState.shortages.map((s) => ({
+              productId: s.productId,
+              quantity: s.shortageQty > 0 ? s.shortageQty : 1,
+              unitCost: 0,
+              taxRate: 18,
+            }))
+          : defaultPoForm().items;
+
+      setPoForm({
+        ...defaultPoForm(),
+        notes: soNumber ? `Procurement to fulfill stock shortage for Sales Order ${soNumber}` : '',
+        items,
+      });
+
+      // Clear the query parameter so closing and reopening doesn't re-trigger unintentionally
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('createPo');
+      nextParams.delete('soNumber');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, navState]);
 
   const [showGrnModal, setShowGrnModal] = useState(false);
   const [selectedGrn, setSelectedGrn] = useState<GoodsReceipt | null>(null);
@@ -690,6 +751,17 @@ export const ProcurementPage: React.FC = () => {
               </button>
             </div>
             <form onSubmit={handleSavePo} className="p-6 flex flex-col gap-5">
+              {poForm.notes && poForm.notes.includes('Sales Order') && (
+                <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-amber-900">Sales Order Stock Shortage Fulfillment</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      This purchase order was initiated from a Sales Order to purchase required stock deficit. Items and quantities have been pre-filled.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Supplier *</label>
@@ -706,6 +778,17 @@ export const ProcurementPage: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Procurement Notes / Reference</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Procurement to fulfill stock shortage for Sales Order SO-..."
+                  value={poForm.notes}
+                  onChange={(e) => setPoForm({ ...poForm, notes: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
               {/* Items Table */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -714,6 +797,29 @@ export const ProcurementPage: React.FC = () => {
                     <Plus className="w-3.5 h-3.5" /> <span>Add Item</span>
                   </button>
                 </div>
+
+                {/* Empty products notice */}
+                {availableProducts.length === 0 && (
+                  <div className="flex items-start gap-3 p-3 mb-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-amber-800">No products in inventory</p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        You need to add at least one product before creating a purchase order.
+                      </p>
+                    </div>
+                    {canManageProducts && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAddProductModal(true)}
+                        className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add Product
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-slate-700 font-semibold text-xs border-b border-slate-200">
@@ -735,6 +841,12 @@ export const ProcurementPage: React.FC = () => {
                           <tr key={idx} className="hover:bg-slate-50/50">
                             <td className="py-2 px-3">
                               <select required value={item.productId} onChange={(e) => { const items = [...poForm.items]; items[idx].productId = e.target.value; setPoForm({ ...poForm, items }); }} className="w-full py-1 px-2 text-xs border border-slate-200 rounded-lg">
+                                <option value="">Select Product…</option>
+                                {item.productId && !availableProducts.some((p) => p.id === item.productId) && (
+                                  <option value={item.productId}>
+                                    {navState?.shortages?.find((s) => s.productId === item.productId)?.productName || 'Selected Product'} {navState?.shortages?.find((s) => s.productId === item.productId)?.sku ? `(${navState.shortages.find((s) => s.productId === item.productId)?.sku})` : ''}
+                                  </option>
+                                )}
                                 {availableProducts.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
                               </select>
                             </td>
@@ -1043,6 +1155,28 @@ export const ProcurementPage: React.FC = () => {
                   <span>Stock movements committed to ledger under referenceType <strong>PURCHASE_RECEIPT</strong>.</span>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── MODAL: QUICK-ADD PRODUCT ──────────────────────────────────────────── */}
+      {showAddProductModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">Add New Product to Inventory</h3>
+                <p className="text-xs text-slate-500">This product will be available in the purchase order line items.</p>
+              </div>
+              <button onClick={() => setShowAddProductModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <ProductForm
+                onSuccess={() => setShowAddProductModal(false)}
+                onCancel={() => setShowAddProductModal(false)}
+              />
             </div>
           </div>
         </div>

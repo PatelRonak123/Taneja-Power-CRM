@@ -741,11 +741,27 @@ export default function BatteryModuleScreen() {
             style={styles.modalOverlay}
           >
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>
-                {isEditingBank ? `Edit Bank #${bankForm.bankNumber}` : 'Add Battery Bank'}
-              </Text>
+              <View style={styles.modalHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalTitle}>
+                    {isEditingBank ? `Edit Bank #${bankForm.bankNumber}` : 'Add Battery Bank'}
+                  </Text>
+                  <Text style={styles.modalSubtitle}>Configure battery bank specs and cell capacity</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setBankModalVisible(false)}
+                  style={styles.modalCloseButton}
+                >
+                  <X size={20} color={theme.colors.textMuted} />
+                </TouchableOpacity>
+              </View>
 
-              <ScrollView style={styles.modalScroll}>
+              <ScrollView
+                style={styles.modalScroll}
+                contentContainerStyle={styles.modalScrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={true}
+              >
                 <Input
                   label="Bank Number"
                   keyboardType="numeric"
@@ -1130,19 +1146,44 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: theme.borderRadius.lg,
-    borderTopRightRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    maxHeight: '85%',
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    paddingTop: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: Platform.OS === 'ios' ? 24 : theme.spacing.md,
+    maxHeight: '90%',
+    display: 'flex',
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    marginBottom: theme.spacing.xs,
   },
   modalTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: theme.fontWeight.bold,
     color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.md,
+  },
+  modalSubtitle: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+    marginTop: 2,
+  },
+  modalCloseButton: {
+    padding: 6,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surfaceElevated,
   },
   modalScroll: {
-    marginBottom: theme.spacing.md,
+    flexShrink: 1,
+  },
+  modalScrollContent: {
+    paddingTop: 8,
+    paddingBottom: 48,
   },
   presetLabel: {
     fontSize: theme.fontSize.sm,
@@ -1179,5 +1220,9 @@ const styles = StyleSheet.create({
   modalActionRow: {
     flexDirection: 'row',
     gap: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
 });

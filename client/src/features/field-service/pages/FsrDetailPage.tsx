@@ -52,6 +52,21 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { env } from "../../../app/config/env";
+
+const resolveImageUrl = (filePath?: string | null): string => {
+  if (!filePath) return "";
+  if (
+    filePath.startsWith("http://") ||
+    filePath.startsWith("https://") ||
+    filePath.startsWith("data:")
+  ) {
+    return filePath;
+  }
+  const cleanPath = filePath.startsWith("/") ? filePath : `/${filePath}`;
+  const serverRoot = env.API_BASE_URL.replace(/\/api\/v1\/?$/, "");
+  return `${serverRoot}${cleanPath}`;
+};
 
 interface FsrDetailPageProps {
   id?: string;
@@ -73,8 +88,7 @@ export const FsrDetailPage: React.FC<FsrDetailPageProps> = ({ id: propId }) => {
   const [showAttachmentModal, setShowAttachmentModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-  const [previewAttachment, setPreviewAttachment] =
-    useState<FsrAttachment | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<FsrAttachment | null>(null);
 
   // Confirmation dialogs
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
@@ -1003,7 +1017,7 @@ export const FsrDetailPage: React.FC<FsrDetailPageProps> = ({ id: propId }) => {
                       att.filePath.endsWith(".png") ||
                       att.filePath.endsWith(".jpg") ? (
                         <img
-                          src={att.filePath}
+                          src={resolveImageUrl(att.filePath)}
                           alt={att.fileName}
                           className="w-full h-24 object-cover rounded-lg border border-slate-200 cursor-pointer"
                           onClick={() => setPreviewAttachment(att)}
@@ -1103,7 +1117,7 @@ export const FsrDetailPage: React.FC<FsrDetailPageProps> = ({ id: propId }) => {
                     </span>
                     <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
                       <img
-                        src={fsr.customerSignature}
+                        src={resolveImageUrl(fsr.customerSignature)}
                         alt="Customer Signature"
                         className="max-h-24 mx-auto object-contain"
                       />
@@ -1118,7 +1132,7 @@ export const FsrDetailPage: React.FC<FsrDetailPageProps> = ({ id: propId }) => {
                     </span>
                     <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
                       <img
-                        src={fsr.customerStamp}
+                        src={resolveImageUrl(fsr.customerStamp)}
                         alt="Customer Stamp"
                         className="max-h-24 mx-auto object-contain"
                       />
@@ -1190,7 +1204,7 @@ export const FsrDetailPage: React.FC<FsrDetailPageProps> = ({ id: propId }) => {
                     </span>
                     <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
                       <img
-                        src={fsr.fseSignature}
+                        src={resolveImageUrl(fsr.fseSignature)}
                         alt="FSE Signature"
                         className="max-h-24 mx-auto object-contain"
                       />
@@ -1288,7 +1302,7 @@ export const FsrDetailPage: React.FC<FsrDetailPageProps> = ({ id: propId }) => {
               <X className="w-5 h-5" />
             </button>
             <img
-              src={previewAttachment.filePath}
+              src={resolveImageUrl(previewAttachment.filePath)}
               alt={previewAttachment.fileName}
               className="max-h-[80vh] w-auto mx-auto rounded-lg object-contain"
             />

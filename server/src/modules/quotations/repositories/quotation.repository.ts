@@ -22,6 +22,7 @@ import {
 } from '../../../database/schema/quotations.js';
 import { customers, customerDestinations } from '../../../database/schema/customers.js';
 import { users } from '../../../database/schema/users.js';
+import { products } from '../../../database/schema/products.js';
 
 export interface QuotationFilterOptions {
   search?: string;
@@ -140,11 +141,20 @@ export class QuotationRepository {
    * Helper to load all details attached to a revision (items, amcScope, amcExclusions, amcEscalations)
    */
   public async loadRevisionDetails(revisionRecord: QuotationRevisionEntity): Promise<FullQuotationRevision> {
-    const items = await db
-      .select()
+    const itemRows = await db
+      .select({
+        item: quotationItems,
+        stockQuantity: products.stockQuantity,
+      })
       .from(quotationItems)
+      .leftJoin(products, eq(quotationItems.productId, products.id))
       .where(eq(quotationItems.quotationRevisionId, revisionRecord.id))
       .orderBy(quotationItems.sortOrder, quotationItems.createdAt);
+
+    const items = itemRows.map(({ item, stockQuantity }) => ({
+      ...item,
+      stockQuantity: stockQuantity ?? 0,
+    }));
 
     const amcScope = await db
       .select()

@@ -6,6 +6,10 @@ import {
 } from '../validators/customer.validator.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { CustomerDestinationEntity } from '../../../database/schema/customers.js';
+import { db } from '../../../database/db.js';
+import { users } from '../../../database/schema/users.js';
+import { tasks } from '../../../database/schema/tasks.js';
+import { eq, and } from 'drizzle-orm';
 import { JwtPayload } from '../../../common/auth/jwt.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
 
@@ -15,12 +19,66 @@ export class DestinationService {
     private readonly customerRepo: CustomerRepository = new CustomerRepository()
   ) {}
 
-  private isScopedEmployee(user?: JwtPayload): boolean {
+  private async isScopedEmployee(user?: JwtPayload): Promise<boolean> {
     if (!user) return false;
     if (user.role === APP_CONSTANTS.ROLES.ADMIN || user.role === APP_CONSTANTS.ROLES.MANAGER) {
       return false;
     }
+
+    let workType = user.workType;
+    let designation = (user.designation || '').toLowerCase();
+
+    if (!workType || !designation) {
+      try {
+        const [dbUser] = await db
+          .select({ workType: users.workType, designation: users.designation })
+          .from(users)
+          .where(eq(users.id, user.userId))
+          .limit(1);
+        if (dbUser) {
+          workType = (dbUser.workType as any) || workType;
+          designation = (dbUser.designation || designation || '').toLowerCase();
+        }
+      } catch {
+        // Fallback to token values
+      }
+    }
+
+    if (workType === APP_CONSTANTS.WORK_TYPES.OFFICE) {
+      return false;
+    }
+
+    const exemptKeywords = [
+      'office',
+      'accountant',
+      'hr',
+      'service',
+      'technician',
+      'tech',
+      'engineer',
+      'electrician',
+      'fse',
+      'solar',
+    ];
+
+    if (exemptKeywords.some((k) => designation.includes(k))) {
+      return false;
+    }
+
     return true;
+  }
+
+  private async hasAssignedTaskForCustomer(userId: string, customerId: string): Promise<boolean> {
+    try {
+      const rows = await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(eq(tasks.assignedTo, userId), eq(tasks.customerId, customerId)))
+        .limit(1);
+      return rows.length > 0;
+    } catch {
+      return false;
+    }
   }
 
   private async ensureCustomerExists(customerId: string, authUser?: JwtPayload) {
@@ -29,13 +87,14 @@ export class DestinationService {
       throw AppError.notFound('Customer not found');
     }
 
-    if (
-      authUser &&
-      this.isScopedEmployee(authUser) &&
-      customer.createdById &&
-      customer.createdById !== authUser.userId
-    ) {
-      throw AppError.forbidden('You do not have permission to access destinations for this customer');
+    if (authUser && (await this.isScopedEmployee(authUser))) {
+      const isOwner = customer.createdById === authUser.userId;
+      if (!isOwner) {
+        const hasTask = await this.hasAssignedTaskForCustomer(authUser.userId, customerId);
+        if (!hasTask) {
+          throw AppError.forbidden('You do not have permission to access destinations for this customer');
+        }
+      }
     }
 
     return customer;
