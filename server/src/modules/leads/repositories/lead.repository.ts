@@ -45,6 +45,188 @@ export class LeadRepository {
     }
   }
 
+  async resolveLeadPipelineStage(leadRecord: any, txOrDb: any = db): Promise<string> {
+    try {
+      if (!leadRecord) return 'New';
+
+      const rawUpper = (leadRecord.status || '').toUpperCase();
+      const isNew = rawUpper === 'NEW' || rawUpper === 'NEW LEADS' || rawUpper === 'NEW_LEAD' || rawUpper === 'NEW_LEADS' || !leadRecord.status;
+
+      let clientId = leadRecord.linkedClientId;
+
+      // If clientId is missing, attempt quick lookup by email or name/company
+      if (!clientId) {
+        if (leadRecord.email && leadRecord.email.trim() !== '') {
+          const [c] = await txOrDb
+            .select({ id: customers.id })
+            .from(customers)
+            .where(eq(customers.email, leadRecord.email.trim()))
+            .limit(1);
+          if (c) clientId = c.id;
+        }
+        if (!clientId && leadRecord.customerName) {
+          const [c] = await txOrDb
+            .select({ id: customers.id })
+            .from(customers)
+            .where(ilike(customers.name, leadRecord.customerName.trim()))
+            .limit(1);
+          if (c) clientId = c.id;
+        }
+      }
+
+      // Check date threshold: only match downstream business events that occurred after this lead was created
+      const leadCreatedAt = leadRecord.createdAt ? new Date(leadRecord.createdAt) : null;
+      const createdThreshold = leadCreatedAt ? new Date(leadCreatedAt.getTime() - 2 * 60 * 1000) : null;
+
+      if (clientId && createdThreshold) {
+        // 1. Check Field Service Reports for Installation & Completion created for this lead/deal
+        const fsrRes = await txOrDb.execute(sql`
+          SELECT fsr.id, fsr.fsr_number, fsr.call_type, fsr.status
+          FROM field_service_reports fsr
+          WHERE fsr.customer_id = ${clientId}::uuid
+            AND fsr.created_at >= ${createdThreshold}
+          ORDER BY fsr.created_at DESC
+          LIMIT 1
+        `).catch(() => null);
+        const fsr = (fsrRes as any)?.rows?.[0] || (fsrRes as any)?.[0];
+        if (fsr && fsr.call_type === 'INSTALLATION') {
+          if (fsr.status === 'COMPLETED' || fsr.status === 'CLOSED') {
+            return 'Completed';
+          }
+          if (fsr.status === 'DRAFT' || fsr.status === 'IN_PROGRESS') {
+            return 'Installation';
+          }
+        }
+
+        const dispRes = await txOrDb.execute(sql`
+          SELECT d.id, d.dispatch_number, d.status
+          FROM dispatches d
+          WHERE d.customer_id = ${clientId}::uuid
+            AND d.status = 'DISPATCHED'
+            AND d.created_at >= ${createdThreshold}
+          ORDER BY d.created_at DESC
+          LIMIT 1
+        `).catch(() => null);
+        const disp = (dispRes as any)?.rows?.[0] || (dispRes as any)?.[0];
+        if (disp) {
+          if (fsr && fsr.call_type === 'INSTALLATION') {
+            if (fsr.status === 'COMPLETED' || fsr.status === 'CLOSED') {
+              return 'Completed';
+            }
+            return 'Installation';
+          }
+          return 'Dispatched';
+        }
+
+        // 3. Check Sales Orders created after this lead was created
+        const soRes = await txOrDb.execute(sql`
+          SELECT so.id, so.sales_order_number, so.status
+          FROM sales_orders so
+          WHERE so.customer_id = ${clientId}::uuid
+            AND so.status != 'CANCELLED'
+            AND so.created_at >= ${createdThreshold}
+          ORDER BY so.created_at DESC
+          LIMIT 1
+        `).catch(() => null);
+        const so = (soRes as any)?.rows?.[0] || (soRes as any)?.[0];
+        if (so) {
+          const soItemsRes = await txOrDb.execute(sql`
+            SELECT soi.quantity, COALESCE(p.stock_quantity, 0) as physical_stock
+            FROM sales_order_items soi
+            LEFT JOIN products p ON p.id = soi.product_id
+            WHERE soi.sales_order_id = ${so.id}::uuid
+          `).catch(() => null);
+          const soItems = ((soItemsRes as any)?.rows || (soItemsRes as any) || []) as any[];
+          const isFulfillable = soItems.length > 0 && soItems.every((it: any) => Number(it.physical_stock || 0) >= Number(it.quantity || 0));
+          if (isFulfillable) {
+            return 'Ready for Dispatch';
+          }
+          return 'Order Confirmed';
+        }
+
+        // 4. Check explicit Negotiation stage (takes precedence over Quotation Sent unless an SO exists)
+        if (rawUpper === 'NEGOTIATION') {
+          return 'Negotiation';
+        }
+
+        // 5. Check Quotation Sent created after this lead was created
+        const quoteRes = await txOrDb.execute(sql`
+          SELECT q.id, q.quotation_number, q.status,
+                 (SELECT COUNT(*) FROM quotation_activity_logs qal WHERE qal.quotation_id = q.id AND qal.action = 'EMAIL_SENT') as email_sent_count
+          FROM quotations q
+          WHERE q.customer_id = ${clientId}::uuid
+            AND q.created_at >= ${createdThreshold}
+          ORDER BY q.created_at DESC
+          LIMIT 1
+        `).catch(() => null);
+        const quote = (quoteRes as any)?.rows?.[0] || (quoteRes as any)?.[0];
+        if (quote) {
+          if (quote.status === 'SENT' || Number(quote.email_sent_count || 0) > 0) {
+            return 'Quotation Sent';
+          }
+        }
+      }
+
+      // 6. Check explicit Negotiation stage if not already matched
+      if (rawUpper === 'NEGOTIATION') {
+        return 'Negotiation';
+      }
+
+      // 7. Check Meeting Scheduled from Follow-ups
+      const fuConditions = [];
+      if (leadRecord.id) {
+        fuConditions.push(sql`fu.lead_id = ${leadRecord.id}`);
+        fuConditions.push(sql`fu.deal_id = ${leadRecord.id}`);
+      }
+      if (clientId && createdThreshold) {
+        fuConditions.push(sql`(fu.customer_id = ${clientId}::uuid AND fu.created_at >= ${createdThreshold})`);
+      }
+      if (fuConditions.length > 0) {
+        const fuRes = await txOrDb.execute(sql`
+          SELECT fu.id, fu.scheduled_date, fu.scheduled_time, fu.type
+          FROM follow_ups fu
+          WHERE (${sql.join(fuConditions, sql` OR `)})
+            AND fu.status = 'PENDING'
+            AND fu.scheduled_date IS NOT NULL
+          ORDER BY fu.created_at DESC
+          LIMIT 1
+        `).catch(() => null);
+        const fu = (fuRes as any)?.rows?.[0] || (fuRes as any)?.[0];
+        if (fu) {
+          return 'Meeting Scheduled';
+        }
+      }
+
+      // 8. Check manual Contacted
+      if (rawUpper === 'CONTACTED') {
+        return 'Contacted';
+      }
+
+      // 9. Check stored Meeting Scheduled
+      if (rawUpper === 'MEETING SCHEDULED' || rawUpper === 'MEETING_SCHEDULED') {
+        return 'Meeting Scheduled';
+      }
+
+      // 10. If new lead and no newer transactions
+      if (isNew) {
+        return 'New';
+      }
+
+      // 11. Stored canonical status mappings
+      if (rawUpper === 'APPROVED/PO' || rawUpper === 'APPROVED' || rawUpper === 'ORDER CONFIRMED') return 'Order Confirmed';
+      if (rawUpper === 'PROPOSAL SENT' || rawUpper === 'QUOTATION SENT') return 'Quotation Sent';
+      if (rawUpper === 'READY FOR DISPATCH') return 'Ready for Dispatch';
+      if (rawUpper === 'DISPATCHED') return 'Dispatched';
+      if (rawUpper === 'INSTALLATION') return 'Installation';
+      if (rawUpper === 'COMPLETED' || rawUpper === 'WON') return 'Completed';
+
+      return 'New';
+    } catch (err) {
+      console.warn('resolveLeadPipelineStage error:', err);
+      return leadRecord.status || 'New';
+    }
+  }
+
   async findAll(
     filters: { search?: string; status?: string; priority?: string; assignee?: string },
     user?: JwtPayload
@@ -119,6 +301,8 @@ export class LeadRepository {
           .where(eq(leadActivityLogs.leadId, lead.id))
           .orderBy(desc(leadActivityLogs.createdAt));
 
+        const authoritativeStatus = await this.resolveLeadPipelineStage(lead);
+
         return {
           id: lead.id,
           leadCode: lead.leadCode,
@@ -134,7 +318,7 @@ export class LeadRepository {
           createdBy: lead.createdBy || 'System Admin',
           createdById: lead.createdById || undefined,
           priority: lead.priority,
-          status: lead.status,
+          status: authoritativeStatus,
           source: lead.source,
           linkedClientId: lead.linkedClientId || undefined,
           activityLogs: logs.map((l) => ({
@@ -186,6 +370,8 @@ export class LeadRepository {
       .where(eq(leadActivityLogs.leadId, leadRecord.id))
       .orderBy(desc(leadActivityLogs.createdAt));
 
+    const authoritativeStatus = await this.resolveLeadPipelineStage(leadRecord);
+
     return {
       id: leadRecord.id,
       leadCode: leadRecord.leadCode,
@@ -201,7 +387,7 @@ export class LeadRepository {
       createdBy: leadRecord.createdBy || 'System Admin',
       createdById: leadRecord.createdById || undefined,
       priority: leadRecord.priority,
-      status: leadRecord.status,
+      status: authoritativeStatus,
       source: leadRecord.source,
       linkedClientId: leadRecord.linkedClientId || undefined,
       activityLogs: logs.map((l) => ({
@@ -407,6 +593,43 @@ export class LeadRepository {
       delete payload.assignedExecutive;
     }
 
+    // Backend validation for manual vs system-driven pipeline transitions
+    if (payload.status) {
+      const normStatus = payload.status.toUpperCase();
+      const manualAllowed = ['NEW', 'NEW LEADS', 'NEW_LEADS', 'CONTACTED', 'NEGOTIATION'];
+      if (!manualAllowed.includes(normStatus)) {
+        // Validate if the corresponding business event/entity actually exists
+        const resolvedStage = await this.resolveLeadPipelineStage(existingLead || { ...payload, id });
+        const resolvedNorm = resolvedStage.toUpperCase();
+
+        const isMatch =
+          normStatus === resolvedNorm ||
+          (normStatus.includes('MEETING') && resolvedNorm.includes('MEETING')) ||
+          ((normStatus.includes('QUOTATION') || normStatus.includes('PROPOSAL')) && (resolvedNorm.includes('QUOTATION') || resolvedNorm.includes('PROPOSAL'))) ||
+          ((normStatus.includes('ORDER') || normStatus.includes('APPROVED')) && (resolvedNorm.includes('ORDER') || resolvedNorm.includes('APPROVED'))) ||
+          (normStatus.includes('READY') && resolvedNorm.includes('READY')) ||
+          (normStatus.includes('DISPATCHED') && resolvedNorm.includes('DISPATCHED')) ||
+          (normStatus.includes('INSTALLATION') && resolvedNorm.includes('INSTALLATION')) ||
+          (normStatus.includes('COMPLETED') && resolvedNorm.includes('COMPLETED'));
+
+        if (!isMatch) {
+          const reasons: Record<string, string> = {
+            'MEETING SCHEDULED': 'Meeting Scheduled stage is automatically managed by scheduling a Meeting follow-up in the Follow-ups module.',
+            'QUOTATION SENT': 'Quotation Sent stage requires an approved quotation to be emailed to the customer using "Send Email to Customer".',
+            'PROPOSAL SENT': 'Quotation Sent stage requires an approved quotation to be emailed to the customer using "Send Email to Customer".',
+            'ORDER CONFIRMED': 'Order Confirmed stage requires a confirmed Sales Order to be created in the Sales Orders module.',
+            'APPROVED': 'Order Confirmed stage requires a confirmed Sales Order to be created in the Sales Orders module.',
+            'APPROVED/PO': 'Order Confirmed stage requires a confirmed Sales Order to be created in the Sales Orders module.',
+            'READY FOR DISPATCH': 'Ready for Dispatch stage requires a Sales Order with verified available inventory stock.',
+            'DISPATCHED': 'Dispatched stage requires physical stock reduction through confirmed dispatch in the Dispatch module.',
+            'INSTALLATION': 'Installation stage requires an active Field Service / FSR installation job card.',
+            'COMPLETED': 'Completed stage requires completed delivery dispatch or completed installation FSR.',
+          };
+          throw AppError.badRequest(reasons[payload.status.toUpperCase()] || `Cannot move lead to "${payload.status}" without the corresponding business transaction.`);
+        }
+      }
+    }
+
     const linkedClientId = await this.ensureCustomerForLead({
       customerName: payload.customerName || existingLead?.customerName || '',
       companyName: payload.companyName || existingLead?.companyName,
@@ -428,7 +651,7 @@ export class LeadRepository {
         email: payload.email || '',
         phone: payload.phone || '',
         address: payload.address || '',
-        productInterested: payload.productInterested || 'Equipment',
+        productInterested: payload.productInterested || '',
         expectedValue: payload.expectedValue || '0',
         assignedExecutive: payload.assignedExecutive || 'Unassigned',
         assignedEmployeeId: user?.userId,
@@ -465,20 +688,21 @@ export class LeadRepository {
     const allLeads = await this.findAll({}, user);
 
     const STAGES = [
-      { id: 'NEW LEADS', title: 'NEW LEADS', statusKeys: ['NEW', 'NEW LEADS'] },
+      { id: 'NEW LEADS', title: 'NEW LEADS', statusKeys: ['NEW', 'NEW LEADS', 'NEW_LEAD', 'NEW_LEADS'] },
       { id: 'CONTACTED', title: 'CONTACTED', statusKeys: ['CONTACTED'] },
-      { id: 'MEETING SCHEDULED', title: 'MEETING SCHEDULED', statusKeys: ['MEETING SCHEDULED'] },
-      { id: 'QUOTATION SENT', title: 'QUOTATION SENT', statusKeys: ['QUOTATION SENT', 'PROPOSAL SENT'] },
+      { id: 'MEETING SCHEDULED', title: 'MEETING SCHEDULED', statusKeys: ['MEETING SCHEDULED', 'MEETING_SCHEDULED'] },
+      { id: 'QUOTATION SENT', title: 'QUOTATION SENT', statusKeys: ['QUOTATION SENT', 'QUOTATION_SENT', 'PROPOSAL SENT', 'PROPOSAL_SENT'] },
       { id: 'NEGOTIATION', title: 'NEGOTIATION', statusKeys: ['NEGOTIATION'] },
-      { id: 'APPROVED/PO', title: 'APPROVED/PO', statusKeys: ['APPROVED/PO', 'APPROVED'] },
+      { id: 'ORDER CONFIRMED', title: 'ORDER CONFIRMED', statusKeys: ['ORDER CONFIRMED', 'ORDER_CONFIRMED', 'APPROVED/PO', 'APPROVED'] },
+      { id: 'READY FOR DISPATCH', title: 'READY FOR DISPATCH', statusKeys: ['READY FOR DISPATCH', 'READY_FOR_DISPATCH'] },
+      { id: 'DISPATCHED', title: 'DISPATCHED', statusKeys: ['DISPATCHED'] },
       { id: 'INSTALLATION', title: 'INSTALLATION', statusKeys: ['INSTALLATION'] },
-      { id: 'AMC SUPPORT', title: 'AMC SUPPORT', statusKeys: ['AMC SUPPORT'] },
-      { id: 'COMPLETED', title: 'COMPLETED', statusKeys: ['COMPLETED'] },
+      { id: 'COMPLETED', title: 'COMPLETED', statusKeys: ['COMPLETED', 'WON'] },
     ];
 
     return STAGES.map((stage) => {
       const deals = allLeads.filter((l) =>
-        stage.statusKeys.includes(l.status.toUpperCase())
+        stage.statusKeys.includes((l.status || '').toUpperCase())
       );
 
       const totalValueRaw = deals.reduce((sum, d) => sum + (d.expectedValue || 0), 0);

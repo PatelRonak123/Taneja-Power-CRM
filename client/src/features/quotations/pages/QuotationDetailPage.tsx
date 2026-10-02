@@ -314,7 +314,7 @@ export const QuotationDetailPage: React.FC = () => {
               </Button>
             )}
 
-            {['APPROVED', 'ACCEPTED'].includes(quotation.status) && (
+            {['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'].includes(quotation.status) && !isSalesOffice && (
               <Button
                 variant="primary"
                 size="md"
@@ -323,7 +323,7 @@ export const QuotationDetailPage: React.FC = () => {
                   navigate(`/sales-orders?quotationId=${quotation.id}`);
                 }}
                 className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800"
-                title="Create a Sales Order from this approved quotation"
+                title="Create a Sales Order from this quotation"
               >
                 Create Sales Order
               </Button>

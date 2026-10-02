@@ -4,6 +4,7 @@ import { DispatchRepository, DispatchFilter } from '../repositories/dispatch.rep
 import { DispatchNumberService } from './dispatch-number.service.js';
 import { StockService } from '../../inventory/services/stock.service.js';
 import { salesOrders, salesOrderItems } from '../../../database/schema/sales-orders.js';
+import { leads, leadActivityLogs } from '../../../database/schema/leads.js';
 import { customers } from '../../../database/schema/customers.js';
 import { products } from '../../../database/schema/products.js';
 import { dispatches, dispatchItems, DispatchEntity } from '../../../database/schema/dispatch.js';
@@ -622,6 +623,33 @@ export class DispatchService {
         },
         tx
       );
+
+      // 9. Synchronize Deals Pipeline stage to 'Dispatched'
+      if (salesOrder.customer_id) {
+        try {
+          const matchedLeads = await tx
+            .select({ id: leads.id })
+            .from(leads)
+            .where(eq(leads.linkedClientId, salesOrder.customer_id));
+
+          for (const ld of matchedLeads) {
+            await tx
+              .update(leads)
+              .set({ status: 'Dispatched', updatedAt: new Date() })
+              .where(eq(leads.id, ld.id));
+
+            await tx.insert(leadActivityLogs).values({
+              id: `act-${ld.id}-${Date.now()}`,
+              leadId: ld.id,
+              title: `Inventory stock outward recorded against SO ${salesOrder.sales_order_number} — pipeline moved to Dispatched`,
+              date: new Date().toISOString().split('T')[0],
+              type: 'System',
+            });
+          }
+        } catch {
+          // Non-blocking
+        }
+      }
 
       return updatedDispatch;
     });

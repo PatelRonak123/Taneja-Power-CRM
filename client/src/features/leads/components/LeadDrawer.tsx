@@ -26,6 +26,8 @@ import { toast } from '../../../utils/toast';
 import { Customer } from '../../customers/types/customer.types';
 import { leadsApi } from '../api/leadsApi';
 import { FollowUpEntitySection } from '../../follow-ups/components/FollowUpEntitySection';
+import { productService } from '../../products/services/productService';
+import { Product } from '../../products/types/product.types';
 
 interface LeadDrawerProps {
   isOpen: boolean;
@@ -48,11 +50,14 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
   const [newNoteText, setNewNoteText] = useState('');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [customersList, setCustomersList] = useState<Customer[]>([]);
+  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
 
   useEffect(() => {
     const loadRefData = async () => {
       try {
+        setIsLoadingProducts(true);
         if (user?.role === 'ADMIN' || user?.role === 'MANAGER') {
           const empRes = await employeeService.getEmployees().catch(() => null);
           const empList = Array.isArray(empRes) ? empRes : (empRes as any)?.data || [];
@@ -61,10 +66,22 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
           }
         }
 
-        const [custRes, leadsRes] = await Promise.all([
+        const [custRes, leadsRes, prodRes] = await Promise.all([
           customerService.getCustomers({ limit: 500 }).catch(() => null),
           leadsApi.getLeads({}).catch(() => null),
+          productService.getProducts({ limit: 500 }).catch(() => null),
         ]);
+
+        if (prodRes) {
+          const prodData = Array.isArray(prodRes)
+            ? prodRes
+            : Array.isArray((prodRes as any)?.data)
+            ? (prodRes as any).data
+            : Array.isArray((prodRes as any)?.data?.products)
+            ? (prodRes as any).data.products
+            : [];
+          setProductsList(prodData);
+        }
 
         let combined: Customer[] = [];
 
@@ -136,6 +153,8 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
         }
       } catch (err) {
         console.warn('Failed to load reference data for LeadDrawer:', err);
+      } finally {
+        setIsLoadingProducts(false);
       }
     };
     if (isOpen) {
@@ -149,8 +168,8 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
     email: '',
     phone: '',
     address: '',
-    productInterested: 'Magnetic Oil Level Gauge (MOG)',
-    expectedValue: 10000,
+    productInterested: '',
+    expectedValue: 0,
     assignedExecutive: user?.fullName || '',
     priority: 'Medium',
     status: 'New',
@@ -191,8 +210,8 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
         email: '',
         phone: '',
         address: '',
-        productInterested: '100 KVA Power Transformer',
-        expectedValue: 25000,
+        productInterested: '',
+        expectedValue: 0,
         assignedExecutive: user?.fullName || (employees[0]?.fullName || ''),
         assignedEmployeeId: user?.id || (employees[0]?.id || undefined),
         priority: 'Medium',
@@ -241,7 +260,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
       email: formData.email || '',
       phone: formData.phone || '',
       address: formData.address || '',
-      productInterested: formData.productInterested || 'Equipment',
+      productInterested: formData.productInterested || '',
       expectedValue: Number(formData.expectedValue) || 0,
       assignedExecutive: formData.assignedExecutive || user?.fullName || 'Unassigned',
       assignedEmployeeId: lead?.assignedEmployeeId || user?.id,
@@ -690,12 +709,15 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                       value={formData.productInterested || ''}
                       onChange={(e) => setFormData({ ...formData, productInterested: e.target.value })}
                     >
-                      <option value="Magnetic Oil Level Gauge (MOG)">Magnetic Oil Level Gauge (MOG)</option>
-                      <option value="Winding Temperature Indicator (WTI)">Winding Temperature Indicator (WTI)</option>
-                      <option value="100 KVA Power Transformer">100 KVA Power Transformer</option>
-                      <option value="Industrial Switchgear Panel">Industrial Switchgear Panel</option>
-                      <option value="Vacuum Circuit Breaker (VCB)">Vacuum Circuit Breaker (VCB)</option>
-                      <option value="Oil Temperature Indicator (OTI)">Oil Temperature Indicator (OTI)</option>
+                      <option value="">{isLoadingProducts ? 'Loading products...' : 'Select a product...'}</option>
+                      {productsList.map((prod) => (
+                        <option key={prod.id} value={prod.name}>
+                          {prod.name} {prod.sku ? `(${prod.sku})` : ''}
+                        </option>
+                      ))}
+                      {formData.productInterested && !productsList.some((p) => p.name === formData.productInterested) && (
+                        <option value={formData.productInterested}>{formData.productInterested}</option>
+                      )}
                     </select>
                   </div>
 
@@ -705,10 +727,17 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                     </label>
                     <input
                       type="number"
+                      min="0"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      placeholder="9000"
-                      value={formData.expectedValue || 0}
-                      onChange={(e) => setFormData({ ...formData, expectedValue: Number(e.target.value) })}
+                      placeholder="0"
+                      value={formData.expectedValue === undefined || formData.expectedValue === null ? '' : formData.expectedValue}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData({
+                          ...formData,
+                          expectedValue: val === '' ? ('' as any) : Number(val),
+                        });
+                      }}
                     />
                   </div>
 
@@ -799,11 +828,12 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                       <option value="New">New</option>
                       <option value="Contacted">Contacted</option>
                       <option value="Meeting Scheduled">Meeting Scheduled</option>
-                      <option value="Proposal Sent">Proposal Sent</option>
+                      <option value="Quotation Sent">Quotation Sent</option>
                       <option value="Negotiation">Negotiation</option>
-                      <option value="Approved">Approved</option>
+                      <option value="Order Confirmed">Order Confirmed</option>
+                      <option value="Ready for Dispatch">Ready for Dispatch</option>
+                      <option value="Dispatched">Dispatched</option>
                       <option value="Installation">Installation</option>
-                      <option value="AMC Support">AMC Support</option>
                       <option value="Completed">Completed</option>
                       <option value="Lost">Lost</option>
                     </select>

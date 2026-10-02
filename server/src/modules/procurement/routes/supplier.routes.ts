@@ -21,6 +21,13 @@ router.get(
 );
 
 router.get(
+  '/next-code',
+  authenticate,
+  requirePermission('procurement:supplier:read'),
+  controller.getNextCode
+);
+
+router.get(
   '/:id',
   authenticate,
   requirePermission('procurement:supplier:read'),

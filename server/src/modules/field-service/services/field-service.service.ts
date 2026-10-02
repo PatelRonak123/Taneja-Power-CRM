@@ -12,6 +12,7 @@ import {
   fieldServiceAttachments,
   fieldServiceActivityLogs,
 } from '../../../database/schema/field-service.js';
+import { leads, leadActivityLogs } from '../../../database/schema/leads.js';
 import { customers, customerDestinations } from '../../../database/schema/customers.js';
 import { users } from '../../../database/schema/users.js';
 import { products } from '../../../database/schema/products.js';
@@ -329,6 +330,33 @@ export class FieldServiceService {
         title: 'FSR Created',
         description: `Field Service Report ${fsrNumber} created for ${customer.name} (Call Type: ${input.callType})`,
       });
+
+      // Synchronize Deals Pipeline stage to 'Installation' if installation FSR created
+      if (input.callType === 'INSTALLATION' && customer.id) {
+        try {
+          const matchedLeads = await tx
+            .select({ id: leads.id })
+            .from(leads)
+            .where(eq(leads.linkedClientId, customer.id));
+
+          for (const ld of matchedLeads) {
+            await tx
+              .update(leads)
+              .set({ status: 'Installation', updatedAt: new Date() })
+              .where(eq(leads.id, ld.id));
+
+            await tx.insert(leadActivityLogs).values({
+              id: `act-${ld.id}-${Date.now()}`,
+              leadId: ld.id,
+              title: `Installation FSR ${fsrNumber} created — pipeline moved to Installation`,
+              date: new Date().toISOString().split('T')[0],
+              type: 'System',
+            });
+          }
+        } catch {
+          // Non-blocking
+        }
+      }
 
       return newFsr.id;
     });
@@ -1271,6 +1299,33 @@ export class FieldServiceService {
         title: 'FSR Completed',
         description: `Field service visit marked COMPLETED by ${existing.serviceEngineer.fullName || 'Engineer'}`,
       });
+
+      // Synchronize Deals Pipeline stage to 'Completed' if installation FSR completed
+      if (existing.fsr.customerId && existing.fsr.callType === 'INSTALLATION') {
+        try {
+          const matchedLeads = await tx
+            .select({ id: leads.id })
+            .from(leads)
+            .where(eq(leads.linkedClientId, existing.fsr.customerId));
+
+          for (const ld of matchedLeads) {
+            await tx
+              .update(leads)
+              .set({ status: 'Completed', updatedAt: new Date() })
+              .where(eq(leads.id, ld.id));
+
+            await tx.insert(leadActivityLogs).values({
+              id: `act-${ld.id}-${Date.now()}`,
+              leadId: ld.id,
+              title: `FSR ${existing.fsr.fsrNumber} completed — installation completed and deal moved to Completed`,
+              date: new Date().toISOString().split('T')[0],
+              type: 'System',
+            });
+          }
+        } catch {
+          // Non-blocking
+        }
+      }
     });
 
     return await this.getFsrById(id);

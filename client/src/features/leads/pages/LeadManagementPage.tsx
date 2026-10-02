@@ -400,14 +400,15 @@ export const LeadManagementPage: React.FC = () => {
           onChange={(e) => setSelectedStatus(e.target.value)}
         >
           <option value="ALL">All Statuses</option>
-          <option value="NEW">New</option>
+          <option value="NEW">New Leads</option>
           <option value="CONTACTED">Contacted</option>
           <option value="MEETING SCHEDULED">Meeting Scheduled</option>
-          <option value="PROPOSAL SENT">Proposal Sent</option>
+          <option value="QUOTATION SENT">Quotation Sent</option>
           <option value="NEGOTIATION">Negotiation</option>
-          <option value="APPROVED">Approved / PO</option>
+          <option value="ORDER CONFIRMED">Order Confirmed</option>
+          <option value="READY FOR DISPATCH">Ready for Dispatch</option>
+          <option value="DISPATCHED">Dispatched</option>
           <option value="INSTALLATION">Installation</option>
-          <option value="AMC SUPPORT">AMC Support</option>
           <option value="COMPLETED">Completed</option>
           <option value="LOST">Lost</option>
         </select>
@@ -453,27 +454,27 @@ export const LeadManagementPage: React.FC = () => {
       {/* Leads Table Container */}
       <div className="bg-card rounded-xl border border-border shadow-xs overflow-hidden flex flex-col w-full">
         <div className="w-full overflow-x-auto">
-          <Table density="standard" className="min-w-225 md:min-w-0 md:table-fixed">
+          <Table density="standard" className="w-full min-w-[980px]">
             <TableHeader>
               <TableRow>
-                <TableHead className="md:w-[10%]">ID</TableHead>
-                <TableHead className="md:w-[22%]">
+                <TableHead className="w-24 min-w-[85px]">ID</TableHead>
+                <TableHead className="min-w-[180px]">
                   <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-600">
                     <span>CLIENT</span>
                     <ArrowUpDown size={12} />
                   </div>
                 </TableHead>
-                <TableHead className="md:w-[18%]">PRODUCT INTERESTED</TableHead>
-                <TableHead align="right" className="md:w-[14%]">
+                <TableHead className="min-w-[170px]">PRODUCT INTERESTED</TableHead>
+                <TableHead align="right" className="min-w-[130px]">
                   <div className="flex items-center justify-end gap-1.5 cursor-pointer hover:text-slate-600">
                     <span>EXPECTED VALUE</span>
                     <ArrowUpDown size={12} />
                   </div>
                 </TableHead>
-                <TableHead className="md:w-[14%]">{isAdminOrManager ? 'ASSIGNED TO' : 'ASSIGNED BY'}</TableHead>
-                <TableHead align="center" className="md:w-[8%]">PRIORITY</TableHead>
-                <TableHead align="center" className="md:w-[9%]">STATUS</TableHead>
-                <TableHead align="right" className="md:w-[8%]">ACTIONS</TableHead>
+                <TableHead className="min-w-[140px]">{isAdminOrManager ? 'ASSIGNED TO' : 'ASSIGNED BY'}</TableHead>
+                <TableHead align="center" className="w-28 min-w-[95px]">PRIORITY</TableHead>
+                <TableHead align="center" className="w-40 min-w-[150px]">STATUS</TableHead>
+                <TableHead align="right" className="w-32 min-w-[120px]">ACTIONS</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -540,43 +541,47 @@ export const LeadManagementPage: React.FC = () => {
                     </TableCell>
 
                     {/* PRIORITY */}
-                    <TableCell align="center" className="align-middle">
-                      <StatusPill
-                        variant={
-                          lead.priority.toUpperCase() === 'URGENT' || lead.priority.toUpperCase() === 'HIGH'
-                            ? 'danger'
-                            : lead.priority.toUpperCase() === 'MEDIUM'
-                            ? 'warning'
-                            : 'neutral'
-                        }
-                        size="xs"
-                      >
-                        {lead.priority}
-                      </StatusPill>
+                    <TableCell align="center" className="align-middle whitespace-nowrap">
+                      <div className="flex justify-center">
+                        <StatusPill
+                          variant={
+                            lead.priority.toUpperCase() === 'URGENT' || lead.priority.toUpperCase() === 'HIGH'
+                              ? 'danger'
+                              : lead.priority.toUpperCase() === 'MEDIUM'
+                              ? 'warning'
+                              : 'neutral'
+                          }
+                          size="xs"
+                        >
+                          {lead.priority}
+                        </StatusPill>
+                      </div>
                     </TableCell>
 
                     {/* STATUS */}
-                    <TableCell align="center" className="align-middle">
-                      <StatusPill
-                        variant={
-                          lead.status.toUpperCase().includes('APPROVED') || lead.status.toUpperCase() === 'COMPLETED'
-                            ? 'success'
-                            : lead.status.toUpperCase() === 'LOST'
-                            ? 'danger'
-                            : lead.status.toUpperCase() === 'NEW' || lead.status.toUpperCase() === 'NEGOTIATION'
-                            ? 'warning'
-                            : 'info'
-                        }
-                        dot
-                        size="xs"
-                      >
-                        {lead.status}
-                      </StatusPill>
+                    <TableCell align="center" className="align-middle whitespace-nowrap px-3">
+                      <div className="flex justify-center">
+                        <StatusPill
+                          variant={
+                            lead.status.toUpperCase().includes('COMPLETED') || lead.status.toUpperCase().includes('DISPATCHED') || lead.status.toUpperCase().includes('APPROVED')
+                              ? 'success'
+                              : lead.status.toUpperCase() === 'LOST'
+                              ? 'danger'
+                              : lead.status.toUpperCase().includes('NEW') || lead.status.toUpperCase().includes('NEGOTIATION') || lead.status.toUpperCase().includes('CONTACTED')
+                              ? 'warning'
+                              : 'info'
+                          }
+                          dot
+                          size="xs"
+                        >
+                          {lead.status}
+                        </StatusPill>
+                      </div>
                     </TableCell>
 
                     {/* ACTIONS */}
-                    <TableCell align="right" className="align-middle whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1">
+                    <TableCell align="right" className="align-middle whitespace-nowrap pl-4 pr-3">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
                           onClick={() => handleOpenView(lead)}

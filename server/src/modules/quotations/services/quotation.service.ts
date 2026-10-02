@@ -10,6 +10,7 @@ import {
   quotationApprovals,
   quotationActivityLogs,
 } from '../../../database/schema/quotations.js';
+import { leads, leadActivityLogs } from '../../../database/schema/leads.js';
 import { customers, customerDestinations } from '../../../database/schema/customers.js';
 import { products } from '../../../database/schema/products.js';
 import { QuotationRepository, QuotationFilterOptions } from '../repositories/quotation.repository.js';
@@ -1724,6 +1725,37 @@ export class QuotationService {
       title: 'Quotation PDF Emailed to Customer',
       description: `Quotation PDF Rev ${currentRevision.revisionNumber} sent to ${targetEmail} via Resend. (Msg ID: ${resendResult.id})`,
     });
+
+    // Synchronize Deals Pipeline stage to 'Quotation Sent' if linked lead/deal exists
+    if (quotation.customerId) {
+      try {
+        const matchedLeads = await db
+          .select({ id: leads.id, status: leads.status })
+          .from(leads)
+          .where(eq(leads.linkedClientId, quotation.customerId));
+
+        for (const ld of matchedLeads) {
+          const currentStage = (ld.status || '').toUpperCase();
+          const advancedStages = ['ORDER CONFIRMED', 'READY FOR DISPATCH', 'DISPATCHED', 'INSTALLATION', 'COMPLETED', 'WON'];
+          if (!advancedStages.some((s) => currentStage.includes(s))) {
+            await db
+              .update(leads)
+              .set({ status: 'Quotation Sent', updatedAt: new Date() })
+              .where(eq(leads.id, ld.id));
+
+            await db.insert(leadActivityLogs).values({
+              id: `act-${ld.id}-${Date.now()}`,
+              leadId: ld.id,
+              title: `Quotation ${quotation.quotationNumber} sent successfully to customer — pipeline moved to Quotation Sent`,
+              date: new Date().toISOString().split('T')[0],
+              type: 'System',
+            });
+          }
+        }
+      } catch {
+        // Non-blocking log
+      }
+    }
 
     return {
       message: `Quotation PDF successfully emailed to ${targetEmail}`,

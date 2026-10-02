@@ -9,6 +9,8 @@ import { employeeService } from '../../admin/services/employeeService';
 import { Employee } from '../../admin/types/employee.types';
 import { Button } from '../../../components/ui/Button';
 
+import { toast } from '../../../utils/toast';
+
 interface PipelineColumn {
   stageId: string;
   stageTitle: string;
@@ -24,17 +26,19 @@ const DEFAULT_STAGES: Array<{
   title: string;
   targetStatus: LeadStatus;
   statusKeys: string[];
+  isManual?: boolean;
 }> = [
-    { id: 'NEW LEADS', title: 'NEW LEADS', targetStatus: 'New', statusKeys: ['NEW', 'NEW LEADS'] },
-    { id: 'CONTACTED', title: 'CONTACTED', targetStatus: 'Contacted', statusKeys: ['CONTACTED'] },
-    { id: 'MEETING SCHEDULED', title: 'MEETING SCHEDULED', targetStatus: 'Meeting Scheduled', statusKeys: ['MEETING SCHEDULED'] },
-    { id: 'QUOTATION SENT', title: 'QUOTATION SENT', targetStatus: 'Proposal Sent', statusKeys: ['QUOTATION SENT', 'PROPOSAL SENT'] },
-    { id: 'NEGOTIATION', title: 'NEGOTIATION', targetStatus: 'Negotiation', statusKeys: ['NEGOTIATION'] },
-    { id: 'APPROVED/PO', title: 'APPROVED/PO', targetStatus: 'Approved', statusKeys: ['APPROVED/PO', 'APPROVED'] },
-    { id: 'INSTALLATION', title: 'INSTALLATION', targetStatus: 'Installation', statusKeys: ['INSTALLATION'] },
-    { id: 'AMC SUPPORT', title: 'AMC SUPPORT', targetStatus: 'AMC Support', statusKeys: ['AMC SUPPORT'] },
-    { id: 'COMPLETED', title: 'COMPLETED', targetStatus: 'Completed', statusKeys: ['COMPLETED'] },
-  ];
+  { id: 'NEW LEADS', title: 'NEW LEADS', targetStatus: 'New', statusKeys: ['NEW', 'NEW LEADS', 'NEW_LEAD', 'NEW_LEADS'], isManual: true },
+  { id: 'CONTACTED', title: 'CONTACTED', targetStatus: 'Contacted', statusKeys: ['CONTACTED'], isManual: true },
+  { id: 'MEETING SCHEDULED', title: 'MEETING SCHEDULED', targetStatus: 'Meeting Scheduled', statusKeys: ['MEETING SCHEDULED', 'MEETING_SCHEDULED'] },
+  { id: 'QUOTATION SENT', title: 'QUOTATION SENT', targetStatus: 'Quotation Sent', statusKeys: ['QUOTATION SENT', 'QUOTATION_SENT', 'PROPOSAL SENT', 'PROPOSAL_SENT'] },
+  { id: 'NEGOTIATION', title: 'NEGOTIATION', targetStatus: 'Negotiation', statusKeys: ['NEGOTIATION'], isManual: true },
+  { id: 'ORDER CONFIRMED', title: 'ORDER CONFIRMED', targetStatus: 'Order Confirmed', statusKeys: ['ORDER CONFIRMED', 'ORDER_CONFIRMED', 'APPROVED/PO', 'APPROVED'] },
+  { id: 'READY FOR DISPATCH', title: 'READY FOR DISPATCH', targetStatus: 'Ready for Dispatch', statusKeys: ['READY FOR DISPATCH', 'READY_FOR_DISPATCH'] },
+  { id: 'DISPATCHED', title: 'DISPATCHED', targetStatus: 'Dispatched', statusKeys: ['DISPATCHED'] },
+  { id: 'INSTALLATION', title: 'INSTALLATION', targetStatus: 'Installation', statusKeys: ['INSTALLATION'] },
+  { id: 'COMPLETED', title: 'COMPLETED', targetStatus: 'Completed', statusKeys: ['COMPLETED', 'WON'] },
+];
 
 export const PipelinePage: React.FC = () => {
   const { user } = useAuthStore();
@@ -227,6 +231,15 @@ export const PipelinePage: React.FC = () => {
       return;
     }
 
+    // Check if dragging into a system-driven stage is attempted
+    if (!targetStage.isManual) {
+      toast.warning(
+        'System-Driven Stage',
+        `"${targetStage.title}" is automatically updated when the business action occurs (Follow-up meeting, Quotation email send, Sales order, Dispatch stock-out, or FSR completion).`
+      );
+      return;
+    }
+
     // 1. Instant Optimistic State Update with Activity Stamping
     const authorName = user?.fullName || 'Authenticated User';
     const newLogItem = {
@@ -236,6 +249,7 @@ export const PipelinePage: React.FC = () => {
       type: 'System',
     };
 
+    const previousLeads = [...allLeads];
     const updatedLeads = allLeads.map((l) =>
       l.id === dealId
         ? { ...l, status: targetStatus, activityLogs: [newLogItem, ...(l.activityLogs || [])] }
@@ -246,8 +260,10 @@ export const PipelinePage: React.FC = () => {
     // 2. Persist status update to backend database
     try {
       await leadsApi.updateLead(dealId, { status: targetStatus });
-    } catch (err) {
-      console.warn('Backend persistence fallback for lead:', dealId, err);
+    } catch (err: any) {
+      console.warn('Backend persistence failed for lead:', dealId, err);
+      toast.error('Cannot change stage', err?.message || 'Failed to update deal stage');
+      setAllLeads(previousLeads);
     }
   };
 

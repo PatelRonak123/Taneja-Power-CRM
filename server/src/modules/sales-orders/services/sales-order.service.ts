@@ -7,6 +7,7 @@ import {
 import { SalesOrderNumberService } from './sales-order-number.service.js';
 import { NewSalesOrderEntity, NewSalesOrderItemEntity } from '../../../database/schema/sales-orders.js';
 import { quotations, quotationRevisions, quotationItems } from '../../../database/schema/quotations.js';
+import { leads, leadActivityLogs } from '../../../database/schema/leads.js';
 import { customers } from '../../../database/schema/customers.js';
 import { products } from '../../../database/schema/products.js';
 import { eq } from 'drizzle-orm';
@@ -93,9 +94,10 @@ export class SalesOrderService {
         throw AppError.notFound(`Quotation "${input.quotationId}" not found`, 'QUOTATION_NOT_FOUND');
       }
 
-      if (quotation.status !== APPROVED_STATUS) {
+      const allowedQuotationStatuses = ['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'];
+      if (!allowedQuotationStatuses.includes(quotation.status)) {
         throw AppError.badRequest(
-          `Quotation must be APPROVED to create a Sales Order. Current status: ${quotation.status}`,
+          `Quotation must be APPROVED or SENT to create a Sales Order. Current status: ${quotation.status}`,
           undefined,
           'QUOTATION_NOT_APPROVED'
         );
@@ -198,7 +200,36 @@ export class SalesOrderService {
         createdBy: userId,
       };
 
-      return this.soRepo.create(soData, soItems, tx);
+      const createdSo = await this.soRepo.create(soData, soItems, tx);
+
+      // Synchronize Deals Pipeline stage to 'Order Confirmed'
+      if (quotation.customerId) {
+        try {
+          const matchedLeads = await tx
+            .select({ id: leads.id })
+            .from(leads)
+            .where(eq(leads.linkedClientId, quotation.customerId));
+
+          for (const ld of matchedLeads) {
+            await tx
+              .update(leads)
+              .set({ status: 'Order Confirmed', updatedAt: new Date() })
+              .where(eq(leads.id, ld.id));
+
+            await tx.insert(leadActivityLogs).values({
+              id: `act-${ld.id}-${Date.now()}`,
+              leadId: ld.id,
+              title: `Sales Order ${soNumber} created — pipeline moved to Order Confirmed`,
+              date: new Date().toISOString().split('T')[0],
+              type: 'System',
+            });
+          }
+        } catch {
+          // Non-blocking
+        }
+      }
+
+      return createdSo;
     });
   }
 
