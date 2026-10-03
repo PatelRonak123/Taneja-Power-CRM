@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { quotationService } from '../services/quotationService';
 import { QuotationDetailedView, QuotationRevision } from '../types/quotation.types';
 import { QuotationPrintDocument } from './QuotationPrintDocument';
@@ -76,8 +77,23 @@ export const QuotationPdfModal: React.FC<Props> = ({
   return (
     <>
       {/* Screen Interactive Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs no-print">
-        <div className="relative w-full max-w-5xl h-[92vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      {createPortal(
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center p-4 overflow-y-auto no-print"
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* Full Viewport Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity duration-200"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+
+          <div
+            className="relative w-full max-w-5xl h-[92vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-slate-50/70">
             <div className="flex items-center gap-3">
@@ -168,7 +184,9 @@ export const QuotationPdfModal: React.FC<Props> = ({
             )}
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
+    )}
 
       {/* Hidden container that only becomes visible during browser @media print */}
       <div className="print-only hidden">

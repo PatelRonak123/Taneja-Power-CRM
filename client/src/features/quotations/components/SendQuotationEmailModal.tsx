@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { QuotationDetailedView, QuotationRevision } from '../types/quotation.types';
 import { quotationService } from '../services/quotationService';
 import { Mail, Send, X, FileText, CheckCircle2, AlertCircle, Loader2, Building2, User } from 'lucide-react';
@@ -70,9 +71,23 @@ export const SendQuotationEmailModal: React.FC<SendQuotationEmailModalProps> = (
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-100 flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+    >
+      {/* Full Viewport Backdrop */}
+      <div
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      <div
+        className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header Bar */}
         <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white p-6 flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -222,6 +237,7 @@ export const SendQuotationEmailModal: React.FC<SendQuotationEmailModalProps> = (
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

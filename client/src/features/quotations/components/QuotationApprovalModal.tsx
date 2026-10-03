@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle2, XCircle, X } from 'lucide-react';
 
 interface Props {
@@ -45,9 +46,24 @@ export const QuotationApprovalModal: React.FC<Props> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-100 flex items-center justify-center p-4 overflow-y-auto"
+      role="dialog"
+      aria-modal="true"
+    >
+      {/* Full Viewport Backdrop */}
+      <div
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity duration-200"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Modal Dialog Card */}
+      <div
+        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
@@ -133,6 +149,7 @@ export const QuotationApprovalModal: React.FC<Props> = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
