@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   FileText,
   Plus,
@@ -15,6 +15,7 @@ import {
   CheckCheck,
   Receipt,
   AlertTriangle,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
 import { navigate } from '../../../app/router/navigation';
@@ -22,13 +23,11 @@ import type {
   SalesInvoice,
   SalesInvoiceStatus,
   VendorInvoiceStatus,
-  CreateSalesInvoiceFromSoPayload,
   CreateVendorInvoicePayload,
 } from '../types/invoice.types';
 import {
   useSalesInvoices,
   useSalesInvoice,
-  useCreateSalesInvoiceFromSo,
   useSubmitSalesInvoice,
   useIssueSalesInvoice,
   useCancelSalesInvoice,
@@ -40,8 +39,8 @@ import {
   usePostVendorInvoice,
   useCancelVendorInvoice,
 } from '../hooks';
-import { useSalesOrders } from '../../sales-orders/hooks';
 import { SalesInvoicePrintDocument } from '../components/SalesInvoicePrintDocument';
+import { CreateSalesInvoiceModal } from '../components/CreateSalesInvoiceModal';
 
 // ─── Status Badges ────────────────────────────────────────────────────────────
 
@@ -89,131 +88,7 @@ const fmt = (v: string | number | null | undefined) =>
 const fmtDate = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
-// ─── Create Sales Invoice Modal ───────────────────────────────────────────────
 
-interface CreateSalesInvoiceModalProps {
-  onClose: () => void;
-  initialSalesOrderId?: string;
-}
-
-const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = ({
-  onClose,
-  initialSalesOrderId,
-}) => {
-  const [salesOrderId, setSalesOrderId] = useState(initialSalesOrderId || '');
-  const [notes, setNotes] = useState('');
-  const [dueDate, setDueDate] = useState('');
-
-  // Fetch confirmed sales orders for selection
-  const { data: soRes, isLoading: loadingSos } = useSalesOrders({ status: 'CONFIRMED', limit: 50 });
-  const confirmedSos = soRes?.data || [];
-
-  const createInvoice = useCreateSalesInvoiceFromSo();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!salesOrderId) return;
-    try {
-      const payload: CreateSalesInvoiceFromSoPayload = {
-        notes: notes.trim() || undefined,
-        dueDate: dueDate || undefined,
-      };
-      await createInvoice.mutateAsync({ salesOrderId, payload });
-      onClose();
-    } catch (_) {}
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Generate Sales Invoice</h2>
-              <p className="text-xs text-gray-500">From a confirmed Sales Order</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Select Confirmed Sales Order <span className="text-red-500">*</span>
-            </label>
-            {loadingSos ? (
-              <div className="py-2 text-sm text-gray-400">Loading sales orders...</div>
-            ) : confirmedSos.length === 0 ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                No confirmed sales orders awaiting invoice. Please confirm a Sales Order first.
-              </div>
-            ) : (
-              <select
-                id="create-inv-so-select"
-                value={salesOrderId}
-                onChange={(e) => setSalesOrderId(e.target.value)}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="">-- Choose Sales Order --</option>
-                {confirmedSos.map((so) => (
-                  <option key={so.id} value={so.id}>
-                    {so.salesOrderNumber} — {fmt(so.totalAmount)}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Payment Due Date</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional notes or instructions..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              id="create-inv-submit-btn"
-              type="submit"
-              disabled={!salesOrderId || createInvoice.isPending}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {createInvoice.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Generate Invoice
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
 
 // ─── Record Vendor Invoice Modal ──────────────────────────────────────────────
 
@@ -518,9 +393,28 @@ export const InvoicesPage: React.FC = () => {
   const [vendorStatusFilter, setVendorStatusFilter] = useState('');
   const [vendorPage, setVendorPage] = useState(1);
 
-  // Modals & Drawers
   const [showCreateSalesModal, setShowCreateSalesModal] = useState(false);
+  const [initialSalesOrderId, setInitialSalesOrderId] = useState<string | undefined>(undefined);
   const [showRecordVendorModal, setShowRecordVendorModal] = useState(false);
+
+  useEffect(() => {
+    const checkParams = () => {
+      const params = new URLSearchParams(window.location.search);
+      const soId = params.get('salesOrderId');
+      const openCreate = params.get('create') === 'true' || !!soId;
+      if (soId) {
+        setInitialSalesOrderId(soId);
+        setActiveTab('sales');
+        if (openCreate) {
+          setShowCreateSalesModal(true);
+        }
+      }
+    };
+
+    checkParams();
+    window.addEventListener('popstate', checkParams);
+    return () => window.removeEventListener('popstate', checkParams);
+  }, []);
   const [selectedSalesInvoiceId, setSelectedSalesInvoiceId] = useState<string | null>(null);
   const [selectedVendorInvoiceId, setSelectedVendorInvoiceId] = useState<string | null>(null);
   const [printInvoice, setPrintInvoice] = useState<SalesInvoice | null>(null);
@@ -780,7 +674,8 @@ export const InvoicesPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status) && (
+                          {/* Dispatch button: only for non-AMC invoices */}
+                          {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status) && (inv as any).quotationType !== 'AMC' && (
                             <button
                               onClick={() =>
                                 navigate(
@@ -799,6 +694,16 @@ export const InvoicesPage: React.FC = () => {
                               title="Create Delivery Challan / Dispatch"
                             >
                               <Truck className="w-4 h-4" />
+                            </button>
+                          )}
+                          {/* AMC Contract icon for AMC invoices */}
+                          {(inv as any).quotationType === 'AMC' && (inv as any).linkedAmcContractId && (
+                            <button
+                              onClick={() => navigate(`/amc-contracts/${(inv as any).linkedAmcContractId}`)}
+                              className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                              title="View AMC Contract"
+                            >
+                              <ShieldCheck className="w-4 h-4" />
                             </button>
                           )}
                           <button
@@ -1139,7 +1044,8 @@ export const InvoicesPage: React.FC = () => {
                       </button>
                     )}
 
-                    {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(salesDetail.status) && (
+                    {/* Dispatch button: only for non-AMC invoices */}
+                    {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(salesDetail.status) && (salesDetail as any).quotationType !== 'AMC' && (
                       <button
                         onClick={() =>
                           navigate(
@@ -1158,6 +1064,25 @@ export const InvoicesPage: React.FC = () => {
                       >
                         <Truck className="w-4 h-4" /> Create Delivery Challan / Dispatch
                       </button>
+                    )}
+
+                    {/* AMC Contract button: only for AMC invoices */}
+                    {(salesDetail as any).quotationType === 'AMC' && ['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(salesDetail.status) && (
+                      (salesDetail as any).linkedAmcContractId ? (
+                        <button
+                          onClick={() => navigate(`/amc-contracts/${(salesDetail as any).linkedAmcContractId}`)}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm"
+                        >
+                          <ShieldCheck className="w-4 h-4" /> View AMC Contract
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => (salesDetail as any).quotationId && navigate(`/quotations/${(salesDetail as any).quotationId}`)}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm"
+                        >
+                          <ShieldCheck className="w-4 h-4" /> Create AMC Contract
+                        </button>
+                      )
                     )}
 
                     {['DRAFT', 'PENDING_ISSUE'].includes(salesDetail.status) && canIssueOrPost && (
@@ -1389,7 +1314,13 @@ export const InvoicesPage: React.FC = () => {
 
       {/* Modals */}
       {showCreateSalesModal && (
-        <CreateSalesInvoiceModal onClose={() => setShowCreateSalesModal(false)} />
+        <CreateSalesInvoiceModal
+          initialSalesOrderId={initialSalesOrderId}
+          onClose={() => {
+            setShowCreateSalesModal(false);
+            setInitialSalesOrderId(undefined);
+          }}
+        />
       )}
       {showRecordVendorModal && (
         <RecordVendorInvoiceModal onClose={() => setShowRecordVendorModal(false)} />

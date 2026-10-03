@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuthStore } from '../../../stores/authStore';
+import { calculateContractDurationMonths, calculatePreventiveVisits } from '../../../utils/amcCalculations';
 import {
   CreateQuotationPayload,
   LineItemFormInput,
@@ -109,9 +110,6 @@ export const QuotationForm: React.FC<Props> = ({
   );
   const [amcServiceFrequency, setAmcServiceFrequency] = useState<string>(
     initialData?.currentRevision?.amcServiceFrequency || 'Quarterly'
-  );
-  const [amcScheduledVisits, setAmcScheduledVisits] = useState<number>(
-    initialData?.currentRevision?.amcScheduledVisits ?? 4
   );
   const [amcBreakdownVisitType, setAmcBreakdownVisitType] = useState<string>(
     initialData?.currentRevision?.amcBreakdownVisitType || 'UNLIMITED'
@@ -485,16 +483,16 @@ export const QuotationForm: React.FC<Props> = ({
     }
   }, [sameAsCustomer, selectedCustomer]);
 
-  // Calculated AMC Duration (Months)
-  const calculateAmcDurationMonths = () => {
-    if (!amcStartDate || !amcEndDate) return 12;
-    const start = new Date(amcStartDate);
-    const end = new Date(amcEndDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const months = Math.round(diffDays / 30);
-    return months > 0 ? months : 12;
-  };
+  // Calculated AMC Duration (Months) & Scheduled Preventive Visits
+  const calculatedAmcDuration = useMemo(
+    () => calculateContractDurationMonths(amcStartDate, amcEndDate),
+    [amcStartDate, amcEndDate]
+  );
+
+  const autoScheduledVisits = useMemo(
+    () => calculatePreventiveVisits(amcStartDate, amcEndDate, amcServiceFrequency),
+    [amcStartDate, amcEndDate, amcServiceFrequency]
+  );
 
   // Determine state for provisional tax calculation
   const customerState = selectedDestination?.state || selectedCustomer?.state || 'Gujarat';
@@ -754,7 +752,7 @@ export const QuotationForm: React.FC<Props> = ({
       payload.amcStartDate = amcStartDate;
       payload.amcEndDate = amcEndDate;
       payload.amcServiceFrequency = amcServiceFrequency;
-      payload.amcScheduledVisits = Number(amcScheduledVisits) || 0;
+      payload.amcScheduledVisits = autoScheduledVisits;
       payload.amcBreakdownVisitType = amcBreakdownVisitType;
       payload.customerCode = customerCode.trim() || null;
       payload.branch = branch.trim() || null;
@@ -1091,8 +1089,14 @@ export const QuotationForm: React.FC<Props> = ({
                 2. AMC Contract Configuration
               </h2>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
-              Calculated Period: {calculateAmcDurationMonths()} Months
+            <span
+              className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                calculatedAmcDuration > 0
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
+              }`}
+            >
+              Calculated Period: {calculatedAmcDuration} {calculatedAmcDuration === 1 ? 'Month' : 'Months'}
             </span>
           </div>
 
@@ -1157,17 +1161,30 @@ export const QuotationForm: React.FC<Props> = ({
               </select>
             </div>
 
-            {/* Scheduled Visits */}
+            {/* Scheduled Visits (Calculated / Read-Only) */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700">Scheduled Preventive Visits</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700">Scheduled Preventive Visits</label>
+                <span className="text-[10px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                  Calculated
+                </span>
+              </div>
               <input
                 type="number"
                 min={0}
-                value={amcScheduledVisits}
-                onChange={(e) => setAmcScheduledVisits(Number(e.target.value))}
-                className="px-3 py-2 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl"
-                required
+                value={autoScheduledVisits}
+                readOnly
+                disabled
+                tabIndex={-1}
+                className="px-3 py-2 text-xs font-bold text-slate-800 bg-slate-100/90 border border-slate-200 rounded-xl cursor-not-allowed select-none focus:outline-none"
               />
+              <p className="text-[10px] text-slate-500 font-medium">
+                {calculatedAmcDuration > 0
+                  ? `${autoScheduledVisits} visits based on ${calculatedAmcDuration} ${calculatedAmcDuration === 1 ? 'month' : 'months'} @ ${amcServiceFrequency}`
+                  : amcEndDate && amcStartDate && new Date(amcEndDate) < new Date(amcStartDate)
+                  ? 'Invalid date range: End Date cannot be earlier than Start Date'
+                  : 'Calculated automatically from contract duration and frequency'}
+              </p>
             </div>
 
             {/* Breakdown Visit Entitlement */}

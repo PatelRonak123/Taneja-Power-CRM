@@ -5,12 +5,13 @@ import {
   ListSalesOrdersQuery,
 } from '../repositories/sales-order.repository.js';
 import { SalesOrderNumberService } from './sales-order-number.service.js';
-import { NewSalesOrderEntity, NewSalesOrderItemEntity } from '../../../database/schema/sales-orders.js';
+import { NewSalesOrderEntity, NewSalesOrderItemEntity, salesOrders } from '../../../database/schema/sales-orders.js';
 import { quotations, quotationRevisions, quotationItems } from '../../../database/schema/quotations.js';
+import { amcServiceRequests, amcContracts } from '../../../database/schema/amc-contracts.js';
 import { leads, leadActivityLogs } from '../../../database/schema/leads.js';
 import { customers } from '../../../database/schema/customers.js';
 import { products } from '../../../database/schema/products.js';
-import { eq } from 'drizzle-orm';
+import { sql, eq, and, ne } from 'drizzle-orm';
 import { SO_STATUSES } from '../../../config/constants.js';
 import { AppError } from '../../../common/errors/AppError.js';
 
@@ -94,13 +95,39 @@ export class SalesOrderService {
         throw AppError.notFound(`Quotation "${input.quotationId}" not found`, 'QUOTATION_NOT_FOUND');
       }
 
-      const allowedQuotationStatuses = ['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'];
-      if (!allowedQuotationStatuses.includes(quotation.status)) {
-        throw AppError.badRequest(
-          `Quotation must be APPROVED or SENT to create a Sales Order. Current status: ${quotation.status}`,
-          undefined,
-          'QUOTATION_NOT_APPROVED'
+      // Prevent duplicate active Sales Orders from the same quotation
+      const existingSo = await tx.query.salesOrders.findFirst({
+        where: and(
+          eq(salesOrders.quotationId, quotation.id),
+          ne(salesOrders.status, SO_STATUSES.CANCELLED)
+        ),
+      });
+
+      if (existingSo) {
+        throw AppError.conflict(
+          `An active Sales Order (${existingSo.salesOrderNumber}) already exists for this quotation.`,
+          'SALES_ORDER_ALREADY_EXISTS'
         );
+      }
+
+      // Strictly enforce: AMC Quotation requires customer acceptance
+      if (quotation.quotationType === 'AMC') {
+        if (quotation.status !== 'ACCEPTED') {
+          throw AppError.badRequest(
+            `Cannot create Sales Order: AMC Quotation must be accepted by customer first. Current status: ${quotation.status}`,
+            undefined,
+            'QUOTATION_NOT_ACCEPTED'
+          );
+        }
+      } else {
+        const allowedQuotationStatuses = ['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'];
+        if (!allowedQuotationStatuses.includes(quotation.status)) {
+          throw AppError.badRequest(
+            `Quotation must be APPROVED, SENT, or ACCEPTED to create a Sales Order. Current status: ${quotation.status}`,
+            undefined,
+            'QUOTATION_NOT_APPROVED'
+          );
+        }
       }
 
       // 2. Load current revision (authoritative snapshot)
@@ -201,6 +228,16 @@ export class SalesOrderService {
       };
 
       const createdSo = await this.soRepo.create(soData, soItems, tx);
+
+      // Synchronize linked AMC Breakdown / Repair Service Request if this quotation is linked
+      try {
+        await tx
+          .update(amcServiceRequests)
+          .set({ salesOrderId: createdSo.id, updatedAt: new Date() })
+          .where(eq(amcServiceRequests.quotationId, quotation.id));
+      } catch (linkErr) {
+        console.error('Failed to link Sales Order to AMC Service Request:', linkErr);
+      }
 
       // Synchronize Deals Pipeline stage to 'Order Confirmed'
       if (quotation.customerId) {
@@ -353,10 +390,43 @@ export class SalesOrderService {
   async getSalesOrderById(id: string): Promise<SalesOrderWithDetails> {
     const so = await this.soRepo.findById(id);
     if (!so) throw AppError.notFound(`Sales order "${id}" not found`, 'SO_NOT_FOUND');
+    // Enrich with linked AMC contract ID (if any)
+    if (so.quotationId) {
+      const [linkedAmc] = await db
+        .select({ id: amcContracts.id, contractNumber: amcContracts.contractNumber, status: amcContracts.status })
+        .from(amcContracts)
+        .where(eq(amcContracts.quotationId, so.quotationId))
+        .limit(1);
+      (so as any).linkedAmcContract = linkedAmc || null;
+    }
     return so;
   }
 
   async listSalesOrders(query: ListSalesOrdersQuery): Promise<{ data: any[]; total: number }> {
-    return this.soRepo.find(query);
+    const result = await this.soRepo.find(query);
+    // Enrich each SO with linked AMC contract info
+    if (result.data.length > 0) {
+      const quotationIds = [...new Set(result.data.map((so: any) => so.quotation?.id || so.quotationId).filter(Boolean))];
+      if (quotationIds.length > 0) {
+        const amcRows = await db
+          .select({
+            quotationId: amcContracts.quotationId,
+            id: amcContracts.id,
+            contractNumber: amcContracts.contractNumber,
+            status: amcContracts.status,
+          })
+          .from(amcContracts)
+          .where(sql`${amcContracts.quotationId} IN (${sql.join(quotationIds.map(qid => sql`${qid}`), sql`, `)})`);
+        const amcMap = new Map<string, any>();
+        for (const row of amcRows) {
+          if (row.quotationId) amcMap.set(row.quotationId, row);
+        }
+        for (const so of result.data) {
+          const qId = so.quotation?.id || so.quotationId;
+          so.linkedAmcContract = qId ? (amcMap.get(qId) || null) : null;
+        }
+      }
+    }
+    return result;
   }
 }

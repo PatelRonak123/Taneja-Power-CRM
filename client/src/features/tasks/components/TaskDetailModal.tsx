@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Building2,
   MapPin,
@@ -12,11 +12,13 @@ import {
   XCircle,
   Play,
   CheckCircle2,
+  Wrench,
 } from 'lucide-react';
 import { TaskItem, TaskPriority, TaskStatus } from '../types/task.types';
 import { Drawer } from '../../../components/ui/Drawer';
 import { Button } from '../../../components/ui/Button';
 import { StatusPill } from '../../../components/ui/StatusPill';
+import { AmcServiceReportModal } from '../../amc-contracts/components/AmcServiceReportModal';
 
 interface TaskDetailModalProps {
   task: TaskItem | null;
@@ -37,9 +39,23 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   onCompleteTask,
   isManagement = true,
 }) => {
+  const [activeAmcVisitId, setActiveAmcVisitId] = useState<string | null>(null);
+
   if (!task) return null;
 
   const isFinalized = task.status === 'COMPLETED' || task.status === 'CANCELLED';
+
+  const formatDuration = (startStr?: string | null, endStr?: string | null) => {
+    if (!startStr) return null;
+    const start = new Date(startStr).getTime();
+    const end = endStr ? new Date(endStr).getTime() : Date.now();
+    if (isNaN(start) || isNaN(end) || end < start) return null;
+    const diffMins = Math.floor((end - start) / (1000 * 60));
+    const hours = Math.floor(diffMins / 60);
+    const mins = diffMins % 60;
+    if (hours === 0) return `${mins} min${mins === 1 ? '' : 's'}`;
+    return `${hours} hr${hours === 1 ? '' : 's'} ${mins} min${mins === 1 ? '' : 's'}`;
+  };
 
   const formatDateTime = (dateStr?: string | null) => {
     if (!dateStr) return '—';
@@ -286,13 +302,20 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             )}
           </div>
 
-          {/* Schedule Box */}
+          {/* Schedule & Timing Box */}
           <div className="p-3.5 rounded-lg border border-border bg-card">
-            <div className="flex items-center gap-1.5 font-medium text-slate-900 text-xs pb-2 border-b border-border/60 mb-2">
-              <Clock size={14} className="text-blue-600" />
-              <span>Schedule & Deadlines</span>
+            <div className="flex items-center justify-between pb-2 border-b border-border/60 mb-2">
+              <div className="flex items-center gap-1.5 font-medium text-slate-900 text-xs">
+                <Clock size={14} className="text-blue-600" />
+                <span>Schedule & Execution Timing</span>
+              </div>
+              {task.startedAt && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Duration: {formatDuration(task.startedAt, task.completedAt) || 'In Progress'}
+                </span>
+              )}
             </div>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
                 <span className="text-[11px] font-medium text-slate-400 block">Scheduled Time</span>
                 <span className="font-semibold text-slate-900 text-xs tabular-nums">{formatDateTime(task.scheduledAt)}</span>
@@ -301,9 +324,89 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 <span className="text-[11px] font-medium text-slate-400 block">Due Time</span>
                 <span className="font-semibold text-slate-900 text-xs tabular-nums">{formatDateTime(task.dueAt)}</span>
               </div>
+              {task.startedAt && (
+                <div>
+                  <span className="text-[11px] font-medium text-emerald-600 block">Started At</span>
+                  <span className="font-semibold text-slate-900 text-xs tabular-nums">{formatDateTime(task.startedAt)}</span>
+                </div>
+              )}
+              {task.completedAt && (
+                <div>
+                  <span className="text-[11px] font-medium text-blue-600 block">Completed At</span>
+                  <span className="font-semibold text-slate-900 text-xs tabular-nums">{formatDateTime(task.completedAt)}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
+
+        {/* AMC Service Visit & Report Card (When linked to an AMC Contract) */}
+        {task.amcVisit && (
+          <div className="p-3.5 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/70 via-indigo-50/40 to-white shadow-xs">
+            <div className="flex items-center justify-between pb-2.5 border-b border-blue-200/60 mb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                  <Wrench size={14} />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 text-xs leading-none">
+                    AMC Service Visit Integration
+                  </h4>
+                  <span className="text-[10px] text-slate-500">
+                    Preventive Maintenance Contract Execution
+                  </span>
+                </div>
+              </div>
+              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                Visit #{task.amcVisit.visitNumber || 1} • {task.amcVisit.serviceType || 'PREVENTIVE'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+              <div className="bg-white/80 p-2 rounded-lg border border-blue-100">
+                <span className="text-[10px] text-slate-400 font-medium block">Contract Reference</span>
+                <span className="font-bold text-slate-900">{task.amcVisit.contractNumber || 'AMC Contract'}</span>
+              </div>
+              <div className="bg-white/80 p-2 rounded-lg border border-blue-100">
+                <span className="text-[10px] text-slate-400 font-medium block">AMC Service Report</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                      task.amcVisit.report?.status === 'COMPLETED'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : task.amcVisit.report?.status === 'DRAFT'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {task.amcVisit.report?.status === 'COMPLETED'
+                      ? 'Completed'
+                      : task.amcVisit.report?.status === 'DRAFT'
+                      ? 'Draft Report'
+                      : 'Pending Submission'}
+                  </span>
+                  {task.amcVisit.report?.reportNumber && (
+                    <span className="text-[10px] font-mono text-slate-600 font-medium">
+                      {task.amcVisit.report.reportNumber}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveAmcVisitId(task.amcVisit!.id)}
+              className="w-full flex items-center justify-center gap-2 bg-white hover:bg-blue-600 hover:text-white border-blue-300 text-blue-700 font-bold transition-all shadow-2xs"
+            >
+              <FileText size={14} />
+              <span>
+                {task.amcVisit.report?.status === 'COMPLETED' ? 'View Official AMC Service Report' : 'Review / Open AMC Service Report'}
+              </span>
+            </Button>
+          </div>
+        )}
 
         {/* Lifecycle Progression Timeline */}
         <div className="p-3.5 rounded-lg border border-border bg-card">
@@ -379,6 +482,15 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* AMC Service Report Viewer Modal */}
+      {activeAmcVisitId && (
+        <AmcServiceReportModal
+          visitId={activeAmcVisitId}
+          isOpen={Boolean(activeAmcVisitId)}
+          onClose={() => setActiveAmcVisitId(null)}
+        />
+      )}
     </Drawer>
   );
 };

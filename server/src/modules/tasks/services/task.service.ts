@@ -15,6 +15,9 @@ import {
 import { TASK_STATUS, TASK_PRIORITY } from '../constants/task.constants.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { TaskEntity } from '../../../database/schema/tasks.js';
+import { db } from '../../../database/db.js';
+import { amcServiceVisits, amcServiceRequests, amcContractEquipment } from '../../../database/schema/amc-contracts.js';
+import { eq } from 'drizzle-orm';
 
 export class TaskService {
   constructor(
@@ -125,7 +128,7 @@ export class TaskService {
     }
 
     // 5. Insert Task
-    return this.taskRepo.create({
+    const newTask = await this.taskRepo.create({
       title: input.title,
       description: input.description || null,
       customerId: input.customerId,
@@ -137,6 +140,24 @@ export class TaskService {
       dueAt: input.dueAt || null,
       createdBy: createdById,
     });
+
+    if (input.amcVisitId) {
+      try {
+        await db
+          .update(amcServiceVisits)
+          .set({
+            taskId: newTask.id,
+            assignedEmployeeId: input.assignedTo || null,
+            status: input.assignedTo ? 'ASSIGNED' : 'SCHEDULED',
+            updatedAt: new Date(),
+          })
+          .where(eq(amcServiceVisits.id, input.amcVisitId));
+      } catch (err: any) {
+        console.error('Failed to link AMC visit with task:', err);
+      }
+    }
+
+    return newTask;
   }
 
   async updateTask(id: string, input: UpdateTaskInput): Promise<TaskEntity> {
@@ -228,6 +249,21 @@ export class TaskService {
       throw AppError.internal('Failed to update task');
     }
 
+    if (input.assignedTo !== undefined) {
+      try {
+        await db
+          .update(amcServiceVisits)
+          .set({
+            assignedEmployeeId: input.assignedTo || null,
+            status: input.assignedTo ? 'ASSIGNED' : 'SCHEDULED',
+            updatedAt: new Date(),
+          })
+          .where(eq(amcServiceVisits.taskId, id));
+      } catch (err: any) {
+        // non-blocking
+      }
+    }
+
     return updated;
   }
 
@@ -252,6 +288,20 @@ export class TaskService {
 
     if (!updated) {
       throw AppError.internal('Failed to cancel task');
+    }
+
+    try {
+      await db
+        .update(amcServiceVisits)
+        .set({
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancellationReason: input.cancellationReason,
+          updatedAt: new Date(),
+        })
+        .where(eq(amcServiceVisits.taskId, id));
+    } catch {
+      // non-blocking
     }
 
     return updated;
@@ -314,6 +364,20 @@ export class TaskService {
     const updated = await this.taskRepo.update(id, updateData);
     if (!updated) {
       throw AppError.internal('Failed to start task');
+    }
+
+    try {
+      await db
+        .update(amcServiceVisits)
+        .set({
+          status: 'IN_PROGRESS',
+          actualStartAt: now,
+          technicianEmployeeId: task.assignedTo || userId,
+          updatedAt: now,
+        })
+        .where(eq(amcServiceVisits.taskId, id));
+    } catch {
+      // non-blocking
     }
 
     return (await this.taskRepo.findById(id))!;
@@ -402,6 +466,50 @@ export class TaskService {
     const updated = await this.taskRepo.update(id, updateData);
     if (!updated) {
       throw AppError.internal('Failed to complete task');
+    }
+
+    try {
+      await db
+        .update(amcServiceVisits)
+        .set({
+          status: 'COMPLETED',
+          completedAt: now,
+          completedBy: userId,
+          updatedAt: now,
+        })
+        .where(eq(amcServiceVisits.taskId, id));
+
+      // Resolve linked AMC Service Requests (repair tasks)
+      const linkedRequests = await db
+        .select()
+        .from(amcServiceRequests)
+        .where(eq(amcServiceRequests.taskId, id));
+
+      for (const req of linkedRequests) {
+        await db
+          .update(amcServiceRequests)
+          .set({
+            status: 'RESOLVED',
+            resolvedAt: now,
+            updatedAt: now,
+            notes: req.notes
+              ? `${req.notes}\n[${now.toISOString()}]: Repair completed by technician via Task #${id.slice(0, 8)}.`
+              : `[${now.toISOString()}]: Repair completed by technician via Task #${id.slice(0, 8)}.`,
+          })
+          .where(eq(amcServiceRequests.id, req.id));
+
+        // Restore equipment condition to OPERATIONAL
+        if (req.equipmentId) {
+          await db
+            .update(amcContractEquipment)
+            .set({
+              conditionStatus: 'OPERATIONAL',
+            })
+            .where(eq(amcContractEquipment.id, req.equipmentId));
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to synchronize AMC visit / service request on task completion:', err);
     }
 
     return (await this.taskRepo.findById(id))!;

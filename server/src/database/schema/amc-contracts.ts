@@ -13,6 +13,7 @@ import {
 import { customers, customerDestinations } from './customers.js';
 import { users } from './users.js';
 import { quotations, quotationRevisions, quotationItems, quotationAmcScopeItems, quotationAmcExclusions, quotationAmcEscalations } from './quotations.js';
+import { salesOrders } from './sales-orders.js';
 import { tasks } from './tasks.js';
 import { products } from './products.js';
 
@@ -31,6 +32,8 @@ export const amcContracts = pgTable(
     quotationRevisionId: uuid('quotation_revision_id')
       .references(() => quotationRevisions.id, { onDelete: 'restrict' })
       .notNull(),
+    salesOrderId: uuid('sales_order_id')
+      .references(() => salesOrders.id, { onDelete: 'set null' }),
     customerId: uuid('customer_id')
       .references(() => customers.id, { onDelete: 'restrict' })
       .notNull(),
@@ -84,6 +87,7 @@ export const amcContracts = pgTable(
     index('amc_contracts_destination_id_idx').on(table.destinationId),
     index('amc_contracts_quotation_id_idx').on(table.quotationId),
     index('amc_contracts_quotation_revision_id_idx').on(table.quotationRevisionId),
+    index('amc_contracts_sales_order_id_idx').on(table.salesOrderId),
     index('amc_contracts_status_idx').on(table.status),
     index('amc_contracts_payment_status_idx').on(table.paymentStatus),
     index('amc_contracts_start_date_idx').on(table.contractStartDate),
@@ -116,11 +120,13 @@ export const amcContractEquipment = pgTable(
     unitPrice: numeric('unit_price', { precision: 14, scale: 2 }).default('0.00').notNull(),
     lineTotal: numeric('line_total', { precision: 14, scale: 2 }).default('0.00').notNull(),
     status: varchar('status', { length: 50 }).default('ACTIVE').notNull(),
+    conditionStatus: varchar('condition_status', { length: 50 }).default('OPERATIONAL').notNull(), // OPERATIONAL, NEEDS_REPAIR, FAULTY, REPAIRED
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index('amc_contract_equipment_contract_id_idx').on(table.amcContractId),
     index('amc_contract_equipment_quotation_item_id_idx').on(table.quotationItemId),
+    index('amc_contract_equipment_condition_status_idx').on(table.conditionStatus),
   ]
 );
 
@@ -256,6 +262,15 @@ export const amcServiceRequests = pgTable(
     taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'set null' }),
     amcServiceVisitId: uuid('amc_service_visit_id').references(() => amcServiceVisits.id, { onDelete: 'set null' }),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    
+    // Commercial Coverage Workflow
+    coverageType: varchar('coverage_type', { length: 50 }).default('PENDING_REVIEW').notNull(), // PENDING_REVIEW, AMC_COVERED, CHARGEABLE
+    quotationId: uuid('quotation_id').references(() => quotations.id, { onDelete: 'set null' }),
+    salesOrderId: uuid('sales_order_id').references(() => salesOrders.id, { onDelete: 'set null' }),
+    coverageDecidedAt: timestamp('coverage_decided_at', { withTimezone: true }),
+    coverageDecidedById: uuid('coverage_decided_by_id').references(() => users.id, { onDelete: 'set null' }),
+    coverageNotes: text('coverage_notes'),
+
     notes: text('notes'),
     createdById: uuid('created_by_id')
       .references(() => users.id, { onDelete: 'restrict' })
@@ -273,6 +288,9 @@ export const amcServiceRequests = pgTable(
     index('amc_service_requests_assigned_employee_id_idx').on(table.assignedEmployeeId),
     index('amc_service_requests_task_id_idx').on(table.taskId),
     index('amc_service_requests_visit_id_idx').on(table.amcServiceVisitId),
+    index('amc_service_requests_coverage_type_idx').on(table.coverageType),
+    index('amc_service_requests_quotation_id_idx').on(table.quotationId),
+    index('amc_service_requests_sales_order_id_idx').on(table.salesOrderId),
   ]
 );
 

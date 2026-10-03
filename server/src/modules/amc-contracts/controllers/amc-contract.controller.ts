@@ -232,6 +232,114 @@ export class AmcContractController {
   };
 
   /**
+   * POST /api/v1/amc-contracts/:id/service-requests/:requestId/coverage
+   * Record Service Office coverage decision (AMC_COVERED or CHARGEABLE)
+   */
+  public setCoverageDecision = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, requestId } = req.params;
+      const { coverageType, coverageNotes } = req.body;
+      const userId = this.getUserId(req);
+
+      if (!coverageType || !['AMC_COVERED', 'CHARGEABLE'].includes(coverageType)) {
+        res.status(400).json({ success: false, error: 'Valid coverageType (AMC_COVERED or CHARGEABLE) is required.' });
+        return;
+      }
+
+      const updated = await this.service.setCoverageDecision(id, requestId, { coverageType, coverageNotes }, userId);
+
+      res.status(200).json({
+        success: true,
+        message: `Coverage decision recorded as ${coverageType}.`,
+        data: updated,
+      });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message || 'Failed to record coverage decision.' });
+    }
+  };
+
+  /**
+   * POST /api/v1/amc-contracts/:id/service-requests/:requestId/create-repair-task
+   * Create and dispatch repair task for an authorized breakdown/follow-up request
+   */
+  public createRepairTaskForRequest = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, requestId } = req.params;
+      const { assignedTo, scheduledAt, dueAt, priority, notes } = req.body;
+      const userId = this.getUserId(req);
+
+      const result = await this.service.createRepairTaskForRequest(
+        id,
+        requestId,
+        { assignedTo, scheduledAt, dueAt, priority, notes },
+        userId
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Repair task created and dispatched successfully.',
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message || 'Failed to create repair task.' });
+    }
+  };
+
+  /**
+   * POST /api/v1/amc-contracts/:id/service-requests/:requestId/link-quotation
+   * Link repair quotation to service request
+   */
+  public linkQuotationToRequest = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, requestId } = req.params;
+      const { quotationId } = req.body;
+      const userId = this.getUserId(req);
+
+      if (!quotationId) {
+        res.status(400).json({ success: false, error: 'quotationId is required.' });
+        return;
+      }
+
+      const updated = await this.service.linkQuotationToRequest(id, requestId, quotationId, userId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Quotation linked to service request successfully.',
+        data: updated,
+      });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message || 'Failed to link quotation.' });
+    }
+  };
+
+  /**
+   * POST /api/v1/amc-contracts/:id/service-requests/:requestId/link-sales-order
+   * Link confirmed sales order to service request
+   */
+  public linkSalesOrderToRequest = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, requestId } = req.params;
+      const { salesOrderId } = req.body;
+      const userId = this.getUserId(req);
+
+      if (!salesOrderId) {
+        res.status(400).json({ success: false, error: 'salesOrderId is required.' });
+        return;
+      }
+
+      const updated = await this.service.linkSalesOrderToRequest(id, requestId, salesOrderId, userId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Sales Order linked to service request successfully.',
+        data: updated,
+      });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message || 'Failed to link sales order.' });
+    }
+  };
+
+  /**
    * POST /api/v1/amc-contracts/schedule/:visitId/create-task
    * Create or assign field task for a service visit
    */

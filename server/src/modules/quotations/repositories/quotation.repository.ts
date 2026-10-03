@@ -23,10 +23,13 @@ import {
 import { customers, customerDestinations } from '../../../database/schema/customers.js';
 import { users } from '../../../database/schema/users.js';
 import { products } from '../../../database/schema/products.js';
+import { salesOrders } from '../../../database/schema/sales-orders.js';
+import { amcContracts } from '../../../database/schema/amc-contracts.js';
 
 export interface QuotationFilterOptions {
   search?: string;
-  status?: string;
+  status?: string | string[];
+  statuses?: string[];
   quotationType?: string;
   allowedTypes?: string[];
   customerId?: string;
@@ -128,6 +131,20 @@ export interface QuotationDetailedView extends QuotationEntity {
     user: { id: string; fullName: string; email: string } | null;
   })[];
   attachments: QuotationAttachmentEntity[];
+  linkedSalesOrder?: {
+    id: string;
+    salesOrderNumber: string;
+    status: string;
+    orderDate: Date;
+    customerPoNumber: string | null;
+  } | null;
+  linkedAmcContract?: {
+    id: string;
+    contractNumber: string;
+    status: string;
+    startDate: Date;
+    endDate: Date;
+  } | null;
 }
 
 const salespersons = aliasedTable(users, 'salespersons');
@@ -195,8 +212,20 @@ export class QuotationRepository {
 
     const conditions = [];
 
-    if (options.status && options.status.trim() !== '' && options.status.trim() !== 'ALL') {
-      conditions.push(eq(quotations.status, options.status.trim()));
+    const statusParam =
+      options.statuses && options.statuses.length > 0
+        ? options.statuses
+        : typeof options.status === 'string' && options.status.trim() !== '' && options.status.trim() !== 'ALL'
+          ? options.status.split(',').map((s) => s.trim()).filter(Boolean)
+          : Array.isArray(options.status)
+            ? (options.status as string[]).map((s) => String(s).trim()).filter(Boolean)
+            : [];
+
+    const validStatuses = statusParam.filter((s) => s !== 'ALL');
+    if (validStatuses.length === 1) {
+      conditions.push(eq(quotations.status, validStatuses[0]));
+    } else if (validStatuses.length > 1) {
+      conditions.push(inArray(quotations.status, validStatuses));
     }
 
     if (options.quotationType && options.quotationType.trim() !== '' && options.quotationType.trim() !== 'ALL') {
@@ -456,6 +485,34 @@ export class QuotationRepository {
       .where(eq(quotationAttachments.quotationId, id))
       .orderBy(desc(quotationAttachments.createdAt));
 
+    // Fetch linked sales order if any
+    const [linkedSo] = await db
+      .select({
+        id: salesOrders.id,
+        salesOrderNumber: salesOrders.salesOrderNumber,
+        status: salesOrders.status,
+        orderDate: salesOrders.orderDate,
+        customerPoNumber: salesOrders.customerPoNumber,
+      })
+      .from(salesOrders)
+      .where(eq(salesOrders.quotationId, id))
+      .orderBy(desc(salesOrders.createdAt))
+      .limit(1);
+
+    // Fetch linked AMC contract if any
+    const [linkedAmc] = await db
+      .select({
+        id: amcContracts.id,
+        contractNumber: amcContracts.contractNumber,
+        status: amcContracts.status,
+        startDate: amcContracts.contractStartDate,
+        endDate: amcContracts.contractEndDate,
+      })
+      .from(amcContracts)
+      .where(eq(amcContracts.quotationId, id))
+      .orderBy(desc(amcContracts.createdAt))
+      .limit(1);
+
     return {
       ...base.quotation,
       customer: base.customer?.id ? base.customer : null,
@@ -466,6 +523,8 @@ export class QuotationRepository {
       approvals,
       activityLogs,
       attachments,
+      linkedSalesOrder: linkedSo?.id ? linkedSo : null,
+      linkedAmcContract: linkedAmc?.id ? linkedAmc : null,
     };
   }
 

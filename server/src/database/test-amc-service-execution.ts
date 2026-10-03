@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from './db.js';
 import { quotations, quotationRevisions, quotationItems, quotationAmcScopeItems, quotationAmcExclusions, quotationAmcEscalations } from './schema/quotations.js';
 import { amcContracts, amcServiceVisits, amcServiceReports, amcServiceReportItems, amcServiceReportEquipment } from './schema/amc-contracts.js';
+import { salesOrders } from './schema/sales-orders.js';
 import { customers } from './schema/customers.js';
 import { users } from './schema/users.js';
 import { tasks } from './schema/tasks.js';
@@ -108,6 +109,19 @@ export async function runAmcServiceExecutionTest() {
       { quotationRevisionId: revision.id, description: 'Checking of input and output voltage parameters', sortOrder: 2 },
       { quotationRevisionId: revision.id, description: 'Checking of micro-controller PCB signals', sortOrder: 3 },
     ]);
+
+    await db.insert(salesOrders).values({
+      salesOrderNumber: `SO-AMC-TEST-${Date.now()}`,
+      customerId: customer.id,
+      quotationId: quotation.id,
+      quotationRevisionId: revision.id,
+      status: 'CONFIRMED',
+      orderDate: new Date(),
+      createdBy: user.id,
+      subtotal: '9000.00',
+      taxAmount: '1620.00',
+      totalAmount: '10620.00',
+    });
 
     const contract = await amcService.createContractFromQuotation(quotation.id, user.id);
     createdContractId = contract.id;
@@ -242,7 +256,7 @@ export async function runAmcServiceExecutionTest() {
     // -------------------------------------------------------------
     // Step 8: Cleanup Test Records
     // -------------------------------------------------------------
-    console.log('\n📋 Step 8: Cleaning up test records...');
+    await db.delete(salesOrders).where(eq(salesOrders.quotationId, quotation.id));
     await db.delete(amcContracts).where(eq(amcContracts.id, contract.id));
     await db.delete(quotations).where(eq(quotations.id, quotation.id));
     console.log('  ✅ Cleanup complete!');

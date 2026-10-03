@@ -2,9 +2,9 @@ import { eq } from 'drizzle-orm';
 import { db } from './db.js';
 import { quotations, quotationRevisions, quotationItems, quotationAmcScopeItems, quotationAmcExclusions, quotationAmcEscalations } from './schema/quotations.js';
 import { amcContracts, amcContractEquipment, amcContractScopeItems, amcContractExclusions, amcContractEscalations, amcServiceVisits, amcServiceRequests } from './schema/amc-contracts.js';
+import { salesOrders } from './schema/sales-orders.js';
 import { customers } from './schema/customers.js';
 import { users } from './schema/users.js';
-import { tasks } from './schema/tasks.js';
 import { QuotationNumberService } from '../modules/quotations/services/quotation-number.service.js';
 import { AmcContractService } from '../modules/amc-contracts/services/amc-contract.service.js';
 
@@ -128,9 +128,23 @@ export async function runAmcContractLifecycleTest() {
     console.log(`  ✅ Test AMC Quotation created: ${qNo}`);
 
     // -------------------------------------------------------------
-    // Step 2: Convert Accepted Quotation to AMC Contract
+    // Step 2: Convert Accepted Quotation to Confirmed Sales Order, then AMC Contract
     // -------------------------------------------------------------
-    console.log('\n📋 Step 2: Creating AMC Contract from Quotation...');
+    console.log('\n📋 Step 2: Creating Confirmed Sales Order & AMC Contract from Quotation...');
+    const [so] = await db.insert(salesOrders).values({
+      salesOrderNumber: `SO-AMC-TEST-${Date.now()}`,
+      customerId: customer.id,
+      quotationId: quotation.id,
+      quotationRevisionId: revision.id,
+      status: 'CONFIRMED',
+      orderDate: new Date(),
+      createdBy: user.id,
+      subtotal: '9000.00',
+      taxAmount: '1620.00',
+      totalAmount: '10620.00',
+    }).returning();
+    console.log(`  ✅ Linked Sales Order created & confirmed: ${so.salesOrderNumber}`);
+
     const contract = await amcService.createContractFromQuotation(quotation.id, user.id);
     createdContractId = contract.id;
 
@@ -233,6 +247,7 @@ export async function runAmcContractLifecycleTest() {
     // -------------------------------------------------------------
     console.log('\n📋 Step 8: Cleaning up test records...');
     await db.delete(amcContracts).where(eq(amcContracts.id, contract.id));
+    await db.delete(salesOrders).where(eq(salesOrders.id, so.id));
     await db.delete(quotations).where(eq(quotations.id, quotation.id));
     console.log('  ✅ Cleanup complete!');
 

@@ -40,6 +40,23 @@ export interface TaskUserSummary {
   status?: string | null;
 }
 
+export interface TaskAmcVisitSummary {
+  id: string;
+  visitNumber?: number | null;
+  amcContractId?: string | null;
+  contractNumber?: string | null;
+  serviceType?: string | null;
+  status?: string | null;
+  actualStartAt?: string | null;
+  actualEndAt?: string | null;
+  completedAt?: string | null;
+  report?: {
+    id: string;
+    reportNumber?: string | null;
+    status?: string | null;
+  } | null;
+}
+
 export interface TaskItem {
   id: string;
   customerId: string;
@@ -65,6 +82,7 @@ export interface TaskItem {
   customer: TaskCustomer | null;
   destination: TaskDestination | null;
   assignedUser: TaskUserSummary | null;
+  amcVisit?: TaskAmcVisitSummary | null;
 }
 
 export interface StartTaskPayload {

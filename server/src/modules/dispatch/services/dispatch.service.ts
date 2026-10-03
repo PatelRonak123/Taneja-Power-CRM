@@ -4,6 +4,7 @@ import { DispatchRepository, DispatchFilter } from '../repositories/dispatch.rep
 import { DispatchNumberService } from './dispatch-number.service.js';
 import { StockService } from '../../inventory/services/stock.service.js';
 import { salesOrders, salesOrderItems } from '../../../database/schema/sales-orders.js';
+import { quotations } from '../../../database/schema/quotations.js';
 import { leads, leadActivityLogs } from '../../../database/schema/leads.js';
 import { customers } from '../../../database/schema/customers.js';
 import { products } from '../../../database/schema/products.js';
@@ -78,9 +79,11 @@ export class DispatchService {
    */
   async getDispatchableItems(salesOrderId: string) {
     const soRes = await db.execute(
-      sql`SELECT so.*, c.name as customer_name, c.company_name as customer_company_name
+      sql`SELECT so.*, c.name as customer_name, c.company_name as customer_company_name,
+              q.quotation_type as quotation_type
           FROM sales_orders so
           LEFT JOIN customers c ON c.id = so.customer_id
+          LEFT JOIN quotations q ON q.id = so.quotation_id
           WHERE so.id = ${salesOrderId}`
     );
     const soRows = soRes.rows || soRes;
@@ -88,6 +91,15 @@ export class DispatchService {
       throw AppError.notFound(`Sales Order "${salesOrderId}" not found`, 'SALES_ORDER_NOT_FOUND');
     }
     const so = soRows[0] as any;
+
+    // AMC Sales Orders represent service contracts – physical dispatch is NOT allowed.
+    if (so.quotation_type === 'AMC') {
+      throw AppError.badRequest(
+        'AMC Sales Orders cannot be dispatched because they represent service contracts, not physical product sales.',
+        { quotationType: 'AMC' },
+        'AMC_DISPATCH_NOT_ALLOWED'
+      );
+    }
 
     const itemsRes = await db.execute(
       sql`SELECT soi.*, COALESCE(p.stock_quantity, 0) as physical_stock
@@ -146,15 +158,28 @@ export class DispatchService {
     }
 
     return db.transaction(async (tx) => {
-      // 1. Lock Sales Order row
+      // 1. Lock Sales Order row (join quotation to get quotationType)
       const soRes = await tx.execute(
-        sql`SELECT * FROM sales_orders WHERE id = ${input.salesOrderId} FOR UPDATE`
+        sql`SELECT so.*, q.quotation_type as quotation_type
+            FROM sales_orders so
+            LEFT JOIN quotations q ON q.id = so.quotation_id
+            WHERE so.id = ${input.salesOrderId} FOR UPDATE OF so`
       );
       const soRows = soRes.rows || soRes;
       if (!soRows || soRows.length === 0) {
         throw AppError.notFound(`Sales Order "${input.salesOrderId}" not found`, 'SALES_ORDER_NOT_FOUND');
       }
       const so = soRows[0] as any;
+
+      // AMC Sales Orders are service contracts – physical dispatch is NOT allowed.
+      // This guard runs before all other checks to enforce the business rule at the backend level.
+      if (so.quotation_type === 'AMC') {
+        throw AppError.badRequest(
+          'AMC Sales Orders cannot be dispatched because they represent service contracts, not physical product sales.',
+          { quotationType: 'AMC', salesOrderId: input.salesOrderId },
+          'AMC_DISPATCH_NOT_ALLOWED'
+        );
+      }
 
       // 2. Validate Sales Order eligibility
       const eligibleStatuses = [

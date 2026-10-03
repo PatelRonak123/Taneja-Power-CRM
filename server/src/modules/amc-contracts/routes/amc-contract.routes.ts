@@ -29,6 +29,10 @@ router.post(
 router.post('/:id/service-requests', denyNonServiceOffice, controller.createBreakdownRequest);
 router.post('/:id/service-requests/:requestId/escalate', denyNonServiceOffice, controller.escalateBreakdownRequest);
 router.get('/:id/service-requests/:requestId', denyNonServiceOffice, controller.getBreakdownRequestById);
+router.post('/:id/service-requests/:requestId/coverage', denyNonServiceOffice, controller.setCoverageDecision);
+router.post('/:id/service-requests/:requestId/create-repair-task', denyNonServiceOffice, controller.createRepairTaskForRequest);
+router.post('/:id/service-requests/:requestId/link-quotation', denyNonServiceOffice, controller.linkQuotationToRequest);
+router.post('/:id/service-requests/:requestId/link-sales-order', denyNonServiceOffice, controller.linkSalesOrderToRequest);
 router.post('/schedule/:visitId/create-task', denyNonServiceOffice, controller.createTaskForVisit);
 
 // Phase 7: Renewal & History

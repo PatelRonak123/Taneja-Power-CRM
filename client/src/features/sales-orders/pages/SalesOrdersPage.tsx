@@ -11,8 +11,10 @@ import {
   X,
   ChevronDown,
   AlertTriangle,
+  AlertCircle,
   Receipt,
-  Truck,
+  FileText,
+  ShieldCheck,
 } from 'lucide-react';
 import { navigate } from '../../../app/router/navigation';
 import { useAuthStore } from '../../../stores/authStore';
@@ -70,15 +72,43 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
 
   const createSO = useCreateSalesOrder();
 
-  // Fetch APPROVED quotations for the dropdown
-  const [approvedQuotations, setApprovedQuotations] = React.useState<Array<{
+  // Fetch APPROVED and SENT TO CLIENT quotations for the dropdown
+  const [eligibleQuotations, setEligibleQuotations] = React.useState<Array<{
     id: string;
     quotationNumber: string;
     customerName: string;
     companyName?: string | null;
     grandTotal?: string | null;
+    status: string;
   }>>([]);
   const [loadingQuotations, setLoadingQuotations] = React.useState(true);
+
+  // Search & Combobox states
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusTab, setStatusTab] = useState<'ALL' | 'APPROVED' | 'SENT'>('ALL');
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Close dropdown on click outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Auto focus search input when dropdown opens
+  React.useEffect(() => {
+    if (isDropdownOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+  }, [isDropdownOpen]);
 
   // Fetch full details of the chosen quotation to evaluate stock levels
   const [selectedQuotationDetail, setSelectedQuotationDetail] = React.useState<any>(null);
@@ -88,7 +118,7 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
     let cancelled = false;
     setLoadingQuotations(true);
     import('../../quotations/services/quotationService').then(({ quotationService }) => {
-      quotationService.getQuotations({ status: 'APPROVED', limit: 500 } as any)
+      quotationService.getQuotations({ status: 'APPROVED,SENT,ACCEPTED', limit: 500 } as any)
         .then((res) => {
           if (cancelled) return;
           const list = (res.data ?? []).map((q: any) => ({
@@ -97,10 +127,11 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
             customerName: q.customer?.name ?? 'Unknown Customer',
             companyName: q.customer?.companyName,
             grandTotal: q.currentRevision?.grandTotal,
+            status: q.status,
           }));
-          setApprovedQuotations(list);
+          setEligibleQuotations(list);
         })
-        .catch(() => { if (!cancelled) setApprovedQuotations([]); })
+        .catch(() => { if (!cancelled) setEligibleQuotations([]); })
         .finally(() => { if (!cancelled) setLoadingQuotations(false); });
     });
     return () => { cancelled = true; };
@@ -130,7 +161,42 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
     };
   }, [form.quotationId]);
 
-  const selectedQuotation = approvedQuotations.find((q) => q.id === form.quotationId);
+  const selectedQuotation =
+    eligibleQuotations.find((q) => q.id === form.quotationId) ||
+    (selectedQuotationDetail?.id === form.quotationId
+      ? {
+          id: selectedQuotationDetail.id,
+          quotationNumber: selectedQuotationDetail.quotationNumber,
+          customerName: selectedQuotationDetail.customer?.name ?? 'Unknown Customer',
+          companyName: selectedQuotationDetail.customer?.companyName,
+          grandTotal: selectedQuotationDetail.currentRevision?.grandTotal,
+          status: selectedQuotationDetail.status,
+        }
+      : null);
+
+  const filteredQuotations = React.useMemo(() => {
+    return eligibleQuotations.filter((q) => {
+      if (statusTab === 'APPROVED' && q.status !== 'APPROVED') return false;
+      if (statusTab === 'SENT' && q.status !== 'SENT') return false;
+
+      if (!searchQuery.trim()) return true;
+      const term = searchQuery.toLowerCase().trim();
+      const qNum = (q.quotationNumber || '').toLowerCase();
+      const custName = (q.customerName || '').toLowerCase();
+      const compName = (q.companyName || '').toLowerCase();
+      const statusLabel = q.status === 'SENT' ? 'sent to client' : q.status.toLowerCase();
+
+      return (
+        qNum.includes(term) ||
+        custName.includes(term) ||
+        compName.includes(term) ||
+        statusLabel.includes(term)
+      );
+    });
+  }, [eligibleQuotations, searchQuery, statusTab]);
+
+  const approvedCount = eligibleQuotations.filter((q) => q.status === 'APPROVED').length;
+  const sentCount = eligibleQuotations.filter((q) => q.status === 'SENT').length;
   const quotationItemsList = selectedQuotationDetail?.currentRevision?.items || [];
   const hasShortage = quotationItemsList.some(
     (it: any) => (it.stockQuantity ?? 0) < Number(it.quantity)
@@ -145,6 +211,19 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
     } catch (_) { /* handled by hook */ }
   };
 
+  const formatQuotationStatus = (status: string) => {
+    switch (status) {
+      case 'SENT':
+        return 'Sent to Client';
+      case 'APPROVED':
+        return 'Approved';
+      case 'ACCEPTED':
+        return 'Accepted';
+      default:
+        return status;
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -155,7 +234,7 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Create Sales Order</h2>
-              <p className="text-xs text-gray-500">From an approved customer quotation</p>
+              <p className="text-xs text-gray-500">From an approved or sent customer quotation</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
@@ -165,46 +244,248 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Select Quotation <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">
+                Select Quotation <span className="text-red-500">*</span>
+              </label>
+              {eligibleQuotations.length > 0 && (
+                <span className="text-xs text-gray-400">
+                  {eligibleQuotations.length} eligible
+                </span>
+              )}
+            </div>
+
             {loadingQuotations ? (
-              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-400 flex items-center gap-2">
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                Loading approved quotations…
+              <div className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-400 flex items-center gap-2">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                Loading approved and sent quotations…
               </div>
-            ) : approvedQuotations.length === 0 ? (
-              <div className="w-full px-3 py-2.5 border border-amber-300 rounded-lg text-sm text-amber-700 bg-amber-50 flex items-center gap-2">
+            ) : eligibleQuotations.length === 0 ? (
+              <div className="w-full px-3 py-2.5 border border-amber-300 rounded-xl text-sm text-amber-700 bg-amber-50 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                No approved quotations found. Please approve a quotation first.
+                No approved or sent quotations found. Please approve or send a quotation first.
               </div>
             ) : (
-              <select
-                id="so-quotation-select"
-                required
-                value={form.quotationId}
-                onChange={(e) => setForm((f) => ({ ...f, quotationId: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              >
-                <option value="">— Select an approved quotation —</option>
-                {approvedQuotations.map((q) => (
-                  <option key={q.id} value={q.id}>
-                    {q.quotationNumber}
-                    {q.customerName ? ` · ${q.customerName}` : ''}
-                    {q.companyName ? ` (${q.companyName})` : ''}
-                    {q.grandTotal ? ` · ₹${Number(q.grandTotal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : ''}
-                  </option>
-                ))}
-              </select>
-            )}
-            {/* Show selected quotation details pill */}
-            {selectedQuotation && (
-              <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg">
-                <span className="text-xs font-mono font-semibold text-indigo-700">{selectedQuotation.quotationNumber}</span>
-                <span className="text-xs text-gray-400">·</span>
-                <span className="text-xs text-gray-700">{selectedQuotation.customerName}</span>
-                {selectedQuotation.companyName && (
-                  <span className="text-xs text-gray-400">· {selectedQuotation.companyName}</span>
+              <div className="relative" ref={dropdownRef}>
+                {/* Hidden input to enforce HTML form validation if required */}
+                <input
+                  type="text"
+                  value={form.quotationId}
+                  onChange={() => {}}
+                  required
+                  tabIndex={-1}
+                  className="opacity-0 absolute inset-0 pointer-events-none w-full h-full"
+                />
+
+                {/* Combobox Trigger Button */}
+                {selectedQuotation ? (
+                  <div
+                    onClick={() => setIsDropdownOpen((prev) => !prev)}
+                    className="w-full px-3.5 py-2.5 border border-indigo-300 bg-indigo-50/50 rounded-xl cursor-pointer hover:border-indigo-400 transition-all flex items-center justify-between shadow-2xs group"
+                  >
+                    <div className="flex items-center gap-2.5 overflow-hidden">
+                      <FileText className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="font-mono text-xs font-bold text-indigo-700">
+                          {selectedQuotation.quotationNumber}
+                        </span>
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                            selectedQuotation.status === 'SENT'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {formatQuotationStatus(selectedQuotation.status)}
+                        </span>
+                        <span className="text-xs text-gray-800 font-medium truncate">
+                          {selectedQuotation.customerName}
+                          {selectedQuotation.companyName ? ` (${selectedQuotation.companyName})` : ''}
+                        </span>
+                        {selectedQuotation.grandTotal && (
+                          <span className="text-xs font-mono font-semibold text-gray-900 ml-1">
+                            · ₹{Number(selectedQuotation.grandTotal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setForm((f) => ({ ...f, quotationId: '' }));
+                          setSearchQuery('');
+                          setIsDropdownOpen(true);
+                        }}
+                        className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-indigo-100/70 transition-colors"
+                        title="Clear selection"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                      <ChevronDown
+                        className={`w-4 h-4 text-gray-400 transition-transform ${
+                          isDropdownOpen ? 'rotate-180 text-indigo-600' : ''
+                        }`}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => setIsDropdownOpen(true)}
+                    className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl cursor-pointer hover:border-indigo-400 bg-white flex items-center justify-between transition-colors shadow-2xs"
+                  >
+                    <div className="flex items-center gap-2.5 text-gray-400 text-sm">
+                      <Search className="w-4 h-4 text-gray-400" />
+                      <span>Search & select quotation by quote # or customer…</span>
+                    </div>
+                    <ChevronDown
+                      className={`w-4 h-4 text-gray-400 transition-transform ${
+                        isDropdownOpen ? 'rotate-180 text-indigo-600' : ''
+                      }`}
+                    />
+                  </div>
+                )}
+
+                {/* Dropdown Menu with Search Bar */}
+                {isDropdownOpen && (
+                  <div className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                    {/* Search Input Box */}
+                    <div className="p-3 border-b border-gray-100 bg-gray-50/70 space-y-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          ref={searchInputRef}
+                          type="text"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Search quote #, customer, company, status..."
+                          className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-400 shadow-2xs"
+                        />
+                        {searchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Filter Chips */}
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setStatusTab('ALL')}
+                          className={`px-2.5 py-0.5 rounded-lg text-[11px] font-medium transition-colors ${
+                            statusTab === 'ALL'
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          All ({eligibleQuotations.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStatusTab('SENT')}
+                          className={`px-2.5 py-0.5 rounded-lg text-[11px] font-medium transition-colors ${
+                            statusTab === 'SENT'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'
+                          }`}
+                        >
+                          Sent to Client ({sentCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStatusTab('APPROVED')}
+                          className={`px-2.5 py-0.5 rounded-lg text-[11px] font-medium transition-colors ${
+                            statusTab === 'APPROVED'
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                          }`}
+                        >
+                          Approved ({approvedCount})
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Results list */}
+                    <div className="max-h-56 overflow-y-auto divide-y divide-gray-50 p-1">
+                      {filteredQuotations.length === 0 ? (
+                        <div className="py-7 px-4 text-center text-xs text-gray-400 space-y-1">
+                          <AlertCircle className="w-5 h-5 text-gray-300 mx-auto" />
+                          <p>
+                            No quotations match{' '}
+                            <span className="font-semibold text-gray-700">"{searchQuery}"</span>
+                          </p>
+                          {searchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSearchQuery('');
+                                setStatusTab('ALL');
+                              }}
+                              className="text-xs text-indigo-600 hover:underline pt-1"
+                            >
+                              Clear search filters
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        filteredQuotations.map((q) => {
+                          const isSelected = form.quotationId === q.id;
+                          const statusLabel = formatQuotationStatus(q.status);
+                          return (
+                            <div
+                              key={q.id}
+                              onClick={() => {
+                                setForm((f) => ({ ...f, quotationId: q.id }));
+                                setIsDropdownOpen(false);
+                              }}
+                              className={`p-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-between text-xs ${
+                                isSelected
+                                  ? 'bg-indigo-50/80 border border-indigo-200'
+                                  : 'hover:bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex flex-col gap-0.5 truncate pr-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-gray-900">
+                                    {q.quotationNumber}
+                                  </span>
+                                  <span
+                                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                      q.status === 'SENT'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : 'bg-emerald-100 text-emerald-800'
+                                    }`}
+                                  >
+                                    {statusLabel}
+                                  </span>
+                                </div>
+                                <div className="text-gray-700 font-medium truncate">
+                                  {q.customerName}
+                                  {q.companyName ? (
+                                    <span className="text-gray-400 font-normal"> · {q.companyName}</span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2.5 text-right flex-shrink-0">
+                                {q.grandTotal && (
+                                  <span className="font-mono font-semibold text-gray-800">
+                                    ₹{Number(q.grandTotal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                                  </span>
+                                )}
+                                {isSelected && <CheckCircle className="w-4 h-4 text-indigo-600" />}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -297,7 +578,7 @@ const CreateSalesOrderModal: React.FC<CreateModalProps> = ({ onClose, initialQuo
             ) : null}
 
             <p className="mt-1 text-xs text-gray-400">
-              Only APPROVED quotations are listed. Totals are recalculated server-side.
+              Only APPROVED and SENT TO CLIENT quotations are listed. Totals are recalculated server-side.
             </p>
           </div>
 
@@ -520,7 +801,75 @@ const DetailDrawer: React.FC<DetailDrawerProps> = ({
         {(() => {
           const isFullyDispatched = so.dispatchStatus === 'FULLY_DISPATCHED';
           const isCancelled = so.status === 'CANCELLED';
+          const isAmcOrder = so.quotation?.quotationType === 'AMC';
 
+          // ── AMC Service Contract – no dispatch/stock analysis needed ──
+          if (isAmcOrder) {
+            return (
+              <>
+                {/* AMC Service Notice */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-900">AMC Service Contract</p>
+                    <p className="text-xs text-emerald-700 mt-0.5">
+                      This is an Annual Maintenance Contract (AMC). Physical dispatch and inventory
+                      fulfillment are not applicable for service contracts.
+                      {so.linkedAmcContract
+                        ? ` AMC Contract ${so.linkedAmcContract.contractNumber} has been generated.`
+                        : ' Generate an AMC Contract once the order is confirmed and invoiced.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Line Items – service description only, no stock columns */}
+                <section>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Service Line Items</p>
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Service</th>
+                          <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600">Qty</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Unit Price</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {(so.items || []).map((item) => (
+                          <tr key={item.id}>
+                            <td className="px-3 py-3">
+                              <p className="font-medium text-gray-900">{item.productNameSnapshot}</p>
+                              {item.skuSnapshot && <p className="text-xs text-gray-500">{item.skuSnapshot}</p>}
+                            </td>
+                            <td className="px-3 py-3 text-center text-gray-800 font-semibold">
+                              {Number(item.quantity)} <span className="text-xs text-gray-500 font-normal">{item.unitSnapshot}</span>
+                            </td>
+                            <td className="px-3 py-3 text-right font-medium text-gray-700">{fmt(item.unitPrice)}</td>
+                            <td className="px-3 py-3 text-right font-medium text-gray-900">{fmt(item.lineTotal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* Totals */}
+                  <div className="mt-3 border border-gray-200 rounded-xl p-4 space-y-2 text-sm">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Subtotal</span><span>{fmt(so.subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>Tax</span><span>{fmt(so.taxAmount)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-gray-900 text-base border-t pt-2 mt-2">
+                      <span>Total</span><span>{fmt(so.totalAmount)}</span>
+                    </div>
+                  </div>
+                </section>
+              </>
+            );
+          }
+
+          // ── Product/Service Sales Order – stock & dispatch analysis ──
           const shortageAnalysis = (so.items || []).map((item) => {
             const ordered = Number(item.quantity) || 0;
             const alreadyDispatched = isFullyDispatched
@@ -713,7 +1062,39 @@ const DetailDrawer: React.FC<DetailDrawerProps> = ({
       {/* Action Footer */}
       {so.status !== 'CANCELLED' && (
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex gap-3 flex-wrap">
-          {(() => {
+          {/* AMC Contract Button – only for AMC orders */}
+          {so.quotation?.quotationType === 'AMC' && (
+            so.linkedAmcContract ? (
+              <button
+                id="so-detail-view-amc-contract"
+                type="button"
+                onClick={() => {
+                  onClose();
+                  navigate(`/amc-contracts/${so.linkedAmcContract!.id}`);
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg transition-colors"
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                AMC: {so.linkedAmcContract.contractNumber}
+              </button>
+            ) : (['CONFIRMED', 'PARTIALLY_INVOICED', 'FULLY_INVOICED'].includes(so.status)) ? (
+              <button
+                id="so-detail-create-amc-contract"
+                type="button"
+                onClick={() => {
+                  onClose();
+                  navigate(`/quotations/${so.quotationId}`);
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
+                title="Go to the quotation to create the AMC Contract"
+              >
+                <ShieldCheck className="w-4 h-4" /> Create AMC Contract
+              </button>
+            ) : null
+          )}
+
+          {/* Shortage / PO button – only for PRODUCT orders */}
+          {so.quotation?.quotationType !== 'AMC' && (() => {
             const isFullyDispatched = so.dispatchStatus === 'FULLY_DISPATCHED';
             if (isFullyDispatched) return null;
 
@@ -758,6 +1139,7 @@ const DetailDrawer: React.FC<DetailDrawerProps> = ({
               </button>
             );
           })()}
+
           {so.status === 'DRAFT' && (
             <button
               id="so-detail-submit"
@@ -779,22 +1161,17 @@ const DetailDrawer: React.FC<DetailDrawerProps> = ({
             </button>
           )}
           {(so.status === 'CONFIRMED' || so.status === 'PARTIALLY_INVOICED' || so.status === 'FULLY_INVOICED') && (
-            <>
-              <button
-                id="so-detail-create-invoice"
-                onClick={() => navigate('/invoices')}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
-              >
-                <Receipt className="w-4 h-4" /> Invoice Module
-              </button>
-              <button
-                id="so-detail-create-dispatch"
-                onClick={() => navigate('/dispatches')}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Truck className="w-4 h-4" /> Create Dispatch
-              </button>
-            </>
+            <button
+              id="so-detail-create-invoice"
+              onClick={() => {
+                onClose();
+                navigate(`/invoices?create=true&salesOrderId=${so.id}`);
+              }}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+              title="Redirect to Invoices to generate invoice for this order"
+            >
+              <Receipt className="w-4 h-4" /> Invoice Module
+            </button>
           )}
           {canCancel && (
             <button

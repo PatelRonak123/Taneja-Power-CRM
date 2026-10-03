@@ -52,5 +52,11 @@ export const API_ENDPOINTS = {
     ACTIVITY: (id: string) => `/field-service/${id}/activity`,
     PDF: (id: string) => `/field-service/${id}/pdf`,
   },
+  AMC_CONTRACTS: {
+    GET_VISIT_REPORT: (visitId: string) => `/amc-contracts/visits/${visitId}/report`,
+    UPDATE_VISIT_REPORT: (visitId: string) => `/amc-contracts/visits/${visitId}/report`,
+    COMPLETE_VISIT: (visitId: string) => `/amc-contracts/visits/${visitId}/complete`,
+    REPORT_PDF: (reportId: string) => `/amc-contracts/reports/${reportId}/pdf`,
+  },
   HEALTH: '/health',
 } as const;

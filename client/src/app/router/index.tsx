@@ -26,6 +26,10 @@ export const AppRouter: React.FC = () => {
 
       const designationLower = (user?.designation || '').toLowerCase();
       const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('sales');
+      const isServiceOffice =
+        ((user?.role === 'USER' || (user as any)?.role === 'SERVICE') &&
+          designationLower.includes('service')) ||
+        (user?.workType === 'OFFICE' && designationLower.includes('service'));
       const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('accountant');
       const isHrOffice = (user?.role === 'USER' || (user as any)?.role === 'HR') && user?.workType === 'OFFICE' && (designationLower.includes('hr') || designationLower.includes('human resources'));
 
@@ -62,6 +66,11 @@ export const AppRouter: React.FC = () => {
       } else if (
         currentPath.startsWith('/field-service') &&
         (isSalesOffice || isAccountantOffice)
+      ) {
+        navigate('/employee/dashboard');
+      } else if (
+        (currentPath.startsWith('/sales-orders') || currentPath.startsWith('/admin/sales-orders')) &&
+        isServiceOffice
       ) {
         navigate('/employee/dashboard');
       } else if (

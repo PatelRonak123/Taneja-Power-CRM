@@ -80,7 +80,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         .getDestinations(formData.customerId)
         .then((res) => {
           if (res.success && Array.isArray(res.data)) {
-            setDestinations(res.data.filter((d) => d.status === 'ACTIVE'));
+            const active = res.data.filter((d) => d.status === 'ACTIVE');
+            setDestinations(active);
+            if ((!formData.destinationId || !active.some((d) => d.id === formData.destinationId)) && active.length > 0) {
+              onInputChange({
+                target: { name: 'destinationId', value: active[0].id },
+              } as any);
+            }
           } else {
             setDestinations([]);
           }

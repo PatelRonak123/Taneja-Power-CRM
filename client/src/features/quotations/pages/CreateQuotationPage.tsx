@@ -6,13 +6,29 @@ import { navigate } from '../../../app/router/navigation';
 import { CreateQuotationPayload } from '../types/quotation.types';
 import { toast } from '../../../utils/toast';
 
+import { amcContractApi } from '../../amc-contracts/api/amcContractApi';
+
 export const CreateQuotationPage: React.FC = () => {
   const queryClient = useQueryClient();
 
   const createMutation = useMutation({
     mutationFn: (data: CreateQuotationPayload) => quotationService.createQuotation(data),
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
+
+      // Automatically link to AMC service request if created from a defect follow-up
+      try {
+        const pendingLink = sessionStorage.getItem('pending_repair_link');
+        if (pendingLink && response.data && response.data.id) {
+          const { contractId, requestId } = JSON.parse(pendingLink);
+          await amcContractApi.linkQuotationToRequest(contractId, requestId, response.data.id);
+          sessionStorage.removeItem('pending_repair_link');
+          toast.info('Linked to Service Request', 'Repair quotation linked to AMC service request.');
+        }
+      } catch (linkErr) {
+        console.error('Failed to link repair quotation to request:', linkErr);
+      }
+
       toast.success('Quotation created successfully');
       if (response.data && response.data.id) {
         navigate(`/quotations/${response.data.id}`);

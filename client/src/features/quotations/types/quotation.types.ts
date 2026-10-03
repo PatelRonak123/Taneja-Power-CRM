@@ -299,6 +299,20 @@ export interface QuotationDetailedView {
   approvals: QuotationApproval[];
   activityLogs: QuotationActivityLog[];
   attachments: QuotationAttachment[];
+  linkedSalesOrder?: {
+    id: string;
+    salesOrderNumber: string;
+    status: string;
+    orderDate: string;
+    customerPoNumber?: string | null;
+  } | null;
+  linkedAmcContract?: {
+    id: string;
+    contractNumber: string;
+    status: string;
+    startDate: string;
+    endDate: string;
+  } | null;
 }
 
 export interface LineItemFormInput {
@@ -448,7 +462,7 @@ export interface QuotationQueryParams {
   page?: number;
   limit?: number;
   search?: string;
-  status?: string;
+  status?: string | string[];
   quotationType?: string;
   customerId?: string;
   salespersonId?: string;

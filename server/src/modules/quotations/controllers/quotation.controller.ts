@@ -329,5 +329,57 @@ export class QuotationController {
       next(error);
     }
   };
+
+  /**
+   * POST /api/v1/quotations/:id/accept
+   * Record Customer Acceptance on quotation
+   */
+  customerAccept = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+
+      const result = await this.quotationService.customerAcceptQuotation(
+        req.params.id,
+        req.body,
+        req.user
+      );
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        'Quotation customer acceptance recorded successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/quotations/:id/customer-reject
+   * Record Customer Rejection on quotation
+   */
+  customerReject = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized('User not authenticated');
+      }
+
+      const result = await this.quotationService.customerRejectQuotation(
+        req.params.id,
+        req.body,
+        req.user
+      );
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        result,
+        'Quotation customer rejection recorded successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 

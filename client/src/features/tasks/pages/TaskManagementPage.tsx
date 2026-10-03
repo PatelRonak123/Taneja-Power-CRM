@@ -25,6 +25,7 @@ import { TaskCancelModal } from '../components/TaskCancelModal';
 import { LiveRouteTrackingDrawer } from '../components/LiveRouteTrackingDrawer';
 import { toast } from '../../../utils/toast';
 import { Button } from '../../../components/ui/Button';
+import { navigate } from '../../../app/router/navigation';
 
 export const TaskManagementPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -108,6 +109,46 @@ export const TaskManagementPage: React.FC = () => {
 
   // Task Cancel Modal State
   const [selectedTaskForCancel, setSelectedTaskForCancel] = useState<TaskItem | null>(null);
+
+  // Pending AMC Service Visit Linking State
+  const [pendingAmcVisitId, setPendingAmcVisitId] = useState<string | null>(null);
+  const [pendingAmcContractId, setPendingAmcContractId] = useState<string | null>(null);
+
+  // Detect auto-create task payload from AMC Contract redirection
+  useEffect(() => {
+    let payload = (window.history.state as any)?.autoCreateTask ? (window.history.state as any) : null;
+    if (!payload) {
+      try {
+        const stored = sessionStorage.getItem('pending_amc_task');
+        if (stored) {
+          payload = JSON.parse(stored);
+          sessionStorage.removeItem('pending_amc_task');
+        }
+      } catch {
+        payload = null;
+      }
+    }
+
+    if (payload && payload.autoCreateTask) {
+      setTaskFormData({
+        title: payload.title || '',
+        description: payload.description || '',
+        customerId: payload.customerId || '',
+        destinationId: payload.destinationId || '',
+        assignedTo: '',
+        priority: payload.priority || 'MEDIUM',
+        status: 'CREATED',
+        scheduledAt: payload.scheduledAt || '',
+        dueAt: payload.dueAt || '',
+      });
+      setPendingAmcVisitId(payload.amcVisitId || null);
+      setPendingAmcContractId(payload.amcContractId || null);
+      setTaskModalMode('create');
+
+      window.history.replaceState({}, document.title, window.location.pathname);
+      toast.info('AMC Visit Task Details Loaded', 'Please select a field engineer to assign this AMC service visit task.');
+    }
+  }, []);
 
   // Load Reference Data (Active Customers for all; Employees filtered by office type)
   useEffect(() => {
@@ -226,6 +267,8 @@ export const TaskManagementPage: React.FC = () => {
 
   // Open Create Task Modal
   const handleOpenCreateTask = () => {
+    setPendingAmcVisitId(null);
+    setPendingAmcContractId(null);
     setTaskModalMode('create');
     setEditingTaskId(null);
     setTaskFormError(null);
@@ -307,12 +350,28 @@ export const TaskManagementPage: React.FC = () => {
           priority: taskFormData.priority,
           scheduledAt: taskFormData.scheduledAt ? new Date(taskFormData.scheduledAt).toISOString() : null,
           dueAt: taskFormData.dueAt ? new Date(taskFormData.dueAt).toISOString() : null,
+          amcVisitId: pendingAmcVisitId || undefined,
         });
 
         if (response.success) {
-          toast.success(`Task "${response.data.title}" created successfully!`);
+          const isLinkedToAmc = !!pendingAmcVisitId;
+          const amcId = pendingAmcContractId;
+          setPendingAmcVisitId(null);
+          setPendingAmcContractId(null);
           setTaskModalMode(null);
           fetchTasks(1);
+
+          if (isLinkedToAmc && amcId) {
+            toast.success(
+              'Task Created & Assigned',
+              `Task "${response.data.title}" successfully created and assigned to field engineer!`
+            );
+            setTimeout(() => {
+              navigate(`/amc-contracts/${amcId}`);
+            }, 1200);
+          } else {
+            toast.success(`Task "${response.data.title}" created successfully!`);
+          }
         }
       } else if (taskModalMode === 'edit' && editingTaskId) {
         const response = await taskService.updateTask(editingTaskId, {
@@ -487,7 +546,11 @@ export const TaskManagementPage: React.FC = () => {
       {/* Task Create / Edit Modal (Only management can open) */}
       <TaskModal
         modalMode={taskModalMode}
-        onClose={() => setTaskModalMode(null)}
+        onClose={() => {
+          setTaskModalMode(null);
+          setPendingAmcVisitId(null);
+          setPendingAmcContractId(null);
+        }}
         onSubmit={handleTaskSubmit}
         formData={taskFormData}
         onInputChange={handleTaskInputChange}

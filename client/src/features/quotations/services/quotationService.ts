@@ -177,5 +177,29 @@ export const quotationService = {
       ApiEnvelope<{ message: string; emailId: string; recipientEmail: string }>
     >;
   },
+
+  /**
+   * Record Customer Acceptance on quotation
+   */
+  customerAcceptQuotation: async (
+    id: string,
+    payload?: { customerPoNumber?: string; notes?: string }
+  ): Promise<ApiEnvelope<QuotationDetailedView>> => {
+    return apiClient.post(`/quotations/${id}/accept`, payload) as unknown as Promise<
+      ApiEnvelope<QuotationDetailedView>
+    >;
+  },
+
+  /**
+   * Record Customer Rejection on quotation
+   */
+  customerRejectQuotation: async (
+    id: string,
+    payload: { rejectionReason: string }
+  ): Promise<ApiEnvelope<QuotationDetailedView>> => {
+    return apiClient.post(`/quotations/${id}/customer-reject`, payload) as unknown as Promise<
+      ApiEnvelope<QuotationDetailedView>
+    >;
+  },
 };
 
