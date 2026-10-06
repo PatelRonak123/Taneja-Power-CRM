@@ -19,6 +19,7 @@ import { CustomerTable } from '../components/CustomerTable';
 import { CustomerModal } from '../components/CustomerModal';
 import { DestinationsDrawer } from '../components/DestinationsDrawer';
 import { DestinationModal } from '../components/DestinationModal';
+import { CustomerEquipmentDrawer } from '../components/CustomerEquipmentDrawer';
 import { useAuthStore } from '../../../stores/authStore';
 import { toast } from '../../../utils/toast';
 import { confirmModal } from '../../../utils/confirmModal';
@@ -77,10 +78,12 @@ export const CustomerManagementPage: React.FC = () => {
     status: 'ACTIVE',
   });
 
-  // Destinations Detail Drawer / View State
+  // Destinations & Equipment Detail Drawer / View State
   const [selectedCustomerForDestinations, setSelectedCustomerForDestinations] =
     useState<Customer | null>(null);
   const [selectedCustomerForFollowUps, setSelectedCustomerForFollowUps] =
+    useState<Customer | null>(null);
+  const [selectedCustomerForEquipment, setSelectedCustomerForEquipment] =
     useState<Customer | null>(null);
   const [destinations, setDestinations] = useState<CustomerDestination[]>([]);
   const [loadingDestinations, setLoadingDestinations] = useState<boolean>(false);
@@ -580,6 +583,7 @@ export const CustomerManagementPage: React.FC = () => {
         onOpenCreate={handleOpenCreateCustomer}
         onOpenDestinations={handleOpenDestinations}
         onOpenFollowUps={setSelectedCustomerForFollowUps}
+        onOpenEquipment={setSelectedCustomerForEquipment}
         onEditCustomer={handleOpenEditCustomer}
         onDeleteCustomer={handleDeleteCustomer}
         deletingCustomerId={deletingCustomerId}
@@ -595,6 +599,12 @@ export const CustomerManagementPage: React.FC = () => {
         onInputChange={handleCustomerInputChange}
         formSubmitting={customerFormSubmitting}
         formError={customerFormError}
+      />
+
+      {/* Installed Equipment & Assets Drawer */}
+      <CustomerEquipmentDrawer
+        customer={selectedCustomerForEquipment}
+        onClose={() => setSelectedCustomerForEquipment(null)}
       />
 
       {/* Destinations Management Modal / Drawer */}

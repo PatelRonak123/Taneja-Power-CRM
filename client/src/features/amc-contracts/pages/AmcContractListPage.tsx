@@ -28,7 +28,7 @@ export const AmcContractListPage: React.FC = () => {
 
   // Create Contract from Quotation Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [approvedQuotations, setApprovedQuotations] = useState<any[]>([]);
+  const [eligibleQuotations, setEligibleQuotations] = useState<any[]>([]);
   const [loadingQuotations, setLoadingQuotations] = useState(false);
   const [selectedQuotationId, setSelectedQuotationId] = useState('');
   const [creatingContract, setCreatingContract] = useState(false);
@@ -40,16 +40,39 @@ export const AmcContractListPage: React.FC = () => {
       setLoadingQuotations(true);
       const res = await quotationService.getQuotations({
         quotationType: 'AMC',
-        status: 'APPROVED',
+        status: 'ACCEPTED',
         limit: 50,
       });
       const items = res.data || [];
-      setApprovedQuotations(items);
-      if (items.length > 0) {
-        setSelectedQuotationId(items[0].id);
+
+      // Fetch detailed records to evaluate linked Sales Order & linked AMC contract eligibility
+      const allowedAmcSoStatuses = ['CONFIRMED', 'PARTIALLY_INVOICED', 'FULLY_INVOICED'];
+      const detailedResults = await Promise.all(
+        items.map(async (item) => {
+          try {
+            const detailRes = await quotationService.getQuotationById(item.id);
+            return (detailRes as any)?.data || detailRes;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const eligible = detailedResults.filter((q: any) => {
+        if (!q) return false;
+        const isAmc = q.quotationType === 'AMC';
+        const isAccepted = q.status === 'ACCEPTED';
+        const hasEligibleSo = q.linkedSalesOrder && allowedAmcSoStatuses.includes(q.linkedSalesOrder.status);
+        const hasNoAmcContract = !q.linkedAmcContract;
+        return isAmc && isAccepted && hasEligibleSo && hasNoAmcContract;
+      });
+
+      setEligibleQuotations(eligible);
+      if (eligible.length > 0) {
+        setSelectedQuotationId(eligible[0].id);
       }
     } catch {
-      setApprovedQuotations([]);
+      setEligibleQuotations([]);
     } finally {
       setLoadingQuotations(false);
     }
@@ -160,6 +183,39 @@ export const AmcContractListPage: React.FC = () => {
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
             {status}
+          </span>
+        );
+    }
+  };
+
+  const renderPaymentStatusBadge = (paymentStatus?: string) => {
+    switch (paymentStatus) {
+      case 'PAID':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <CheckCircle2 size={11} />
+            PAID
+          </span>
+        );
+      case 'PARTIALLY_PAID':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+            PARTIALLY PAID
+          </span>
+        );
+      case 'OVERDUE':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+            <AlertTriangle size={11} />
+            OVERDUE
+          </span>
+        );
+      case 'PENDING':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            <Clock size={11} />
+            PENDING
           </span>
         );
     }
@@ -341,6 +397,7 @@ export const AmcContractListPage: React.FC = () => {
                   <th className="px-4 py-3.5 min-w-35 whitespace-nowrap">Contract Period</th>
                   <th className="px-4 py-3.5 min-w-35 whitespace-nowrap">Frequency / Visits</th>
                   <th className="px-4 py-3.5 min-w-30 whitespace-nowrap">Status</th>
+                  <th className="px-4 py-3.5 min-w-30 whitespace-nowrap">Payment</th>
                   <th className="px-4 py-3.5 min-w-30 whitespace-nowrap">Grand Total</th>
                   <th className="px-4 py-3.5 min-w-30 text-right whitespace-nowrap">Actions</th>
                 </tr>
@@ -398,6 +455,7 @@ export const AmcContractListPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">{renderStatusBadge(contract.status)}</td>
+                    <td className="px-4 py-4 whitespace-nowrap">{renderPaymentStatusBadge(contract.paymentStatus)}</td>
                     <td className="px-4 py-4 whitespace-nowrap font-bold text-slate-900">
                       ₹{Number(contract.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
@@ -457,25 +515,25 @@ export const AmcContractListPage: React.FC = () => {
               {loadingQuotations ? (
                 <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500">
                   <Loader2 size={24} className="animate-spin text-blue-600" />
-                  <span className="text-xs font-semibold">Loading approved AMC quotations...</span>
+                  <span className="text-xs font-semibold">Loading eligible accepted AMC quotations...</span>
                 </div>
-              ) : approvedQuotations.length === 0 ? (
+              ) : eligibleQuotations.length === 0 ? (
                 <div className="py-8 text-center flex flex-col items-center justify-center gap-2">
                   <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
                     <AlertTriangle size={24} />
                   </div>
-                  <h4 className="text-sm font-bold text-slate-900">No Approved AMC Quotations</h4>
+                  <h4 className="text-sm font-bold text-slate-900">No Eligible Accepted AMC Quotations</h4>
                   <p className="text-xs text-slate-500 max-w-xs">
-                    To create an AMC Contract, an AMC Quotation must first be created and approved in Quotations & Proposals.
+                    To create an AMC Contract, an AMC Quotation must be customer-accepted with a confirmed AMC Sales Order and no existing contract.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <label className="text-xs font-bold text-slate-700 block">
-                    Select Approved AMC Quotation
+                    Select Accepted AMC Quotation
                   </label>
                   <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {approvedQuotations.map((q) => (
+                    {eligibleQuotations.map((q) => (
                       <div
                         key={q.id}
                         onClick={() => setSelectedQuotationId(q.id)}
@@ -489,8 +547,13 @@ export const AmcContractListPage: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-900">{q.quotationNumber}</span>
                             <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
-                              APPROVED
+                              {q.status}
                             </span>
+                            {q.linkedSalesOrder && (
+                              <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                SO: {q.linkedSalesOrder.salesOrderNumber} ({q.linkedSalesOrder.status})
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-slate-600 font-medium truncate mt-0.5">
                             {q.customer?.name || q.customer?.companyName || 'Customer'}
@@ -523,7 +586,7 @@ export const AmcContractListPage: React.FC = () => {
               >
                 Cancel
               </button>
-              {approvedQuotations.length > 0 && (
+              {eligibleQuotations.length > 0 && (
                 <button
                   type="button"
                   disabled={!selectedQuotationId || creatingContract}

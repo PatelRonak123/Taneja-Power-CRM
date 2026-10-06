@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { CustomerController } from '../controllers/customer.controller.js';
 import { DestinationController } from '../controllers/destination.controller.js';
+import { CustomerEquipmentController } from '../../customer-equipment/controllers/customer-equipment.controller.js';
 import { validateRequest } from '../../../common/middleware/validate.middleware.js';
 import { authenticate, requireRoles, requirePermission } from '../../../common/middleware/auth.middleware.js';
 import {
@@ -19,9 +20,13 @@ import { APP_CONSTANTS } from '../../../config/constants.js';
 const router = Router();
 const customerController = new CustomerController();
 const destinationController = new DestinationController();
+const equipmentController = new CustomerEquipmentController();
 
 // All customer & destination routes require authentication
 router.use(authenticate);
+
+// Customer Equipment route
+router.get('/:customerId/equipment', equipmentController.getByCustomerId);
 
 // 1. Read Endpoints (Accessible to all authenticated roles including field staff/sales)
 router.get('/', validateRequest(listCustomersSchema), customerController.list);

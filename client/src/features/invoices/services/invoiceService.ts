@@ -149,4 +149,67 @@ export const invoiceService = {
     const res: any = await apiClient.post(`${VENDOR_BASE}/${id}/cancel`, payload);
     return res.data;
   },
+
+  // ─── Customer Payments & Collections ──────────────────────────────────────────
+
+  recordPayment: async (payload: {
+    customerId: string;
+    salesInvoiceId?: string;
+    amcContractId?: string;
+    amount: number;
+    paymentDate?: string;
+    paymentMode: 'BANK_TRANSFER' | 'NEFT_RTGS' | 'UPI' | 'CHEQUE' | 'CASH' | 'OTHER';
+    referenceNumber?: string;
+    notes?: string;
+  }): Promise<any> => {
+    const res: any = await apiClient.post('/payments', payload);
+    return res.data;
+  },
+
+  listPayments: async (query: {
+    customerId?: string;
+    salesInvoiceId?: string;
+    amcContractId?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{ data: any[]; meta: any }> => {
+    const params = new URLSearchParams();
+    if (query.customerId) params.set('customerId', query.customerId);
+    if (query.salesInvoiceId) params.set('salesInvoiceId', query.salesInvoiceId);
+    if (query.amcContractId) params.set('amcContractId', query.amcContractId);
+    if (query.search) params.set('search', query.search);
+    if (query.page) params.set('page', String(query.page));
+    if (query.limit) params.set('limit', String(query.limit));
+
+    const qs = params.toString();
+    const res: any = await apiClient.get(`/payments${qs ? `?${qs}` : ''}`);
+    return { data: res.data ?? [], meta: res.meta ?? {} };
+  },
+
+  getReceivablesSummary: async (): Promise<any> => {
+    const res: any = await apiClient.get('/payments/receivables-summary');
+    const data = res.data ?? {};
+    const customerReceivables = (data.customerReceivables ?? []).map((c: any) => ({
+      ...c,
+      totalOutstanding: c.outstandingBalance ?? c.totalOutstanding ?? Math.max(0, Number(c.totalInvoiced) - Number(c.totalPaid)),
+    }));
+    return {
+      summary: data.summary ?? { totalInvoiced: 0, totalReceived: 0, totalOutstanding: 0, customersCount: 0 },
+      customerReceivables,
+      customers: customerReceivables,
+    };
+  },
+
+  updateAmcPaymentStatus: async (
+    contractId: string,
+    paymentStatus: string,
+    notes?: string
+  ): Promise<any> => {
+    const res: any = await apiClient.put(`/payments/amc-contracts/${contractId}/status`, {
+      paymentStatus,
+      notes,
+    });
+    return res.data;
+  },
 };

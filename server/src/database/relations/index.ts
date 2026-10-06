@@ -24,6 +24,12 @@ import {
   dispatchItems,
   dispatchActivityLogs,
 } from '../schema/dispatch.js';
+import {
+  customerEquipment,
+  quotationItemEquipment,
+} from '../schema/customer-equipment.js';
+import { customerDestinations } from '../schema/customers.js';
+import { quotationItems } from '../schema/quotations.js';
 
 export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   product: one(products, {
@@ -318,6 +324,67 @@ export const dispatchActivityLogsRelations = relations(dispatchActivityLogs, ({ 
   actor: one(users, {
     fields: [dispatchActivityLogs.actorId],
     references: [users.id],
+  }),
+}));
+
+export const customerEquipmentRelations = relations(customerEquipment, ({ one, many }) => ({
+  customer: one(customers, {
+    fields: [customerEquipment.customerId],
+    references: [customers.id],
+  }),
+  product: one(products, {
+    fields: [customerEquipment.productId],
+    references: [products.id],
+  }),
+  salesOrder: one(salesOrders, {
+    fields: [customerEquipment.salesOrderId],
+    references: [salesOrders.id],
+  }),
+  salesOrderItem: one(salesOrderItems, {
+    fields: [customerEquipment.salesOrderItemId],
+    references: [salesOrderItems.id],
+  }),
+  salesInvoice: one(salesInvoices, {
+    fields: [customerEquipment.salesInvoiceId],
+    references: [salesInvoices.id],
+  }),
+  salesInvoiceItem: one(salesInvoiceItems, {
+    fields: [customerEquipment.salesInvoiceItemId],
+    references: [salesInvoiceItems.id],
+  }),
+  delivery: one(dispatches, {
+    fields: [customerEquipment.deliveryId],
+    references: [dispatches.id],
+  }),
+  deliveryItem: one(dispatchItems, {
+    fields: [customerEquipment.deliveryItemId],
+    references: [dispatchItems.id],
+  }),
+  destination: one(customerDestinations, {
+    fields: [customerEquipment.destinationId],
+    references: [customerDestinations.id],
+  }),
+  createdByUser: one(users, {
+    fields: [customerEquipment.createdById],
+    references: [users.id],
+    relationName: 'ce_created_by',
+  }),
+  updatedByUser: one(users, {
+    fields: [customerEquipment.updatedById],
+    references: [users.id],
+    relationName: 'ce_updated_by',
+  }),
+  quotationItemLinks: many(quotationItemEquipment),
+}));
+
+export const quotationItemEquipmentRelations = relations(quotationItemEquipment, ({ one }) => ({
+  quotationItem: one(quotationItems, {
+    fields: [quotationItemEquipment.quotationItemId],
+    references: [quotationItems.id],
+  }),
+  customerEquipment: one(customerEquipment, {
+    fields: [quotationItemEquipment.customerEquipmentId],
+    references: [customerEquipment.id],
   }),
 }));
 

@@ -34,6 +34,20 @@ export class SupplierController {
     }
   };
 
+  getNextCode = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const nextCode = await this.supplierService.getNextSupplierCode();
+      sendResponse(
+        res,
+        APP_CONSTANTS.HTTP_STATUS.OK,
+        { nextCode },
+        'Next supplier code generated successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const supplier = await this.supplierService.getSupplierById(req.params.id);

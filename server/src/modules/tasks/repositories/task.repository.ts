@@ -3,6 +3,7 @@ import { db } from '../../../database/db.js';
 import { tasks, TaskEntity, NewTaskEntity } from '../../../database/schema/tasks.js';
 import { customers, customerDestinations, CustomerEntity, CustomerDestinationEntity } from '../../../database/schema/customers.js';
 import { users } from '../../../database/schema/users.js';
+import { amcServiceVisits, amcContracts, amcServiceReports } from '../../../database/schema/amc-contracts.js';
 
 export interface TaskFilterOptions {
   search?: string;
@@ -24,6 +25,23 @@ export interface TaskUserSummary {
   designation?: string | null;
   avatarUrl?: string | null;
   status?: string | null;
+}
+
+export interface TaskAmcVisitSummary {
+  id: string;
+  visitNumber?: number | null;
+  amcContractId?: string | null;
+  contractNumber?: string | null;
+  serviceType?: string | null;
+  status?: string | null;
+  actualStartAt?: Date | string | null;
+  actualEndAt?: Date | string | null;
+  completedAt?: Date | string | null;
+  report?: {
+    id: string;
+    reportNumber?: string | null;
+    status?: string | null;
+  } | null;
 }
 
 export interface TaskWithDetails extends TaskEntity {
@@ -54,6 +72,7 @@ export interface TaskWithDetails extends TaskEntity {
     fullName: string;
     email: string;
   } | null;
+  amcVisit?: TaskAmcVisitSummary | null;
 }
 
 export interface TaskMetricsDto {
@@ -178,12 +197,31 @@ export class TaskRepository {
           fullName: createdByUsers.fullName,
           email: createdByUsers.email,
         },
+        amcVisit: {
+          id: amcServiceVisits.id,
+          visitNumber: amcServiceVisits.visitNumber,
+          amcContractId: amcServiceVisits.amcContractId,
+          contractNumber: amcContracts.contractNumber,
+          serviceType: amcServiceVisits.serviceType,
+          status: amcServiceVisits.status,
+          actualStartAt: amcServiceVisits.actualStartAt,
+          actualEndAt: amcServiceVisits.actualEndAt,
+          completedAt: amcServiceVisits.completedAt,
+        },
+        amcReport: {
+          id: amcServiceReports.id,
+          reportNumber: amcServiceReports.reportNumber,
+          status: amcServiceReports.status,
+        },
       })
       .from(tasks)
       .leftJoin(customers, eq(tasks.customerId, customers.id))
       .leftJoin(customerDestinations, eq(tasks.destinationId, customerDestinations.id))
       .leftJoin(assignedUsers, eq(tasks.assignedTo, assignedUsers.id))
       .leftJoin(createdByUsers, eq(tasks.createdBy, createdByUsers.id))
+      .leftJoin(amcServiceVisits, eq(amcServiceVisits.taskId, tasks.id))
+      .leftJoin(amcContracts, eq(amcServiceVisits.amcContractId, amcContracts.id))
+      .leftJoin(amcServiceReports, eq(amcServiceReports.amcServiceVisitId, amcServiceVisits.id))
       .where(whereClause)
       .orderBy(desc(tasks.createdAt))
       .limit(limit)
@@ -195,6 +233,26 @@ export class TaskRepository {
       destination: r.destination?.id ? r.destination : null,
       assignedUser: r.assignedUser?.id ? r.assignedUser : null,
       createdByUser: r.createdByUser?.id ? r.createdByUser : null,
+      amcVisit: r.amcVisit?.id
+        ? {
+            id: r.amcVisit.id,
+            visitNumber: r.amcVisit.visitNumber,
+            amcContractId: r.amcVisit.amcContractId,
+            contractNumber: r.amcVisit.contractNumber || null,
+            serviceType: r.amcVisit.serviceType,
+            status: r.amcVisit.status,
+            actualStartAt: r.amcVisit.actualStartAt,
+            actualEndAt: r.amcVisit.actualEndAt,
+            completedAt: r.amcVisit.completedAt,
+            report: r.amcReport?.id
+              ? {
+                  id: r.amcReport.id,
+                  reportNumber: r.amcReport.reportNumber,
+                  status: r.amcReport.status,
+                }
+              : null,
+          }
+        : null,
     }));
 
     return { data, total };
@@ -239,12 +297,31 @@ export class TaskRepository {
           fullName: createdByUsers.fullName,
           email: createdByUsers.email,
         },
+        amcVisit: {
+          id: amcServiceVisits.id,
+          visitNumber: amcServiceVisits.visitNumber,
+          amcContractId: amcServiceVisits.amcContractId,
+          contractNumber: amcContracts.contractNumber,
+          serviceType: amcServiceVisits.serviceType,
+          status: amcServiceVisits.status,
+          actualStartAt: amcServiceVisits.actualStartAt,
+          actualEndAt: amcServiceVisits.actualEndAt,
+          completedAt: amcServiceVisits.completedAt,
+        },
+        amcReport: {
+          id: amcServiceReports.id,
+          reportNumber: amcServiceReports.reportNumber,
+          status: amcServiceReports.status,
+        },
       })
       .from(tasks)
       .leftJoin(customers, eq(tasks.customerId, customers.id))
       .leftJoin(customerDestinations, eq(tasks.destinationId, customerDestinations.id))
       .leftJoin(assignedUsers, eq(tasks.assignedTo, assignedUsers.id))
       .leftJoin(createdByUsers, eq(tasks.createdBy, createdByUsers.id))
+      .leftJoin(amcServiceVisits, eq(amcServiceVisits.taskId, tasks.id))
+      .leftJoin(amcContracts, eq(amcServiceVisits.amcContractId, amcContracts.id))
+      .leftJoin(amcServiceReports, eq(amcServiceReports.amcServiceVisitId, amcServiceVisits.id))
       .where(eq(tasks.id, id))
       .limit(1);
 
@@ -257,6 +334,26 @@ export class TaskRepository {
       destination: r.destination?.id ? r.destination : null,
       assignedUser: r.assignedUser?.id ? r.assignedUser : null,
       createdByUser: r.createdByUser?.id ? r.createdByUser : null,
+      amcVisit: r.amcVisit?.id
+        ? {
+            id: r.amcVisit.id,
+            visitNumber: r.amcVisit.visitNumber,
+            amcContractId: r.amcVisit.amcContractId,
+            contractNumber: r.amcVisit.contractNumber || null,
+            serviceType: r.amcVisit.serviceType,
+            status: r.amcVisit.status,
+            actualStartAt: r.amcVisit.actualStartAt,
+            actualEndAt: r.amcVisit.actualEndAt,
+            completedAt: r.amcVisit.completedAt,
+            report: r.amcReport?.id
+              ? {
+                  id: r.amcReport.id,
+                  reportNumber: r.amcReport.reportNumber,
+                  status: r.amcReport.status,
+                }
+              : null,
+          }
+        : null,
     };
   }
 

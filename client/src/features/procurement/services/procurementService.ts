@@ -11,6 +11,10 @@ export const procurementService = {
     return apiClient.get(`/suppliers/${id}`) as unknown as Promise<ApiEnvelope<Supplier>>;
   },
 
+  getNextSupplierCode: async (): Promise<ApiEnvelope<{ nextCode: string }>> => {
+    return apiClient.get('/suppliers/next-code') as unknown as Promise<ApiEnvelope<{ nextCode: string }>>;
+  },
+
   createSupplier: async (payload: Partial<Supplier>): Promise<ApiEnvelope<Supplier>> => {
     return apiClient.post('/suppliers', payload) as unknown as Promise<ApiEnvelope<Supplier>>;
   },

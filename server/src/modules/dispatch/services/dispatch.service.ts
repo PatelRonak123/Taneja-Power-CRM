@@ -4,9 +4,13 @@ import { DispatchRepository, DispatchFilter } from '../repositories/dispatch.rep
 import { DispatchNumberService } from './dispatch-number.service.js';
 import { StockService } from '../../inventory/services/stock.service.js';
 import { salesOrders, salesOrderItems } from '../../../database/schema/sales-orders.js';
+import { quotations } from '../../../database/schema/quotations.js';
+import { leads, leadActivityLogs } from '../../../database/schema/leads.js';
 import { customers } from '../../../database/schema/customers.js';
 import { products } from '../../../database/schema/products.js';
 import { dispatches, dispatchItems, DispatchEntity } from '../../../database/schema/dispatch.js';
+import { customerEquipment } from '../../../database/schema/customer-equipment.js';
+import { CustomerEquipmentNumberService } from '../../customer-equipment/services/customer-equipment-number.service.js';
 import {
   DISPATCH_STATUSES,
   SO_STATUSES,
@@ -51,7 +55,8 @@ export class DispatchService {
   constructor(
     private readonly dispatchRepo: DispatchRepository = new DispatchRepository(),
     private readonly numberService: DispatchNumberService = new DispatchNumberService(),
-    private readonly stockService: StockService = new StockService()
+    private readonly stockService: StockService = new StockService(),
+    private readonly equipmentNumberService: CustomerEquipmentNumberService = new CustomerEquipmentNumberService()
   ) {}
 
   /**
@@ -77,9 +82,11 @@ export class DispatchService {
    */
   async getDispatchableItems(salesOrderId: string) {
     const soRes = await db.execute(
-      sql`SELECT so.*, c.name as customer_name, c.company_name as customer_company_name
+      sql`SELECT so.*, c.name as customer_name, c.company_name as customer_company_name,
+              q.quotation_type as quotation_type
           FROM sales_orders so
           LEFT JOIN customers c ON c.id = so.customer_id
+          LEFT JOIN quotations q ON q.id = so.quotation_id
           WHERE so.id = ${salesOrderId}`
     );
     const soRows = soRes.rows || soRes;
@@ -87,6 +94,15 @@ export class DispatchService {
       throw AppError.notFound(`Sales Order "${salesOrderId}" not found`, 'SALES_ORDER_NOT_FOUND');
     }
     const so = soRows[0] as any;
+
+    // AMC Sales Orders represent service contracts – physical dispatch is NOT allowed.
+    if (so.quotation_type === 'AMC') {
+      throw AppError.badRequest(
+        'AMC Sales Orders cannot be dispatched because they represent service contracts, not physical product sales.',
+        { quotationType: 'AMC' },
+        'AMC_DISPATCH_NOT_ALLOWED'
+      );
+    }
 
     const itemsRes = await db.execute(
       sql`SELECT soi.*, COALESCE(p.stock_quantity, 0) as physical_stock
@@ -145,15 +161,28 @@ export class DispatchService {
     }
 
     return db.transaction(async (tx) => {
-      // 1. Lock Sales Order row
+      // 1. Lock Sales Order row (join quotation to get quotationType)
       const soRes = await tx.execute(
-        sql`SELECT * FROM sales_orders WHERE id = ${input.salesOrderId} FOR UPDATE`
+        sql`SELECT so.*, q.quotation_type as quotation_type
+            FROM sales_orders so
+            LEFT JOIN quotations q ON q.id = so.quotation_id
+            WHERE so.id = ${input.salesOrderId} FOR UPDATE OF so`
       );
       const soRows = soRes.rows || soRes;
       if (!soRows || soRows.length === 0) {
         throw AppError.notFound(`Sales Order "${input.salesOrderId}" not found`, 'SALES_ORDER_NOT_FOUND');
       }
       const so = soRows[0] as any;
+
+      // AMC Sales Orders are service contracts – physical dispatch is NOT allowed.
+      // This guard runs before all other checks to enforce the business rule at the backend level.
+      if (so.quotation_type === 'AMC') {
+        throw AppError.badRequest(
+          'AMC Sales Orders cannot be dispatched because they represent service contracts, not physical product sales.',
+          { quotationType: 'AMC', salesOrderId: input.salesOrderId },
+          'AMC_DISPATCH_NOT_ALLOWED'
+        );
+      }
 
       // 2. Validate Sales Order eligibility
       const eligibleStatuses = [
@@ -612,6 +641,95 @@ export class DispatchService {
         .where(eq(dispatches.id, id))
         .returning();
 
+      // 7b. Create Customer Equipment records for all physically dispatched units
+      // Invariant: One customer_equipment record per physical unit (qty=5 -> 5 records)
+      // Transactional: Inside the same db.transaction (rolls back stock deduction on failure)
+      let destinationId: string | null = null;
+      if (salesOrder.quotation_id) {
+        const quoRes = await tx.execute(
+          sql`SELECT destination_id FROM quotations WHERE id = ${salesOrder.quotation_id}`
+        );
+        const quoRows = (quoRes.rows || quoRes) as any[];
+        if (quoRows.length > 0 && quoRows[0].destination_id) {
+          destinationId = quoRows[0].destination_id;
+        }
+      }
+
+      for (const item of items) {
+        const qty = Number(item.dispatchQuantity);
+        if (qty <= 0) continue;
+        const count = Math.round(qty);
+
+        // Fetch current maximum unit_index for this SO item to support partial deliveries (e.g. 1..4 then 5..10)
+        const unitIndexRes = await tx.execute(
+          sql`SELECT COALESCE(MAX(unit_index), 0) as max_unit_index FROM customer_equipment WHERE sales_order_item_id = ${item.salesOrderItemId}`
+        );
+        const unitIndexRows = (unitIndexRes.rows || unitIndexRes) as any[];
+        const currentMax = Number(unitIndexRows[0]?.max_unit_index || 0);
+        const startUnitIndex = currentMax + 1;
+
+        // Fetch SO item quantity to ensure we never exceed original ordered quantity
+        const soItemRes = await tx.execute(
+          sql`SELECT quantity FROM sales_order_items WHERE id = ${item.salesOrderItemId}`
+        );
+        const soItemRows = (soItemRes.rows || soItemRes) as any[];
+        const maxAllowed = Number(soItemRows[0]?.quantity || count);
+
+        if (startUnitIndex + count - 1 > maxAllowed) {
+          throw AppError.badRequest(
+            `Cannot create ${count} equipment units. Existing units (${currentMax}) + requested (${count}) exceeds ordered quantity (${maxAllowed}).`,
+            { salesOrderItemId: item.salesOrderItemId, currentMax, requested: count, maxAllowed },
+            'EXCESSIVE_EQUIPMENT_QUANTITY'
+          );
+        }
+
+        // Generate count sequential asset numbers atomically
+        const assetNumbers = await this.equipmentNumberService.generateAssetNumbers(
+          count,
+          updatedDispatch.dispatchedAt || new Date(),
+          tx
+        );
+
+        const equipmentToInsert = [];
+        for (let i = 0; i < count; i++) {
+          equipmentToInsert.push({
+            assetNumber: assetNumbers[i],
+            customerId: dispatch.customer_id,
+            productId: item.productId,
+            salesOrderId: dispatch.sales_order_id,
+            salesOrderItemId: item.salesOrderItemId,
+            salesInvoiceId: dispatch.sales_invoice_id || null,
+            salesInvoiceItemId: item.salesInvoiceItemId || null,
+            deliveryId: dispatch.id,
+            deliveryItemId: item.id,
+            unitIndex: startUnitIndex + i,
+            serialNumber: null,
+            productName: item.productNameSnapshot,
+            sku: item.skuSnapshot || null,
+            model: null,
+            make: null,
+            capacityRating: null,
+            hsnSac: item.hsnSacSnapshot || null,
+            destinationId: destinationId,
+            installationLocation: null,
+            installationNotes: null,
+            installationDate: null,
+            deliveryDate: updatedDispatch.dispatchedAt || new Date(),
+            warrantyStartDate: null,
+            warrantyEndDate: null,
+            warrantyTermsSnapshot: null,
+            conditionStatus: 'OPERATIONAL',
+            assetStatus: 'ACTIVE',
+            createdById: authUser.userId || authUser.id,
+            updatedById: authUser.userId || authUser.id,
+          });
+        }
+
+        if (equipmentToInsert.length > 0) {
+          await tx.insert(customerEquipment).values(equipmentToInsert);
+        }
+      }
+
       // 8. Log audit trail
       await this.dispatchRepo.createActivityLog(
         {
@@ -622,6 +740,33 @@ export class DispatchService {
         },
         tx
       );
+
+      // 9. Synchronize Deals Pipeline stage to 'Dispatched'
+      if (salesOrder.customer_id) {
+        try {
+          const matchedLeads = await tx
+            .select({ id: leads.id })
+            .from(leads)
+            .where(eq(leads.linkedClientId, salesOrder.customer_id));
+
+          for (const ld of matchedLeads) {
+            await tx
+              .update(leads)
+              .set({ status: 'Dispatched', updatedAt: new Date() })
+              .where(eq(leads.id, ld.id));
+
+            await tx.insert(leadActivityLogs).values({
+              id: `act-${ld.id}-${Date.now()}`,
+              leadId: ld.id,
+              title: `Inventory stock outward recorded against SO ${salesOrder.sales_order_number} — pipeline moved to Dispatched`,
+              date: new Date().toISOString().split('T')[0],
+              type: 'System',
+            });
+          }
+        } catch {
+          // Non-blocking
+        }
+      }
 
       return updatedDispatch;
     });

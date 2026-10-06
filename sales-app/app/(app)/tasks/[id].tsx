@@ -30,11 +30,13 @@ import {
   RefreshCw,
   ShieldCheck,
   FileText,
+  Wrench,
 } from 'lucide-react-native';
 import { ScreenContainer } from '../../../src/components/ui/ScreenContainer';
 import { Card } from '../../../src/components/ui/Card';
 import { Badge } from '../../../src/components/ui/Badge';
 import { Button } from '../../../src/components/ui/Button';
+import { AmcServiceReportModal } from '../../../src/components/tasks/AmcServiceReportModal';
 import {
   useTaskDetails,
   useStartTask,
@@ -86,6 +88,7 @@ export default function TaskDetailsScreen() {
   const [liveLocation, setLiveLocation] = useState<CapturedLocation | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [isBackgroundActive, setIsBackgroundActive] = useState<boolean>(false);
+  const [isAmcModalVisible, setIsAmcModalVisible] = useState<boolean>(false);
 
   // Subscribe to live tracking updates when task is in progress
   useEffect(() => {
@@ -497,11 +500,21 @@ export default function TaskDetailsScreen() {
           {/* In Progress Action Buttons */}
           {task.status === 'IN_PROGRESS' && (
             <View style={styles.inProgressActions}>
+              {task.amcVisit && (
+                <Button
+                  title="Fill & Submit AMC Service Report"
+                  variant="primary"
+                  size="md"
+                  icon={<FileText size={18} color="#FFFFFF" />}
+                  onPress={() => setIsAmcModalVisible(true)}
+                  style={styles.actionBtn}
+                />
+              )}
               <Button
                 title="Launch Maps Navigation"
-                variant="primary"
+                variant={task.amcVisit ? "secondary" : "primary"}
                 size="md"
-                icon={<Navigation size={18} color="#FFFFFF" />}
+                icon={<Navigation size={18} color={task.amcVisit ? theme.colors.primaryLight : "#FFFFFF"} />}
                 onPress={handleOpenExternalNavigation}
                 style={styles.actionBtn}
               />
@@ -528,6 +541,94 @@ export default function TaskDetailsScreen() {
             </View>
           )}
         </Card>
+
+        {/* AMC Preventive Maintenance Card (When linked to AMC) */}
+        {task.amcVisit && (
+          <Card style={styles.sectionCard}>
+            <View style={styles.destHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Wrench size={18} color={theme.colors.primaryLight} />
+                <Text style={styles.cardSectionTitle}>AMC Service Visit</Text>
+              </View>
+              <Badge
+                label={`Visit #${task.amcVisit.visitNumber || 1} • ${task.amcVisit.serviceType || 'PREVENTIVE'}`}
+                variant="primary"
+              />
+            </View>
+
+            <View style={styles.infoList}>
+              <View style={styles.infoRow}>
+                <Building2 size={18} color={theme.colors.textMuted} />
+                <View style={styles.infoTextBox}>
+                  <Text style={styles.infoLabel}>Contract Reference</Text>
+                  <Text style={styles.infoValue}>{task.amcVisit.contractNumber || 'AMC Contract'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.infoRow}>
+                <FileText size={18} color={theme.colors.textMuted} />
+                <View style={styles.infoTextBox}>
+                  <Text style={styles.infoLabel}>AMC Service Report</Text>
+                  <Text
+                    style={[
+                      styles.infoValue,
+                      {
+                        color:
+                          task.amcVisit.report?.status === 'COMPLETED'
+                            ? theme.colors.accentEmerald
+                            : theme.colors.accentAmber,
+                        fontWeight: '700',
+                      },
+                    ]}
+                  >
+                    {task.amcVisit.report?.status === 'COMPLETED'
+                      ? 'Completed & Submitted'
+                      : task.status === 'IN_PROGRESS'
+                      ? 'Ready to Fill & Submit'
+                      : 'Locked — Start Task First'}
+                    {task.amcVisit.report?.reportNumber
+                      ? ` (${task.amcVisit.report.reportNumber})`
+                      : ''}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* If task is completed: view submitted report */}
+            {task.status === 'COMPLETED' && (
+              <Button
+                title="View Submitted AMC Report"
+                variant="secondary"
+                size="md"
+                icon={<FileText size={16} color={theme.colors.primaryLight} />}
+                onPress={() => setIsAmcModalVisible(true)}
+                style={{ marginTop: 12 }}
+              />
+            )}
+
+            {/* If task is in progress: fill and submit report */}
+            {task.status === 'IN_PROGRESS' && (
+              <Button
+                title="Fill & Submit AMC Service Report"
+                variant="primary"
+                size="md"
+                icon={<FileText size={16} color="#FFFFFF" />}
+                onPress={() => setIsAmcModalVisible(true)}
+                style={{ marginTop: 12 }}
+              />
+            )}
+
+            {/* If task not started yet: locked notice */}
+            {(task.status === 'CREATED' || task.status === 'ASSIGNED') && (
+              <View style={styles.lockedNoticeBox}>
+                <Clock size={16} color={theme.colors.accentAmber} />
+                <Text style={styles.lockedNoticeText}>
+                  Please start this work order above to unlock and fill the AMC Service Report.
+                </Text>
+              </View>
+            )}
+          </Card>
+        )}
 
         {/* Destination Location Card */}
         {task.destination ? (
@@ -670,20 +771,38 @@ export default function TaskDetailsScreen() {
             </View>
 
             <View style={styles.customerActionRow}>
-              <Button
-                title="Create Service Report (FSR)"
-                variant="primary"
-                icon={<FileText size={16} color="#FFFFFF" />}
-                onPress={() => router.push({
-                  pathname: '/(app)/field-service/new',
-                  params: {
-                    customerId: task.customerId,
-                    destinationId: task.destinationId,
-                    taskId: task.id,
-                  },
-                })}
-                style={{ flex: 1 }}
-              />
+              {!task.amcVisit && (
+                <Button
+                  title={
+                    task.status === 'IN_PROGRESS'
+                      ? 'Create Service Report (FSR)'
+                      : task.status === 'COMPLETED'
+                      ? 'Service Report (FSR)'
+                      : 'Start Task to Create FSR'
+                  }
+                  variant={task.status === 'IN_PROGRESS' ? 'primary' : 'secondary'}
+                  disabled={task.status !== 'IN_PROGRESS'}
+                  icon={<FileText size={16} color={task.status === 'IN_PROGRESS' ? '#FFFFFF' : theme.colors.textMuted} />}
+                  onPress={() => {
+                    if (task.status !== 'IN_PROGRESS') {
+                      Alert.alert(
+                        'Task Not Started',
+                        'You must click "Start Task & Enable GPS Route" before creating a service report.'
+                      );
+                      return;
+                    }
+                    router.push({
+                      pathname: '/(app)/field-service/new',
+                      params: {
+                        customerId: task.customerId,
+                        destinationId: task.destinationId,
+                        taskId: task.id,
+                      },
+                    });
+                  }}
+                  style={{ flex: 1 }}
+                />
+              )}
               <Button
                 title="Customer Profile"
                 variant="secondary"
@@ -706,6 +825,20 @@ export default function TaskDetailsScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* AMC Service Report Submission Modal */}
+      {task.amcVisit && (
+        <AmcServiceReportModal
+          visible={isAmcModalVisible}
+          visitId={task.amcVisit.id}
+          taskId={task.id}
+          taskStatus={task.status}
+          onClose={() => setIsAmcModalVisible(false)}
+          onSuccess={() => {
+            refetch();
+          }}
+        />
+      )}
     </ScreenContainer>
   );
 }
@@ -1008,5 +1141,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginTop: theme.spacing.md,
+  },
+  lockedNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.sm + 2,
+    backgroundColor: theme.colors.accentAmberSoft,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  lockedNoticeText: {
+    flex: 1,
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.accentAmber,
+    fontWeight: theme.fontWeight.medium,
+    lineHeight: 16,
   },
 });

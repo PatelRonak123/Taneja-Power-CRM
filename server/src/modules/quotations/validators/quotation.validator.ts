@@ -31,6 +31,8 @@ export const lineItemSchema = z.object({
   equipmentType: z.string().max(100).optional().nullable(),
   equipmentConfiguration: z.string().max(100).optional().nullable(),
   equipmentRating: z.string().max(100).optional().nullable(),
+  customerEquipmentIds: z.array(z.string().uuid()).optional().default([]),
+  customerEquipmentId: z.string().uuid().optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).optional(),
 });
 
@@ -254,7 +256,7 @@ export const listQuotationsSchema = z.object({
     page: z.coerce.number().int().min(1).optional().default(1),
     limit: z.coerce.number().int().min(1).max(500).optional().default(10),
     search: z.string().optional(),
-    status: z.string().optional(),
+    status: z.union([z.string(), z.array(z.string())]).optional(),
     quotationType: z.string().optional(),
     customerId: z.string().uuid().optional(),
     salespersonId: z.string().uuid().optional(),
@@ -289,12 +291,35 @@ export const sendQuotationEmailSchema = z.object({
     .optional(),
 });
 
+export const customerAcceptQuotationSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid quotation ID'),
+  }),
+  body: z
+    .object({
+      customerPoNumber: z.string().max(100).optional().nullable(),
+      notes: z.string().max(1000).optional().nullable(),
+    })
+    .optional(),
+});
+
+export const customerRejectQuotationSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid quotation ID'),
+  }),
+  body: z.object({
+    rejectionReason: z.string().min(1, 'Rejection reason is required').max(1000),
+  }),
+});
+
 export type CreateQuotationDto = z.input<typeof createQuotationSchema>['body'];
 export type UpdateQuotationDto = z.input<typeof updateQuotationSchema>['body'];
 export type CreateRevisionDto = z.input<typeof createRevisionSchema>['body'];
 export type SubmitQuotationDto = z.input<typeof submitQuotationSchema>['body'];
 export type ApproveQuotationDto = z.input<typeof approveQuotationSchema>['body'];
 export type RejectQuotationDto = z.input<typeof rejectQuotationSchema>['body'];
+export type CustomerAcceptQuotationDto = z.input<typeof customerAcceptQuotationSchema>['body'];
+export type CustomerRejectQuotationDto = z.input<typeof customerRejectQuotationSchema>['body'];
 export type SendQuotationEmailDto = z.input<typeof sendQuotationEmailSchema>['body'];
 export type ListQuotationsQueryDto = z.input<typeof listQuotationsSchema>['query'];
 

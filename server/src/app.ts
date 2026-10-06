@@ -28,6 +28,8 @@ import salesOrderRoutes from './modules/sales-orders/routes/sales-order.routes.j
 import salesInvoiceRoutes from './modules/invoices/routes/sales-invoice.routes.js';
 import vendorInvoiceRoutes from './modules/invoices/routes/vendor-invoice.routes.js';
 import dispatchRoutes from './modules/dispatch/routes/dispatch.routes.js';
+import customerEquipmentRoutes from './modules/customer-equipment/routes/customer-equipment.routes.js';
+import paymentRoutes from './modules/payments/routes/payment.routes.js';
 import path from 'path';
 import { sendResponse } from './common/utils/responseEnvelope.js';
 
@@ -110,6 +112,8 @@ export const createApp = (): Application => {
   app.use(`${APP_CONSTANTS.API_PREFIX}/sales-invoices`, salesInvoiceRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/vendor-invoices`, vendorInvoiceRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/dispatches`, dispatchRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/customer-equipment`, customerEquipmentRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/payments`, paymentRoutes);
 
   // 404 Handler
   app.use(notFoundMiddleware);

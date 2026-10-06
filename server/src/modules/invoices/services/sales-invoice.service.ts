@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import { salesOrders, salesOrderItems } from '../../../database/schema/sales-orders.js';
 import { customers } from '../../../database/schema/customers.js';
+import { amcContracts } from '../../../database/schema/amc-contracts.js';
 import {
   salesInvoices,
   salesInvoiceItems,
@@ -350,11 +351,58 @@ export class SalesInvoiceService {
       err.errorCode = 'INVOICE_NOT_FOUND';
       throw err;
     }
+    // Enrich with quotationType and linked AMC contract info
+    if (inv.salesOrderId) {
+      const enrichRows = await db.execute(sql`
+        SELECT q.quotation_type, q.id as quotation_id, ac.id as amc_contract_id
+        FROM sales_orders so
+        LEFT JOIN quotations q ON q.id = so.quotation_id
+        LEFT JOIN amc_contracts ac ON ac.quotation_id = q.id
+        WHERE so.id = ${inv.salesOrderId}
+        LIMIT 1
+      `);
+      const enrichRow = ((enrichRows.rows || enrichRows) as any[])[0];
+      if (enrichRow) {
+        (inv as any).quotationType = enrichRow.quotation_type || 'PRODUCT';
+        (inv as any).linkedAmcContractId = enrichRow.amc_contract_id || null;
+        (inv as any).quotationId = enrichRow.quotation_id || null;
+      }
+    }
     return inv;
   }
 
   async list(query: ListSalesInvoicesQuery): Promise<{ data: any[]; total: number }> {
-    return this.repo.find(query);
+    const result = await this.repo.find(query);
+    // Enrich each invoice with quotationType and linkedAmcContractId
+    if (result.data.length > 0) {
+      const salesOrderIds = [...new Set(result.data.map((inv: any) => inv.salesOrderId).filter(Boolean))];
+      if (salesOrderIds.length > 0) {
+        const placeholders = salesOrderIds.map((_: any, i: number) => `$${i + 1}`).join(', ');
+        const enrichRows = await db.execute(sql.raw(
+          `SELECT so.id as so_id, q.quotation_type, q.id as quotation_id, ac.id as amc_contract_id
+           FROM sales_orders so
+           LEFT JOIN quotations q ON q.id = so.quotation_id
+           LEFT JOIN amc_contracts ac ON ac.quotation_id = q.id
+           WHERE so.id IN (${salesOrderIds.map(id => `'${id}'`).join(', ')})`
+        ));
+        const enrichMap = new Map<string, any>();
+        for (const row of ((enrichRows.rows || enrichRows) as any[])) {
+          enrichMap.set(row.so_id, row);
+        }
+        for (const inv of result.data) {
+          const enrichRow = enrichMap.get(inv.salesOrderId);
+          if (enrichRow) {
+            inv.quotationType = enrichRow.quotation_type || 'PRODUCT';
+            inv.linkedAmcContractId = enrichRow.amc_contract_id || null;
+            inv.quotationId = enrichRow.quotation_id || null;
+          } else {
+            inv.quotationType = 'PRODUCT';
+            inv.linkedAmcContractId = null;
+          }
+        }
+      }
+    }
+    return result;
   }
 
   async update(id: string, input: UpdateSalesInvoiceInput, userId: string): Promise<SalesInvoiceWithDetails> {

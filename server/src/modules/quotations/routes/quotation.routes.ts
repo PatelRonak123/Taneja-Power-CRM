@@ -14,6 +14,8 @@ import {
   getQuotationByIdSchema,
   getRevisionByNumberSchema,
   sendQuotationEmailSchema,
+  customerAcceptQuotationSchema,
+  customerRejectQuotationSchema,
 } from '../validators/quotation.validator.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
 
@@ -72,12 +74,24 @@ router.post(
   quotationController.withdraw
 );
 
-// 4. Email Dispatching
+// 4. Email Dispatching & Customer Acceptance
 router.post(
   '/:id/send-email',
   requirePermission('quotations:edit'),
   validateRequest(sendQuotationEmailSchema),
   quotationController.sendEmail
+);
+router.post(
+  '/:id/accept',
+  requirePermission('quotations:edit'),
+  validateRequest(customerAcceptQuotationSchema),
+  quotationController.customerAccept
+);
+router.post(
+  '/:id/customer-reject',
+  requirePermission('quotations:edit'),
+  validateRequest(customerRejectQuotationSchema),
+  quotationController.customerReject
 );
 
 // 4. Audit & History Streams

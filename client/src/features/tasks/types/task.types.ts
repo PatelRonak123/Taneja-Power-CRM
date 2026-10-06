@@ -34,6 +34,23 @@ export interface TaskUserSummary {
   status?: string | null;
 }
 
+export interface TaskAmcVisitSummary {
+  id: string;
+  visitNumber?: number | null;
+  amcContractId?: string | null;
+  contractNumber?: string | null;
+  serviceType?: string | null;
+  status?: string | null;
+  actualStartAt?: string | null;
+  actualEndAt?: string | null;
+  completedAt?: string | null;
+  report?: {
+    id: string;
+    reportNumber?: string | null;
+    status?: string | null;
+  } | null;
+}
+
 export interface TaskItem {
   id: string;
   customerId: string;
@@ -64,6 +81,7 @@ export interface TaskItem {
     fullName: string;
     email: string;
   } | null;
+  amcVisit?: TaskAmcVisitSummary | null;
 }
 
 export interface TaskQueryParams {
@@ -86,6 +104,7 @@ export interface CreateTaskPayload {
   priority?: TaskPriority;
   scheduledAt?: string | null;
   dueAt?: string | null;
+  amcVisitId?: string | null;
 }
 
 export interface UpdateTaskPayload {

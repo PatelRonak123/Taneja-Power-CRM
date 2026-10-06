@@ -207,11 +207,46 @@ export class FollowUpService {
       amcContractId: input.amcContractId || null,
     });
 
-    // 9. Add activity log on lead if applicable
-    if (input.leadId || input.dealId) {
-      const targetLeadId = input.leadId || input.dealId;
-      if (targetLeadId) {
-        try {
+    // 9. Synchronize pipeline stage and activity log on lead if applicable
+    let targetLeadId = input.leadId || input.dealId;
+    if (!targetLeadId && input.customerId) {
+      const [linkedLead] = await db
+        .select({ id: leads.id })
+        .from(leads)
+        .where(eq(leads.linkedClientId, input.customerId))
+        .limit(1);
+      if (linkedLead) {
+        targetLeadId = linkedLead.id;
+      }
+    }
+
+    if (targetLeadId) {
+      try {
+        const [targetLead] = await db
+          .select({ id: leads.id, status: leads.status })
+          .from(leads)
+          .where(eq(leads.id, targetLeadId))
+          .limit(1);
+
+        const currentStatus = (targetLead?.status || '').toUpperCase();
+        const advancedStages = ['QUOTATION SENT', 'ORDER CONFIRMED', 'READY FOR DISPATCH', 'DISPATCHED', 'INSTALLATION', 'COMPLETED', 'WON'];
+        const isAdvanced = advancedStages.some((s) => currentStatus.includes(s));
+
+        if (!isAdvanced) {
+          await db
+            .update(leads)
+            .set({ status: 'Meeting Scheduled', updatedAt: new Date() })
+            .where(eq(leads.id, targetLeadId));
+
+          await this.leadRepo.addActivityLog(
+            targetLeadId,
+            {
+              title: `Follow-up scheduled: ${input.title} (${input.type}) on ${input.scheduledDate} — pipeline moved to Meeting Scheduled`,
+              type: 'Follow-up',
+            },
+            authUser
+          );
+        } else {
           await this.leadRepo.addActivityLog(
             targetLeadId,
             {
@@ -220,9 +255,9 @@ export class FollowUpService {
             },
             authUser
           );
-        } catch {
-          // Non-blocking log
         }
+      } catch (err) {
+        console.warn('FollowUp sync error:', err);
       }
     }
 

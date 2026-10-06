@@ -24,6 +24,8 @@ export interface LineItemCalculationInput {
   equipmentType?: string | null;
   equipmentConfiguration?: string | null;
   equipmentRating?: string | null;
+  customerEquipmentIds?: string[];
+  customerEquipmentId?: string | null;
   sortOrder?: number;
   itemType?: string;
 }
@@ -59,6 +61,8 @@ export interface CalculatedLineItem {
   equipmentType?: string | null;
   equipmentConfiguration?: string | null;
   equipmentRating?: string | null;
+  customerEquipmentIds?: string[];
+  customerEquipmentId?: string | null;
   sortOrder: number;
 }
 
@@ -187,6 +191,8 @@ export class QuotationCalculationService {
       equipmentType: input.equipmentType || null,
       equipmentConfiguration: input.equipmentConfiguration || null,
       equipmentRating: input.equipmentRating || null,
+      customerEquipmentIds: input.customerEquipmentIds || (input.customerEquipmentId ? [input.customerEquipmentId] : []),
+      customerEquipmentId: input.customerEquipmentId || (input.customerEquipmentIds && input.customerEquipmentIds[0]) || null,
       sortOrder: input.sortOrder !== undefined ? input.sortOrder : sortOrder,
     };
   }

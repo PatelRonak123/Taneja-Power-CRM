@@ -15,6 +15,18 @@ import {
 import { TASK_STATUS, TASK_PRIORITY } from '../constants/task.constants.js';
 import { AppError } from '../../../common/errors/AppError.js';
 import { TaskEntity } from '../../../database/schema/tasks.js';
+import { db } from '../../../database/db.js';
+import {
+  amcServiceVisits,
+  amcServiceRequests,
+  amcContractEquipment,
+  amcServiceReports,
+  amcServiceReportEquipment,
+} from '../../../database/schema/amc-contracts.js';
+import { AmcContractNumberService } from '../../amc-contracts/services/amc-contract-number.service.js';
+import { customerEquipment } from '../../../database/schema/customer-equipment.js';
+import { fieldServiceReports } from '../../../database/schema/field-service.js';
+import { and, desc, eq } from 'drizzle-orm';
 
 export class TaskService {
   constructor(
@@ -125,7 +137,7 @@ export class TaskService {
     }
 
     // 5. Insert Task
-    return this.taskRepo.create({
+    const newTask = await this.taskRepo.create({
       title: input.title,
       description: input.description || null,
       customerId: input.customerId,
@@ -137,6 +149,24 @@ export class TaskService {
       dueAt: input.dueAt || null,
       createdBy: createdById,
     });
+
+    if (input.amcVisitId) {
+      try {
+        await db
+          .update(amcServiceVisits)
+          .set({
+            taskId: newTask.id,
+            assignedEmployeeId: input.assignedTo || null,
+            status: input.assignedTo ? 'ASSIGNED' : 'SCHEDULED',
+            updatedAt: new Date(),
+          })
+          .where(eq(amcServiceVisits.id, input.amcVisitId));
+      } catch (err: any) {
+        console.error('Failed to link AMC visit with task:', err);
+      }
+    }
+
+    return newTask;
   }
 
   async updateTask(id: string, input: UpdateTaskInput): Promise<TaskEntity> {
@@ -228,6 +258,25 @@ export class TaskService {
       throw AppError.internal('Failed to update task');
     }
 
+    if (input.status === TASK_STATUS.COMPLETED) {
+      await this.syncAmcOnTaskCompletion(id);
+    }
+
+    if (input.assignedTo !== undefined) {
+      try {
+        await db
+          .update(amcServiceVisits)
+          .set({
+            assignedEmployeeId: input.assignedTo || null,
+            status: input.assignedTo ? 'ASSIGNED' : 'SCHEDULED',
+            updatedAt: new Date(),
+          })
+          .where(eq(amcServiceVisits.taskId, id));
+      } catch (err: any) {
+        // non-blocking
+      }
+    }
+
     return updated;
   }
 
@@ -252,6 +301,20 @@ export class TaskService {
 
     if (!updated) {
       throw AppError.internal('Failed to cancel task');
+    }
+
+    try {
+      await db
+        .update(amcServiceVisits)
+        .set({
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancellationReason: input.cancellationReason,
+          updatedAt: new Date(),
+        })
+        .where(eq(amcServiceVisits.taskId, id));
+    } catch {
+      // non-blocking
     }
 
     return updated;
@@ -314,6 +377,20 @@ export class TaskService {
     const updated = await this.taskRepo.update(id, updateData);
     if (!updated) {
       throw AppError.internal('Failed to start task');
+    }
+
+    try {
+      await db
+        .update(amcServiceVisits)
+        .set({
+          status: 'IN_PROGRESS',
+          actualStartAt: now,
+          technicianEmployeeId: task.assignedTo || userId,
+          updatedAt: now,
+        })
+        .where(eq(amcServiceVisits.taskId, id));
+    } catch {
+      // non-blocking
     }
 
     return (await this.taskRepo.findById(id))!;
@@ -404,7 +481,202 @@ export class TaskService {
       throw AppError.internal('Failed to complete task');
     }
 
+    await this.syncAmcOnTaskCompletion(id, userId);
+
     return (await this.taskRepo.findById(id))!;
+  }
+
+  private async syncAmcOnTaskCompletion(taskId: string, userId?: string): Promise<void> {
+    try {
+      const now = new Date();
+      const taskRecord = await this.taskRepo.findById(taskId);
+
+      await db
+        .update(amcServiceVisits)
+        .set({
+          status: 'COMPLETED',
+          actualEndAt: now,
+          completedAt: now,
+          completedBy: userId || null,
+          updatedAt: now,
+        })
+        .where(eq(amcServiceVisits.taskId, taskId));
+
+      // Resolve linked AMC Service Requests (repair tasks)
+      const linkedRequests = await db
+        .select()
+        .from(amcServiceRequests)
+        .where(eq(amcServiceRequests.taskId, taskId));
+
+      for (const req of linkedRequests) {
+        let repairVisit = (
+          await db
+            .select()
+            .from(amcServiceVisits)
+            .where(eq(amcServiceVisits.taskId, taskId))
+            .limit(1)
+        )[0];
+
+        // If no breakdown visit exists yet for this repair task and contract exists, generate one
+        if (!repairVisit && req.amcContractId) {
+          const existingVisits = await db
+            .select({ visitNumber: amcServiceVisits.visitNumber })
+            .from(amcServiceVisits)
+            .where(eq(amcServiceVisits.amcContractId, req.amcContractId))
+            .orderBy(desc(amcServiceVisits.visitNumber))
+            .limit(1);
+          const nextVisitNumber = (existingVisits[0]?.visitNumber || 0) + 1;
+
+          const [newVisit] = await db
+            .insert(amcServiceVisits)
+            .values({
+              amcContractId: req.amcContractId,
+              visitNumber: nextVisitNumber,
+              serviceType: 'BREAKDOWN',
+              scheduledDate: now,
+              actualStartAt: now,
+              actualEndAt: now,
+              status: 'COMPLETED',
+              assignedEmployeeId: (taskRecord as any)?.assignedTo || userId || null,
+              technicianEmployeeId: (taskRecord as any)?.assignedTo || userId || null,
+              taskId: taskId,
+              visitOutcome: 'SATISFACTORY',
+              completedAt: now,
+              completedBy: userId || null,
+              notes: `Breakdown resolution visit for Request ${req.requestNumber || ''}. Equipment restored to operational condition.`,
+            })
+            .returning();
+          repairVisit = newVisit;
+        }
+
+        let reportNumber: string | null = null;
+        if (repairVisit && req.amcContractId) {
+          const [existingReport] = await db
+            .select()
+            .from(amcServiceReports)
+            .where(eq(amcServiceReports.amcServiceVisitId, repairVisit.id))
+            .limit(1);
+
+          if (existingReport) {
+            reportNumber = existingReport.reportNumber;
+          } else {
+            const amcNumberService = new AmcContractNumberService();
+            reportNumber = await amcNumberService.generateNumber('SRPT', now);
+
+            let eqName = 'Covered Equipment';
+            let eqConfig: string | null = null;
+            let eqRating: string | null = null;
+            if (req.equipmentId) {
+              const [eqRow] = await db
+                .select()
+                .from(amcContractEquipment)
+                .where(eq(amcContractEquipment.id, req.equipmentId))
+                .limit(1);
+              if (eqRow) {
+                eqName = eqRow.equipmentName;
+                eqConfig = eqRow.configuration || null;
+                eqRating = eqRow.rating || null;
+              }
+            }
+
+            const [createdReport] = await db
+              .insert(amcServiceReports)
+              .values({
+                amcContractId: req.amcContractId,
+                amcServiceVisitId: repairVisit.id,
+                reportNumber,
+                serviceType: 'BREAKDOWN',
+                status: 'COMPLETED',
+                inspectionDate: now,
+                technicianEmployeeId: (taskRecord as any)?.assignedTo || userId || null,
+                serviceSummary: `Breakdown repair completed successfully. Verified operational state for equipment under Service Request ${req.requestNumber || ''}.`,
+                observations: `Technician completed breakdown repairs for: ${req.issueDescription || 'Reported breakdown'}. System tested and confirmed operational.`,
+                recommendations: 'Continue standard scheduled preventive maintenance cycles.',
+                customerName: (taskRecord as any)?.customerRepresentativeName || 'Customer Representative',
+                customerRemarks: 'Repair verified and accepted.',
+                acknowledgementStatus: 'ACKNOWLEDGED',
+                acknowledgedAt: now,
+                createdById: (taskRecord as any)?.assignedTo || userId || req.createdById,
+                createdAt: now,
+                updatedAt: now,
+              })
+              .returning();
+
+            await db.insert(amcServiceReportEquipment).values({
+              serviceReportId: createdReport.id,
+              equipmentId: req.equipmentId || null,
+              customerEquipmentId: req.customerEquipmentId || null,
+              equipmentName: eqName,
+              configuration: eqConfig,
+              rating: eqRating,
+              conditionStatus: 'OPERATIONAL',
+              observations: 'Restored to normal operation following completed repair service.',
+            });
+          }
+        }
+
+        // Only use an FSR that was explicitly linked to this request (by the field engineer).
+        // Do NOT auto-match by customer+callType — that can pull in unrelated FSRs.
+        const linkedFsrId = req.fsrId || null;
+
+        const originVisitId = req.originServiceVisitId || (repairVisit && req.amcServiceVisitId !== repairVisit.id ? req.amcServiceVisitId : null);
+        const resolvedVisitId = repairVisit ? repairVisit.id : req.amcServiceVisitId;
+
+        await db
+          .update(amcServiceRequests)
+          .set({
+            status: 'RESOLVED',
+            resolvedAt: now,
+            updatedAt: now,
+            originServiceVisitId: originVisitId,
+            amcServiceVisitId: resolvedVisitId,
+            fsrId: linkedFsrId || null,
+            notes: req.notes
+              ? `${req.notes}\n[${now.toISOString()}]: Repair completed by technician via Task #${taskId.slice(0, 8)}.${reportNumber ? ` Generated Resolution Report ${reportNumber}.` : ''}`
+              : `[${now.toISOString()}]: Repair completed by technician via Task #${taskId.slice(0, 8)}.${reportNumber ? ` Generated Resolution Report ${reportNumber}.` : ''}`,
+          })
+          .where(eq(amcServiceRequests.id, req.id));
+
+        // Restore equipment condition to OPERATIONAL
+        if (req.customerEquipmentId) {
+          await db
+            .update(customerEquipment)
+            .set({
+              conditionStatus: 'OPERATIONAL',
+              updatedAt: now,
+            })
+            .where(eq(customerEquipment.id, req.customerEquipmentId));
+        }
+
+        if (req.equipmentId) {
+          await db
+            .update(amcContractEquipment)
+            .set({
+              conditionStatus: 'OPERATIONAL',
+            })
+            .where(eq(amcContractEquipment.id, req.equipmentId));
+
+          // Also check if amcContractEquipment links to a customerEquipmentId
+          const [contractEq] = await db
+            .select({ customerEquipmentId: amcContractEquipment.customerEquipmentId })
+            .from(amcContractEquipment)
+            .where(eq(amcContractEquipment.id, req.equipmentId))
+            .limit(1);
+
+          if (contractEq?.customerEquipmentId) {
+            await db
+              .update(customerEquipment)
+              .set({
+                conditionStatus: 'OPERATIONAL',
+                updatedAt: now,
+              })
+              .where(eq(customerEquipment.id, contractEq.customerEquipmentId));
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to synchronize AMC visit / service request on task completion:', err);
+    }
   }
 
   async getActiveTrackingTasks(createdById?: string): Promise<TaskWithDetails[]> {

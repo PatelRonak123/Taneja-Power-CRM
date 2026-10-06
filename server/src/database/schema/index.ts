@@ -14,3 +14,5 @@ export * from "./procurement.js";
 export * from "./sales-orders.js";
 export * from "./invoices.js";
 export * from "./dispatch.js";
+export * from "./customer-equipment.js";
+export * from "./payments.js";

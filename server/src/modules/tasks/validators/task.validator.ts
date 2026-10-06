@@ -36,6 +36,7 @@ export const createTaskSchema = z.object({
       .optional()
       .nullable()
       .transform(parseDateOrNull),
+    amcVisitId: z.string().uuid('Invalid AMC visit ID format').optional().nullable(),
   }),
 });
 

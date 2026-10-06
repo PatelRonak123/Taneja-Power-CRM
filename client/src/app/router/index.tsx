@@ -26,6 +26,10 @@ export const AppRouter: React.FC = () => {
 
       const designationLower = (user?.designation || '').toLowerCase();
       const isSalesOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('sales');
+      const isServiceOffice =
+        ((user?.role === 'USER' || (user as any)?.role === 'SERVICE') &&
+          designationLower.includes('service')) ||
+        (user?.workType === 'OFFICE' && designationLower.includes('service'));
       const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && designationLower.includes('accountant');
       const isHrOffice = (user?.role === 'USER' || (user as any)?.role === 'HR') && user?.workType === 'OFFICE' && (designationLower.includes('hr') || designationLower.includes('human resources'));
 
@@ -65,8 +69,18 @@ export const AppRouter: React.FC = () => {
       ) {
         navigate('/employee/dashboard');
       } else if (
+        (currentPath.startsWith('/sales-orders') || currentPath.startsWith('/admin/sales-orders')) &&
+        (isServiceOffice || isSalesOffice)
+      ) {
+        navigate('/employee/dashboard');
+      } else if (
+        currentPath.startsWith('/amc-contracts') &&
+        (isSalesOffice || isAccountantOffice)
+      ) {
+        navigate('/employee/dashboard');
+      } else if (
         isAccountantOffice &&
-        (currentPath === '/quotations/new' || /^\/quotations\/[^/]+\/edit$/.test(currentPath))
+        (currentPath === '/quotations/new' || currentPath === '/quotations/create' || /^\/quotations\/[^/]+\/edit$/.test(currentPath))
       ) {
         navigate('/quotations');
       } else if (

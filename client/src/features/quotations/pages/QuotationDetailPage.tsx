@@ -13,6 +13,8 @@ import { QuotationActivityTimeline } from '../components/QuotationActivityTimeli
 import { QuotationPdfModal } from '../components/QuotationPdfModal';
 import { SendQuotationEmailModal } from '../components/SendQuotationEmailModal';
 import { QuotationPrintDocument } from '../components/QuotationPrintDocument';
+import { RecordCustomerAcceptanceModal } from '../components/RecordCustomerAcceptanceModal';
+import { RecordCustomerRejectionModal } from '../components/RecordCustomerRejectionModal';
 import { QuotationRevision, QuotationItem } from '../types/quotation.types';
 import { amcContractApi } from '../../amc-contracts/api/amcContractApi';
 import { toast } from '../../../utils/toast';
@@ -69,11 +71,20 @@ export const QuotationDetailPage: React.FC = () => {
   const isSalesOffice =
     (user?.role === 'USER' || (user as any)?.role === 'SALES') &&
     designationLower.includes('sales');
+  const isServiceOffice =
+    ((user?.role === 'USER' || (user as any)?.role === 'SERVICE') &&
+      designationLower.includes('service')) ||
+    (user?.workType === 'OFFICE' && designationLower.includes('service'));
+  const isAccountant =
+    (user?.role === 'ACCOUNTANT' as any) ||
+    designationLower.includes('accountant') ||
+    designationLower.includes('accounts');
+  const isPrivileged = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const queryClient = useQueryClient();
 
   // Extract ID from /quotations/:id
   const match = currentPath.match(/^\/quotations\/([^/]+)$/);
-  const quotationId = match ? match[1] : null;
+  const quotationId = match && match[1] !== 'new' && match[1] !== 'create' ? match[1] : null;
 
   const [activeTab, setActiveTab] = useState<'revisions' | 'approvals' | 'activity' | 'followups'>('revisions');
   const [approvalModalAction, setApprovalModalAction] = useState<'APPROVE' | 'REJECT' | null>(null);
@@ -82,6 +93,8 @@ export const QuotationDetailPage: React.FC = () => {
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [pdfModalRevision, setPdfModalRevision] = useState<QuotationRevision | null>(null);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isCustomerAcceptModalOpen, setIsCustomerAcceptModalOpen] = useState(false);
+  const [isCustomerRejectModalOpen, setIsCustomerRejectModalOpen] = useState(false);
 
   const { data: quotationRes, isLoading, error } = useQuery({
     queryKey: ['quotation', quotationId],
@@ -108,6 +121,32 @@ export const QuotationDetailPage: React.FC = () => {
     },
     onError: (err: any) => {
       toast.error('Failed to submit for approval', err.response?.data?.message || err.message);
+    },
+  });
+
+  const customerAcceptMutation = useMutation({
+    mutationFn: (data: { customerPoNumber?: string; notes?: string }) =>
+      quotationService.customerAcceptQuotation(quotationId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotation', quotationId] });
+      queryClient.invalidateQueries({ queryKey: ['quotations'] });
+      toast.success('Customer acceptance recorded successfully');
+    },
+    onError: (err: any) => {
+      toast.error('Failed to record customer acceptance', err.response?.data?.message || err.message);
+    },
+  });
+
+  const customerRejectMutation = useMutation({
+    mutationFn: (rejectionReason: string) =>
+      quotationService.customerRejectQuotation(quotationId!, { rejectionReason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotation', quotationId] });
+      queryClient.invalidateQueries({ queryKey: ['quotations'] });
+      toast.warning('Quotation marked as Rejected by Customer');
+    },
+    onError: (err: any) => {
+      toast.error('Failed to record customer rejection', err.response?.data?.message || err.message);
     },
   });
 
@@ -166,11 +205,51 @@ export const QuotationDetailPage: React.FC = () => {
   const isAccountantOffice = user?.role === 'USER' && user?.workType === 'OFFICE' && (user?.designation || '').toLowerCase().includes('accountant');
   const isManagerOrAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER' || (user as any)?.role === 'SALES_MANAGER' || (user as any)?.role === 'SUPER_ADMIN';
   const canEdit = quotation.status === 'DRAFT' && !isAccountantOffice;
-  const canSubmitApproval = (quotation.status === 'DRAFT' || (quotation.status === 'REJECTED' && !isManagerOrAdmin)) && !isAccountantOffice;
-  const canWithdrawApproval = quotation.status === 'PENDING_APPROVAL' && !isManagerOrAdmin && !isAccountantOffice;
+  const canSubmitApproval =
+    (quotation.status === 'DRAFT' || (quotation.status === 'REJECTED' && !isManagerOrAdmin)) &&
+    !isAccountantOffice;
+  const canWithdrawApproval =
+    quotation.status === 'PENDING_APPROVAL' && !isManagerOrAdmin && !isAccountantOffice;
   const canApproveOrReject = quotation.status === 'PENDING_APPROVAL' && isManagerOrAdmin;
-  const canCreateRevision = (['APPROVED', 'SENT', 'EXPIRED', 'ACCEPTED'].includes(quotation.status) || (quotation.status === 'REJECTED' && !isManagerOrAdmin)) && !isAccountantOffice;
-  const canSendEmail = ['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'].includes(quotation.status) && !isAccountantOffice;
+  const canCreateRevision =
+    (['APPROVED', 'SENT', 'EXPIRED', 'ACCEPTED', 'REJECTED_BY_CUSTOMER'].includes(quotation.status) ||
+      (quotation.status === 'REJECTED' && !isManagerOrAdmin)) &&
+    !isAccountantOffice;
+  const canSendEmail =
+    ['APPROVED', 'SENT', 'ACCEPTED', 'FOLLOW_UP'].includes(quotation.status) && !isAccountantOffice;
+
+  // Customer acceptance guards
+  const canRecordCustomerAcceptance =
+    ['APPROVED', 'SENT', 'FOLLOW_UP'].includes(quotation.status) && !isAccountantOffice;
+  const canRecordCustomerRejection =
+    ['APPROVED', 'SENT', 'FOLLOW_UP'].includes(quotation.status) && !isAccountantOffice;
+
+  // Downstream Sales Order creation guards:
+  // Quotation must be customer ACCEPTED. Service Office cannot create SO.
+  const hasLinkedSalesOrder = Boolean(quotation.linkedSalesOrder);
+  const canCreateSalesOrder =
+    quotation.status === 'ACCEPTED' &&
+    !hasLinkedSalesOrder &&
+    !isSalesOffice &&
+    !isServiceOffice;
+
+  // Downstream AMC Contract creation guards:
+  // Quotation must be AMC, customer ACCEPTED, and linked Sales Order must be in an
+  // allowed post-confirmation status (CONFIRMED, PARTIALLY_INVOICED, or FULLY_INVOICED).
+  // Invoice creation does NOT block AMC Contract creation.
+  const hasLinkedAmcContract = Boolean(quotation.linkedAmcContract);
+  const allowedAmcSoStatuses = ['CONFIRMED', 'PARTIALLY_INVOICED', 'FULLY_INVOICED'];
+  const isLinkedSoEligible = quotation.linkedSalesOrder
+    ? allowedAmcSoStatuses.includes(quotation.linkedSalesOrder.status)
+    : false;
+  const canCreateAmcContract =
+    quotation.quotationType === 'AMC' &&
+    quotation.status === 'ACCEPTED' &&
+    isLinkedSoEligible &&
+    !hasLinkedAmcContract &&
+    (isServiceOffice || isPrivileged) &&
+    !isSalesOffice &&
+    !isAccountant;
 
   // Check if Intra-State (CGST + SGST) vs Inter-State (IGST)
   const isIntraState = Number(activeRev?.cgstAmount || 0) > 0 || Number(activeRev?.sgstAmount || 0) > 0;
@@ -291,30 +370,50 @@ export const QuotationDetailPage: React.FC = () => {
               </>
             )}
 
-            {quotation.quotationType === 'AMC' && !isSalesOffice && (
+            {/* Customer Acceptance Actions */}
+            {canRecordCustomerAcceptance && (
               <Button
                 variant="primary"
                 size="md"
-                leftIcon={<ShieldCheck size={14} />}
-                onClick={async () => {
-                  try {
-                    const res = await amcContractApi.createFromQuotation(quotation.id);
-                    if (res.data?.id) {
-                      toast.success('AMC Contract created successfully from proposal');
-                      navigate(`/amc-contracts/${res.data.id}`);
-                    }
-                  } catch (err: any) {
-                    toast.error('Failed to create AMC Contract', err?.message);
-                  }
-                }}
+                leftIcon={<CheckCircle2 size={14} />}
+                onClick={() => setIsCustomerAcceptModalOpen(true)}
                 className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800"
-                title="Create AMC Contract from this AMC proposal"
+                title="Record customer commercial acceptance of this quotation"
               >
-                Create AMC Contract
+                Customer Accepted
               </Button>
             )}
 
-            {['APPROVED', 'ACCEPTED'].includes(quotation.status) && (
+            {canRecordCustomerRejection && (
+              <Button
+                variant="outline"
+                size="md"
+                leftIcon={<XCircle size={14} />}
+                onClick={() => setIsCustomerRejectModalOpen(true)}
+                className="border-rose-300 text-rose-700 hover:bg-rose-50 active:bg-rose-100"
+                title="Record that customer rejected this quotation"
+              >
+                Customer Rejected
+              </Button>
+            )}
+
+            {/* Downstream Sales Order Actions */}
+            {hasLinkedSalesOrder && !isSalesOffice && (
+              <Button
+                variant="outline"
+                size="md"
+                leftIcon={<ShoppingCart size={14} className="text-indigo-600" />}
+                onClick={() => {
+                  navigate(`/sales-orders?search=${encodeURIComponent(quotation.linkedSalesOrder!.salesOrderNumber)}`);
+                }}
+                className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                title={`Open linked Sales Order (${quotation.linkedSalesOrder!.status})`}
+              >
+                View Sales Order ({quotation.linkedSalesOrder!.salesOrderNumber})
+              </Button>
+            )}
+
+            {canCreateSalesOrder && (
               <Button
                 variant="primary"
                 size="md"
@@ -323,10 +422,65 @@ export const QuotationDetailPage: React.FC = () => {
                   navigate(`/sales-orders?quotationId=${quotation.id}`);
                 }}
                 className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800"
-                title="Create a Sales Order from this approved quotation"
+                title="Create a Sales Order from this customer-accepted quotation"
               >
                 Create Sales Order
               </Button>
+            )}
+
+            {/* Downstream AMC Contract Actions */}
+            {hasLinkedAmcContract && (
+              <Button
+                variant="outline"
+                size="md"
+                leftIcon={<ShieldCheck size={14} className="text-emerald-600" />}
+                onClick={() => {
+                  navigate(`/amc-contracts/${quotation.linkedAmcContract!.id}`);
+                }}
+                className="border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                title={`Open linked AMC Contract (${quotation.linkedAmcContract!.status})`}
+              >
+                Open AMC Contract ({quotation.linkedAmcContract!.contractNumber})
+              </Button>
+            )}
+
+            {canCreateAmcContract && (
+              <Button
+                variant="primary"
+                size="md"
+                leftIcon={<ShieldCheck size={14} />}
+                onClick={async () => {
+                  try {
+                    const res = await amcContractApi.createFromQuotation(quotation.id);
+                    if (res.data?.id) {
+                      toast.success('AMC Contract created successfully from confirmed Sales Order');
+                      navigate(`/amc-contracts/${res.data.id}`);
+                    }
+                  } catch (err: any) {
+                    toast.error('Failed to create AMC Contract', err?.message);
+                  }
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800"
+                title="Create AMC Contract from this confirmed Sales Order & AMC proposal"
+              >
+                Create AMC Contract
+              </Button>
+            )}
+
+            {quotation.quotationType === 'AMC' &&
+              quotation.status === 'ACCEPTED' &&
+              !hasLinkedAmcContract &&
+              !isLinkedSoEligible &&
+              (isServiceOffice || isPrivileged) &&
+              !isSalesOffice &&
+              !isAccountant && (
+                <div
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium"
+                  title="AMC Contract will be available after the Sales Order is confirmed."
+                >
+                  <Clock size={13} className="text-amber-600 shrink-0" />
+                  <span>AMC Contract available after SO is confirmed</span>
+                </div>
             )}
 
             {canCreateRevision && (
@@ -389,6 +543,182 @@ export const QuotationDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Workflow Stage Guidance Banner */}
+      {quotation.status === 'APPROVED' && (
+        <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-amber-900 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+              <Clock size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Approved Internally — Waiting for Customer Acceptance</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Send the official commercial proposal to the customer. Downstream Sales Order and AMC Contract creation are locked until customer acceptance is recorded.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {canSendEmail && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<Mail size={13} />}
+                onClick={() => setIsEmailModalOpen(true)}
+                className="bg-white border-amber-300 text-amber-800 hover:bg-amber-100/50"
+              >
+                Send Email
+              </Button>
+            )}
+            {canRecordCustomerAcceptance && (
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<CheckCircle2 size={13} />}
+                onClick={() => setIsCustomerAcceptModalOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                Customer Accepted
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {(quotation.status === 'SENT' || quotation.status === 'FOLLOW_UP') && (
+        <div className="bg-blue-50/90 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-blue-900 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 shrink-0">
+              <Send size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Sent to Customer — Awaiting Customer Acceptance</p>
+              <p className="text-xs text-blue-700 mt-0.5">
+                The proposal has been dispatched. Once the customer confirms or provides a purchase order, record acceptance to unlock Sales Order creation.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {canRecordCustomerAcceptance && (
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<CheckCircle2 size={13} />}
+                onClick={() => setIsCustomerAcceptModalOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                Customer Accepted
+              </Button>
+            )}
+            {canRecordCustomerRejection && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<XCircle size={13} />}
+                onClick={() => setIsCustomerRejectModalOpen(true)}
+                className="bg-white border-rose-300 text-rose-700 hover:bg-rose-50"
+              >
+                Customer Rejected
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {quotation.status === 'ACCEPTED' && (
+        <div className="bg-emerald-50/90 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-emerald-950 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+              <CheckCircle2 size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Customer Accepted Proposal</p>
+              <p className="text-xs text-emerald-800 mt-0.5">
+                {!quotation.linkedSalesOrder &&
+                  (quotation.quotationType === 'AMC'
+                    ? 'Commercially accepted. AMC Contract will be available after the Sales Order is created and confirmed.'
+                    : 'Commercially accepted. Ready for Sales Order creation.')}
+                {quotation.linkedSalesOrder && !allowedAmcSoStatuses.includes(quotation.linkedSalesOrder.status) &&
+                  `Linked Sales Order ${quotation.linkedSalesOrder.salesOrderNumber} is ${quotation.linkedSalesOrder.status}. AMC Contract will be available after the Sales Order is confirmed.`}
+                {quotation.linkedSalesOrder && allowedAmcSoStatuses.includes(quotation.linkedSalesOrder.status) && !quotation.linkedAmcContract &&
+                  `Sales Order ${quotation.linkedSalesOrder.salesOrderNumber} is ${quotation.linkedSalesOrder.status}. Ready to generate AMC Contract.`}
+                {quotation.linkedAmcContract &&
+                  `Linked AMC Contract ${quotation.linkedAmcContract.contractNumber} is Active.`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {quotation.linkedSalesOrder && !isSalesOffice && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<ShoppingCart size={13} className="text-indigo-600" />}
+                onClick={() => navigate(`/sales-orders?search=${encodeURIComponent(quotation.linkedSalesOrder!.salesOrderNumber)}`)}
+                className="bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+              >
+                SO: {quotation.linkedSalesOrder.salesOrderNumber} ({quotation.linkedSalesOrder.status})
+              </Button>
+            )}
+            {canCreateSalesOrder && (
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<ShoppingCart size={13} />}
+                onClick={() => navigate(`/sales-orders?quotationId=${quotation.id}`)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                Create Sales Order
+              </Button>
+            )}
+            {quotation.linkedAmcContract && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<ShieldCheck size={13} className="text-emerald-600" />}
+                onClick={() => navigate(`/amc-contracts/${quotation.linkedAmcContract!.id}`)}
+                className="bg-white border-emerald-300 text-emerald-800 hover:bg-emerald-100"
+              >
+                AMC: {quotation.linkedAmcContract.contractNumber}
+              </Button>
+            )}
+            {canCreateAmcContract && (
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<ShieldCheck size={13} />}
+                onClick={async () => {
+                  try {
+                    const res = await amcContractApi.createFromQuotation(quotation.id);
+                    if (res.data?.id) {
+                      toast.success('AMC Contract created successfully from confirmed Sales Order');
+                      navigate(`/amc-contracts/${res.data.id}`);
+                    }
+                  } catch (err: any) {
+                    toast.error('Failed to create AMC Contract', err?.message);
+                  }
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                Create AMC Contract
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {quotation.status === 'REJECTED_BY_CUSTOMER' && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center gap-3 text-rose-900 shadow-xs">
+          <div className="w-9 h-9 rounded-lg bg-rose-100 flex items-center justify-center text-rose-700 shrink-0">
+            <XCircle size={18} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Quotation Rejected by Customer</p>
+            <p className="text-xs text-rose-700 mt-0.5">
+              The client declined this commercial proposal. You can create a new formal revision to adjust scope/pricing and resubmit for approval.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main Grid Info: Customer Info & Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1016,6 +1346,32 @@ export const QuotationDetailPage: React.FC = () => {
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['quotation', quotation.id] });
             queryClient.invalidateQueries({ queryKey: ['quotations'] });
+          }}
+        />
+      )}
+
+      {/* Record Customer Acceptance Modal */}
+      {isCustomerAcceptModalOpen && (
+        <RecordCustomerAcceptanceModal
+          isOpen={isCustomerAcceptModalOpen}
+          quotationNumber={quotation.quotationNumber}
+          revisionNumber={activeRev?.revisionNumber ?? quotation.currentRevisionNumber}
+          onClose={() => setIsCustomerAcceptModalOpen(false)}
+          onSubmit={async (data) => {
+            await customerAcceptMutation.mutateAsync(data);
+          }}
+        />
+      )}
+
+      {/* Record Customer Rejection Modal */}
+      {isCustomerRejectModalOpen && (
+        <RecordCustomerRejectionModal
+          isOpen={isCustomerRejectModalOpen}
+          quotationNumber={quotation.quotationNumber}
+          revisionNumber={activeRev?.revisionNumber ?? quotation.currentRevisionNumber}
+          onClose={() => setIsCustomerRejectModalOpen(false)}
+          onSubmit={async (rejectionReason) => {
+            await customerRejectMutation.mutateAsync(rejectionReason);
           }}
         />
       )}

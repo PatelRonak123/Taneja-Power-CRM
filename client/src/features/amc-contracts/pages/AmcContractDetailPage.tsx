@@ -1,11 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { amcContractApi, AmcContract, AmcServiceRequest } from '../api/amcContractApi';
+import { amcContractApi, AmcContract, AmcServiceRequest, AmcServiceVisit } from '../api/amcContractApi';
+import { calculatePreventiveVisits } from '../../../utils/amcCalculations';
 import { navigate, useCurrentPath } from '../../../app/router/navigation';
 import { useAuthStore } from '../../../stores/authStore';
 import { AmcServiceReportModal } from '../components/AmcServiceReportModal';
+import { FsrReportModal } from '../../field-service/components/FsrReportModal';
 import { toast } from '../../../utils/toast';
 import { FollowUpEntitySection } from '../../follow-ups/components/FollowUpEntitySection';
+import { UpdateAmcPaymentModal } from '../components/UpdateAmcPaymentModal';
+import { taskService } from '../../tasks/services/taskService';
+import { Employee } from '../../admin/types/employee.types';
 import {
   Building2,
   Calendar,
@@ -29,11 +34,37 @@ import {
   Link,
   Ban,
   FileEdit,
+  ShoppingCart,
+  ShieldAlert,
+  ShieldCheck,
+  Check,
+  DollarSign,
+  ChevronDown,
+  UserX,
+  Search,
 } from 'lucide-react';
 
 export const AmcContractDetailPage: React.FC = () => {
   const { user } = useAuthStore();
   const isManagerOrAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const designationLower = (user?.designation || '').toLowerCase();
+  const isServiceOffice =
+    ((user?.role === 'USER' || (user as any)?.role === 'SERVICE') &&
+      designationLower.includes('service')) ||
+    (user?.workType === 'OFFICE' && designationLower.includes('service'));
+  const isAccountantOffice =
+    user?.role === 'USER' && designationLower.includes('accountant');
+  // Payment recording/updating is restricted to Admin, Manager, or Accountant Office only (NOT Service Office)
+  const canUpdatePayment = (isManagerOrAdmin || isAccountantOffice) && !isServiceOffice;
+  const canManageContract = isManagerOrAdmin || isServiceOffice;
+  // Office roles (Admin, Manager, Service Office, or any Office user) do not start field visits directly
+  const isOfficeRole =
+    user?.role === 'ADMIN' ||
+    user?.role === 'MANAGER' ||
+    user?.workType === 'OFFICE' ||
+    !user?.workType ||
+    (user?.designation || '').toLowerCase().includes('service');
+  const canStartVisit = !isOfficeRole && user?.workType === 'FIELD';
   const currentPath = useCurrentPath();
   // Extract contract ID from route e.g. /amc-contracts/:id
   const contractId = currentPath.split('/')[2];
@@ -56,6 +87,10 @@ export const AmcContractDetailPage: React.FC = () => {
   const [editSpecialClauses, setEditSpecialClauses] = useState('');
   const [editPaymentTerms, setEditPaymentTerms] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+
+  const calculatedEditVisits = useMemo(() => {
+    return calculatePreventiveVisits(editStartDate, editEndDate, editFrequency);
+  }, [editStartDate, editEndDate, editFrequency]);
 
   const handleOpenEditModal = () => {
     if (!contract) return;
@@ -82,7 +117,7 @@ export const AmcContractDetailPage: React.FC = () => {
         branch: editBranch.trim() || undefined,
         zone: editZone.trim() || undefined,
         serviceFrequency: editFrequency,
-        scheduledVisits: Number(editScheduledVisits) || 4,
+        scheduledVisits: calculatedEditVisits || Number(editScheduledVisits) || 4,
         breakdownVisitType: editBreakdownType,
         contractStartDate: editStartDate ? new Date(editStartDate).toISOString() : undefined,
         contractEndDate: editEndDate ? new Date(editEndDate).toISOString() : undefined,
@@ -101,6 +136,7 @@ export const AmcContractDetailPage: React.FC = () => {
 
   // Service Report Modal
   const [activeReportVisitId, setActiveReportVisitId] = useState<string | null>(null);
+  const [activeFsrId, setActiveFsrId] = useState<string | null>(null);
 
   // Breakdown Request Modal
   const [isBreakdownModalOpen, setIsBreakdownModalOpen] = useState(false);
@@ -136,8 +172,141 @@ export const AmcContractDetailPage: React.FC = () => {
   const [renewalTotalAmount, setRenewalTotalAmount] = useState('');
   const [renewalLoading, setRenewalLoading] = useState(false);
 
+  const calculatedRenewalVisits = useMemo(() => {
+    return calculatePreventiveVisits(renewalStartDate, renewalEndDate, renewalFrequency);
+  }, [renewalStartDate, renewalEndDate, renewalFrequency]);
+
   // Renewal history chain
   const [renewalChain, setRenewalChain] = useState<{ ancestors: AmcContract[]; successors: AmcContract[] } | null>(null);
+  const [isUpdatePaymentModalOpen, setIsUpdatePaymentModalOpen] = useState(false);
+
+  // Coverage Decision Modal State
+  const [selectedReqForCoverage, setSelectedReqForCoverage] = useState<AmcServiceRequest | null>(null);
+  const [coverageType, setCoverageType] = useState<'AMC_COVERED' | 'CHARGEABLE'>('AMC_COVERED');
+  const [coverageNotes, setCoverageNotes] = useState('');
+  const [coverageSubmitting, setCoverageSubmitting] = useState(false);
+
+  // Repair Task Dispatch Modal State
+  const [selectedReqForRepairTask, setSelectedReqForRepairTask] = useState<AmcServiceRequest | null>(null);
+  const [repairAssignedToId, setRepairAssignedToId] = useState('');
+  const [repairScheduledDate, setRepairScheduledDate] = useState('');
+  const [repairScheduledStartTime, setRepairScheduledStartTime] = useState('09:00');
+  const [repairScheduledEndTime, setRepairScheduledEndTime] = useState('11:00');
+  const [repairPriority, setRepairPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'>('HIGH');
+  const [repairNotes, setRepairNotes] = useState('');
+  const [repairTaskSubmitting, setRepairTaskSubmitting] = useState(false);
+  const [fieldEmployees, setFieldEmployees] = useState<Employee[]>([]);
+
+  const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
+  const [assigneeSearchQuery, setAssigneeSearchQuery] = useState('');
+  const assigneeDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selectedReqForRepairTask) {
+      setIsAssigneeDropdownOpen(false);
+      setAssigneeSearchQuery('');
+      taskService.getFieldEmployees().then((res) => {
+        if (res.data) setFieldEmployees(res.data);
+      }).catch((err) => console.error('Failed to load field employees', err));
+    }
+  }, [selectedReqForRepairTask]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        assigneeDropdownRef.current &&
+        !assigneeDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsAssigneeDropdownOpen(false);
+      }
+    };
+    if (isAssigneeDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isAssigneeDropdownOpen]);
+
+  const filteredFieldEmployees = useMemo(() => {
+    if (!assigneeSearchQuery.trim()) return fieldEmployees;
+    const q = assigneeSearchQuery.toLowerCase();
+    return fieldEmployees.filter(
+      (emp) =>
+        emp.fullName.toLowerCase().includes(q) ||
+        (emp.designation || '').toLowerCase().includes(q) ||
+        (emp.email || '').toLowerCase().includes(q)
+    );
+  }, [fieldEmployees, assigneeSearchQuery]);
+
+  const selectedEngineer = useMemo(() => {
+    return fieldEmployees.find((emp) => emp.id === repairAssignedToId);
+  }, [fieldEmployees, repairAssignedToId]);
+
+  const handleCoverageSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedReqForCoverage || !contract) return;
+    try {
+      setCoverageSubmitting(true);
+      await amcContractApi.setCoverageDecision(contract.id, selectedReqForCoverage.id, {
+        coverageType,
+        coverageNotes: coverageNotes.trim() || undefined,
+      });
+      toast.success('Coverage Decision Recorded', `Request marked as ${coverageType === 'AMC_COVERED' ? 'AMC Covered' : 'Chargeable'}.`);
+      setSelectedReqForCoverage(null);
+      setCoverageNotes('');
+      await fetchContractDetail();
+    } catch (err: any) {
+      toast.error('Failed to set coverage decision', err?.message);
+    } finally {
+      setCoverageSubmitting(false);
+    }
+  };
+
+  const handleRepairTaskSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedReqForRepairTask || !contract) return;
+    try {
+      setRepairTaskSubmitting(true);
+      await amcContractApi.createRepairTask(contract.id, selectedReqForRepairTask.id, {
+        assignedToId: repairAssignedToId || undefined,
+        scheduledDate: repairScheduledDate || undefined,
+        scheduledStartTime: repairScheduledStartTime || undefined,
+        scheduledEndTime: repairScheduledEndTime || undefined,
+        priority: repairPriority,
+        notes: repairNotes.trim() || undefined,
+      });
+      toast.success('Repair Task Dispatched', 'Field task created and assigned to engineer.');
+      setSelectedReqForRepairTask(null);
+      setRepairNotes('');
+      setRepairAssignedToId('');
+      await fetchContractDetail();
+    } catch (err: any) {
+      toast.error('Failed to dispatch repair task', err?.message);
+    } finally {
+      setRepairTaskSubmitting(false);
+    }
+  };
+
+  const handleCreateRepairQuotation = (reqItem: AmcServiceRequest) => {
+    if (!contract) return;
+    try {
+      sessionStorage.setItem(
+        'pending_repair_link',
+        JSON.stringify({
+          contractId: contract.id,
+          requestId: reqItem.id,
+          customerId: contract.customerId,
+          equipmentId: reqItem.equipmentId,
+          defectNotes: reqItem.issueDescription,
+          amcContractNumber: contract.contractNumber,
+        })
+      );
+    } catch (err) {
+      console.error('Failed to save repair link in session storage', err);
+    }
+    navigate(`/quotations/new?type=SERVICE&customerId=${contract.customerId}&sourceRequestId=${reqItem.id}`);
+  };
 
   const handleStartVisit = async (visitId: string) => {
     try {
@@ -249,7 +418,7 @@ export const AmcContractDetailPage: React.FC = () => {
         contractEndDate: renewalEndDate,
         amcPlan: renewalAmcPlan || undefined,
         serviceFrequency: renewalFrequency || undefined,
-        scheduledVisits: renewalScheduledVisits ? Number(renewalScheduledVisits) : undefined,
+        scheduledVisits: calculatedRenewalVisits || (renewalScheduledVisits ? Number(renewalScheduledVisits) : undefined),
         breakdownVisitType: renewalBreakdownType || undefined,
         totalAmount: renewalTotalAmount || undefined,
       });
@@ -312,17 +481,46 @@ export const AmcContractDetailPage: React.FC = () => {
     }
   };
 
-  const handleCreateTaskForVisit = async (visitId: string) => {
+  const handleCreateTaskForVisit = (visit: AmcServiceVisit) => {
+    if (!contract) return;
+
+    const scheduledDateStr = visit.scheduledDate
+      ? new Date(visit.scheduledDate).toISOString().slice(0, 16)
+      : '';
+
+    const taskTitle = `[AMC Visit #${visit.visitNumber}] ${contract.contractNumber} - ${contract.customerName}`;
+    const taskDescription = [
+      `Preventive Maintenance Service Visit #${visit.visitNumber}`,
+      `Contract: ${contract.contractNumber}`,
+      `Customer: ${contract.customerName}`,
+      `Plan: ${contract.amcPlan}`,
+      `Frequency: ${contract.serviceFrequency}`,
+      contract.customerCode ? `Customer Code: ${contract.customerCode}` : null,
+      contract.branch ? `Branch: ${contract.branch}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const statePayload = {
+      autoCreateTask: true,
+      amcVisitId: visit.id,
+      amcContractId: contract.id,
+      title: taskTitle,
+      description: taskDescription,
+      customerId: contract.customerId,
+      destinationId: contract.destinationId || '',
+      scheduledAt: scheduledDateStr,
+      dueAt: scheduledDateStr,
+      priority: 'MEDIUM',
+    };
+
     try {
-      setActionLoading(true);
-      await amcContractApi.createTaskForVisit(visitId);
-      toast.success('Task Created', 'Work order task created for service visit.');
-      await fetchContractDetail();
-    } catch (err: any) {
-      toast.error('Failed to create task for visit', err?.message);
-    } finally {
-      setActionLoading(false);
+      sessionStorage.setItem('pending_amc_task', JSON.stringify(statePayload));
+    } catch {
+      // ignore
     }
+
+    navigate('/tasks', statePayload);
   };
 
   const formatDate = (dateStr?: string) => {
@@ -336,6 +534,35 @@ export const AmcContractDetailPage: React.FC = () => {
     } catch {
       return dateStr;
     }
+  };
+
+  const formatDateTime = (dateStr?: string | null) => {
+    if (!dateStr) return '—';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatDuration = (startStr?: string | null, endStr?: string | null) => {
+    if (!startStr) return null;
+    const start = new Date(startStr).getTime();
+    const end = endStr ? new Date(endStr).getTime() : Date.now();
+    if (isNaN(start) || isNaN(end) || end < start) return null;
+    const diffMins = Math.floor((end - start) / (1000 * 60));
+    const hours = Math.floor(diffMins / 60);
+    const mins = diffMins % 60;
+    if (hours === 0) return `${mins}m`;
+    return `${hours}h ${mins}m`;
   };
 
   if (loading) {
@@ -387,7 +614,7 @@ export const AmcContractDetailPage: React.FC = () => {
             </button>
           )}
 
-          {isManagerOrAdmin && contract.status === 'PENDING_ACTIVATION' && (
+          {canManageContract && contract.status === 'PENDING_ACTIVATION' && (
             <button
               type="button"
               disabled={actionLoading}
@@ -399,7 +626,7 @@ export const AmcContractDetailPage: React.FC = () => {
             </button>
           )}
 
-          {isManagerOrAdmin && (contract.status === 'EXPIRING_SOON' || contract.status === 'EXPIRED') && (
+          {canManageContract && (contract.status === 'EXPIRING_SOON' || contract.status === 'EXPIRED') && (
             <button
               type="button"
               disabled={actionLoading}
@@ -479,22 +706,50 @@ export const AmcContractDetailPage: React.FC = () => {
             )}
             {contract.sourceQuotationNumber && (
               <button
+                type="button"
                 onClick={() => navigate(`/quotations/${contract.quotationId}`)}
                 className="flex items-center gap-1 text-blue-600 hover:underline font-bold cursor-pointer"
               >
                 <FileSpreadsheet size={12} /> Source Quotation: {contract.sourceQuotationNumber}
               </button>
             )}
+            {contract.salesOrderNumber && (
+              <button
+                type="button"
+                onClick={() => navigate(`/sales-orders?search=${encodeURIComponent(contract.salesOrderNumber!)}`)}
+                className="flex items-center gap-1 text-indigo-600 hover:underline font-bold cursor-pointer"
+              >
+                <ShoppingCart size={12} /> Sales Order: {contract.salesOrderNumber} ({contract.salesOrderStatus || 'CONFIRMED'})
+              </button>
+            )}
           </div>
         </div>
 
         {/* Financial Badge */}
-        <div className="bg-slate-900 text-white p-4 rounded-xl flex flex-col justify-between shrink-0 min-w-[200px]">
+        <div className="bg-slate-900 text-white p-4 rounded-xl flex flex-col justify-between shrink-0 min-w-[210px] shadow-sm">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Contract Value</span>
           <span className="text-2xl font-black text-emerald-400 mt-1">
             ₹{Number(contract.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </span>
-          <span className="text-[10px] text-slate-400 mt-1">Payment Status: <strong className="text-white">{contract.paymentStatus}</strong></span>
+          <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-800">
+            <span className="text-[10px] text-slate-400">
+              Payment: <strong className={`${
+                contract.paymentStatus === 'PAID' ? 'text-emerald-400 font-bold' :
+                contract.paymentStatus === 'PARTIALLY_PAID' ? 'text-blue-400 font-bold' :
+                contract.paymentStatus === 'OVERDUE' ? 'text-rose-400 font-bold' :
+                'text-amber-400 font-bold'
+              }`}>{contract.paymentStatus}</strong>
+            </span>
+            {canUpdatePayment && (
+              <button
+                type="button"
+                onClick={() => setIsUpdatePaymentModalOpen(true)}
+                className="text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-2 py-0.5 rounded cursor-pointer border border-slate-700 transition-colors shadow-2xs"
+              >
+                Update Payment
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -545,6 +800,7 @@ export const AmcContractDetailPage: React.FC = () => {
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase whitespace-nowrap">
                 <th className="px-4 py-2.5">Equipment Name / Description</th>
                 <th className="px-4 py-2.5">Type</th>
+                <th className="px-4 py-2.5">Condition</th>
                 <th className="px-4 py-2.5">Configuration</th>
                 <th className="px-4 py-2.5">Rating</th>
                 <th className="px-4 py-2.5">Qty</th>
@@ -559,6 +815,17 @@ export const AmcContractDetailPage: React.FC = () => {
                   <td className="px-4 py-3">
                     <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">
                       {eqItem.equipmentType || 'STABILIZER'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      eqItem.conditionStatus === 'NEEDS_REPAIR' || eqItem.conditionStatus === 'FAULTY'
+                        ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                        : eqItem.conditionStatus === 'REPAIRED'
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    }`}>
+                      {eqItem.conditionStatus || 'OPERATIONAL'}
                     </span>
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-700">{eqItem.configuration || '—'}</td>
@@ -599,7 +866,9 @@ export const AmcContractDetailPage: React.FC = () => {
                   <th className="px-4 py-2.5">Scheduled Date</th>
                   <th className="px-4 py-2.5">Service Type</th>
                   <th className="px-4 py-2.5">Status</th>
-                  <th className="px-4 py-2.5">Field Task Integration</th>
+                  <th className="px-4 py-2.5">Execution & Duration</th>
+                  <th className="px-4 py-2.5">Field Task</th>
+                  <th className="px-4 py-2.5">Service Report</th>
                   <th className="px-4 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -616,24 +885,67 @@ export const AmcContractDetailPage: React.FC = () => {
                     <td className="px-4 py-3 font-bold">
                       <span className={`px-2 py-0.5 rounded text-[10px] whitespace-nowrap ${
                         visit.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        visit.status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
                         visit.status === 'ASSIGNED' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                        'bg-amber-50 text-amber-700 border border-amber-200'
+                        'bg-slate-50 text-slate-700 border border-slate-200'
                       }`}>
                         {visit.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
+                      {visit.actualStartAt ? (
+                        <div className="flex flex-col text-[11px]">
+                          <span className="text-slate-600">
+                            <strong className="text-slate-900">Start:</strong> {formatDateTime(visit.actualStartAt)}
+                          </span>
+                          {visit.completedAt && (
+                            <span className="text-slate-500">
+                              <strong className="text-slate-700">End:</strong> {formatDateTime(visit.completedAt)}
+                            </span>
+                          )}
+                          <span className="text-emerald-700 font-bold mt-0.5">
+                            Duration: {formatDuration(visit.actualStartAt, visit.completedAt) || 'In Progress'}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-[11px]">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
                       {visit.taskId ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => navigate('/tasks')}
+                          className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-bold text-[11px] cursor-pointer"
+                          title="View in Tasks module"
+                        >
                           <ClipboardList size={12} /> Task Linked
-                        </span>
+                        </button>
                       ) : (
                         <span className="text-slate-400 text-[11px]">No task created</span>
                       )}
                     </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {visit.report ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            visit.report.status === 'COMPLETED'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            {visit.report.status}
+                          </span>
+                          {visit.report.reportNumber && (
+                            <span className="text-[11px] font-mono text-slate-700 font-medium">{visit.report.reportNumber}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-[11px]">Not Generated</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
-                        {(visit.status === 'SCHEDULED' || visit.status === 'ASSIGNED') && (
+                        {canStartVisit && (visit.status === 'SCHEDULED' || visit.status === 'ASSIGNED') && (
                           <button
                             type="button"
                             disabled={actionLoading}
@@ -644,24 +956,46 @@ export const AmcContractDetailPage: React.FC = () => {
                           </button>
                         )}
 
-                        {(visit.status === 'IN_PROGRESS' || visit.status === 'COMPLETED') && (
-                          <button
-                            type="button"
-                            onClick={() => setActiveReportVisitId(visit.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
-                          >
-                            <FileText size={11} /> Service Report
-                          </button>
-                        )}
+                        {(visit.status === 'IN_PROGRESS' || visit.status === 'COMPLETED' || visit.report) && (() => {
+                          // For BREAKDOWN visits: find the linked service request and open FSR if available
+                          if (visit.serviceType === 'BREAKDOWN') {
+                            const linkedReq = (contract.serviceRequests || []).find(
+                              (r) => r.amcServiceVisitId === visit.id
+                            );
+                            if (linkedReq?.fsrId) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveFsrId(linkedReq.fsrId!)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
+                                >
+                                  <FileText size={11} /> FSR Report
+                                </button>
+                              );
+                            }
+                            // No FSR linked — no report button for breakdown visits
+                            return null;
+                          }
+                          // Standard PM visit: open AMC service report
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setActiveReportVisitId(visit.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
+                            >
+                              <FileText size={11} /> Service Report
+                            </button>
+                          );
+                        })()}
 
                         {!visit.taskId && visit.status !== 'COMPLETED' && (
                           <button
                             type="button"
                             disabled={actionLoading}
-                            onClick={() => handleCreateTaskForVisit(visit.id)}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer transition-colors whitespace-nowrap"
+                            onClick={() => handleCreateTaskForVisit(visit)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
                           >
-                            <Plus size={11} /> Task
+                            <Plus size={11} /> Add Task
                           </button>
                         )}
                       </div>
@@ -706,114 +1040,261 @@ export const AmcContractDetailPage: React.FC = () => {
 
         {(!contract.serviceRequests || contract.serviceRequests.length === 0) ? (
           <div className="p-8 text-center text-slate-400 text-xs font-semibold bg-slate-50 rounded-xl border border-dashed border-slate-200">
-            No breakdown requests logged for this contract.
+            No breakdown or defect follow-up requests logged for this contract.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[760px]">
+            <table className="w-full text-left text-xs min-w-[880px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase whitespace-nowrap">
-                  <th className="px-4 py-2.5">SR Number</th>
+                  <th className="px-4 py-2.5">SR Number / Origin</th>
                   <th className="px-4 py-2.5">Reported At</th>
-                  <th className="px-4 py-2.5">Equipment</th>
-                  <th className="px-4 py-2.5">Reported Problem</th>
-                  <th className="px-4 py-2.5">Priority</th>
-                  <th className="px-4 py-2.5">Escalation Level</th>
+                  <th className="px-4 py-2.5">Equipment &amp; Condition</th>
+                  <th className="px-4 py-2.5">Defect / Malfunction</th>
+                  <th className="px-4 py-2.5">Commercial Coverage</th>
+                  <th className="px-4 py-2.5">Workflow Progress</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {contract.serviceRequests.map((reqItem) => (
-                  <tr key={reqItem.id} className="hover:bg-slate-50/60">
-                    <td className="px-4 py-3 font-bold text-amber-700">{reqItem.requestNumber}</td>
-                    <td className="px-4 py-3 font-medium text-slate-700">{formatDate(reqItem.requestedAt)}</td>
-                    <td className="px-4 py-3 font-bold text-slate-900">
-                      {reqItem.equipmentName || 'Whole System / General'}
-                      {reqItem.equipmentConfiguration && (
-                        <span className="block text-[10px] text-slate-500 font-normal">
-                          {reqItem.equipmentConfiguration}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-slate-900 max-w-xs truncate" title={reqItem.issueDescription}>
-                      {reqItem.issueDescription}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        reqItem.priority === 'URGENT' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
-                        reqItem.priority === 'HIGH' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
-                        reqItem.priority === 'MEDIUM' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                        'bg-slate-100 text-slate-700'
-                      }`}>
-                        {reqItem.priority}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold self-start">
-                          {reqItem.escalationLevel.replace('_', ' ')}
-                        </span>
-                        {reqItem.escalationContactName ? (
-                          <span className="text-[10px] text-slate-600 font-medium">
-                            Contact: {reqItem.escalationContactName} ({reqItem.escalationPhone || 'No phone'})
+                {contract.serviceRequests.map((reqItem) => {
+                  const isAmcCovered = reqItem.coverageType === 'AMC_COVERED';
+                  const isChargeable = reqItem.coverageType === 'CHARGEABLE';
+                  const isPendingReview = !reqItem.coverageType || reqItem.coverageType === 'PENDING_REVIEW';
+                  const hasTask = !!reqItem.taskId;
+                  const hasQuote = !!reqItem.quotationId;
+                  const hasSo = !!reqItem.salesOrderId;
+
+                  return (
+                    <tr key={reqItem.id} className="hover:bg-slate-50/60">
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-bold text-amber-700">{reqItem.requestNumber}</span>
+                          {(reqItem.originServiceVisitId || (reqItem.notes && reqItem.notes.includes('PM Visit'))) ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold w-fit">
+                              <AlertTriangle size={10} /> PM Visit Defect
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-medium w-fit">
+                              Direct Breakdown
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">
+                        {formatDate(reqItem.requestedAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-bold text-slate-900">
+                            {reqItem.equipmentName || 'Whole System / General'}
                           </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 italic">Not configured</span>
+                          {reqItem.equipmentConditionStatus && (
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold w-fit ${
+                              reqItem.equipmentConditionStatus === 'NEEDS_REPAIR' || reqItem.equipmentConditionStatus === 'FAULTY'
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                : reqItem.equipmentConditionStatus === 'REPAIRED'
+                                ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            }`}>
+                              {reqItem.equipmentConditionStatus}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-900 max-w-xs truncate" title={reqItem.issueDescription}>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="truncate">{reqItem.issueDescription}</span>
+                          {reqItem.priority && (
+                            <span className={`text-[10px] font-bold w-fit ${
+                              reqItem.priority === 'URGENT' ? 'text-rose-600' :
+                              reqItem.priority === 'HIGH' ? 'text-amber-600' : 'text-slate-500'
+                            }`}>
+                              Priority: {reqItem.priority}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {isPendingReview && (
+                          <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-bold inline-flex items-center gap-1">
+                            <Clock size={10} /> Pending Office Review
+                          </span>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-bold whitespace-nowrap">
-                      <span className={`px-2 py-0.5 rounded text-[10px] whitespace-nowrap ${
-                        reqItem.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                        reqItem.status === 'ASSIGNED' || reqItem.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                        reqItem.status === 'CANCELLED' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                        'bg-amber-50 text-amber-700 border border-amber-200'
-                      }`}>
-                        {reqItem.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {reqItem.status !== 'RESOLVED' && reqItem.status !== 'CANCELLED' && (
+                        {isAmcCovered && (
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-bold inline-flex items-center gap-1">
+                            <ShieldCheck size={10} /> AMC Covered
+                          </span>
+                        )}
+                        {isChargeable && (
+                          <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-300 text-[10px] font-bold inline-flex items-center gap-1">
+                            <DollarSign size={10} /> Chargeable
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex flex-col gap-1 text-[11px]">
+                          {isPendingReview && (
+                            <span className="text-slate-400 italic">Awaiting commercial decision</span>
+                          )}
+
+                          {isAmcCovered && (
+                            hasTask ? (
+                              <button
+                                type="button"
+                                onClick={() => navigate('/tasks')}
+                                className="inline-flex items-center gap-1 text-emerald-700 hover:underline font-bold cursor-pointer"
+                              >
+                                <ClipboardList size={12} /> Repair Task Active
+                              </button>
+                            ) : (
+                              <span className="text-emerald-700 font-semibold">Authorized — Ready to Dispatch</span>
+                            )
+                          )}
+
+                          {isChargeable && (
+                            <>
+                              {!hasQuote && (
+                                <span className="text-purple-700 font-semibold">Quotation Needed</span>
+                              )}
+                              {hasQuote && (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/quotations/${reqItem.quotationId}`)}
+                                  className="inline-flex items-center gap-1 text-blue-600 hover:underline font-bold cursor-pointer"
+                                >
+                                  <FileSpreadsheet size={11} /> Quote: {reqItem.quotationNumber || 'View Quote'}
+                                </button>
+                              )}
+                              {hasSo && (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/sales-orders?search=${encodeURIComponent(reqItem.salesOrderNumber || '')}`)}
+                                  className="inline-flex items-center gap-1 text-indigo-600 hover:underline font-bold cursor-pointer"
+                                >
+                                  <ShoppingCart size={11} /> SO: {reqItem.salesOrderNumber || 'Confirmed SO'}
+                                </button>
+                              )}
+                              {hasTask && (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate('/tasks')}
+                                  className="inline-flex items-center gap-1 text-emerald-700 hover:underline font-bold cursor-pointer"
+                                >
+                                  <ClipboardList size={11} /> Repair Task Active
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-bold whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded text-[10px] whitespace-nowrap ${
+                          reqItem.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                          reqItem.status === 'ASSIGNED' || reqItem.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                          reqItem.status === 'CANCELLED' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                          'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {reqItem.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          {/* Office Coverage Decision Trigger */}
+                          {isPendingReview && reqItem.status !== 'RESOLVED' && reqItem.status !== 'CANCELLED' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedReqForCoverage(reqItem);
+                                setCoverageType('AMC_COVERED');
+                                setCoverageNotes('');
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold cursor-pointer transition-colors shadow-2xs whitespace-nowrap"
+                            >
+                              <ShieldAlert size={11} /> Review Coverage
+                            </button>
+                          )}
+
+                          {/* Track A: AMC Covered -> Dispatch Repair Task */}
+                          {isAmcCovered && !hasTask && reqItem.status !== 'RESOLVED' && reqItem.status !== 'CANCELLED' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedReqForRepairTask(reqItem);
+                                setRepairScheduledDate(new Date().toISOString().slice(0, 10));
+                                setRepairPriority((reqItem.priority as any) || 'HIGH');
+                                setRepairNotes(`Repair defect: ${reqItem.issueDescription}`);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors shadow-2xs whitespace-nowrap"
+                            >
+                              <Wrench size={11} /> Dispatch Repair
+                            </button>
+                          )}
+
+                          {/* Track B: Chargeable -> Create Repair Quotation */}
+                          {isChargeable && !hasQuote && reqItem.status !== 'RESOLVED' && reqItem.status !== 'CANCELLED' && (
+                            <button
+                              type="button"
+                              onClick={() => handleCreateRepairQuotation(reqItem)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold cursor-pointer transition-colors shadow-2xs whitespace-nowrap"
+                            >
+                              <FileSpreadsheet size={11} /> Create Repair Quote
+                            </button>
+                          )}
+
+                          {/* Track B: Chargeable -> SO Confirmed -> Dispatch Repair Task */}
+                          {isChargeable && hasSo && !hasTask && reqItem.status !== 'RESOLVED' && reqItem.status !== 'CANCELLED' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedReqForRepairTask(reqItem);
+                                setRepairScheduledDate(new Date().toISOString().slice(0, 10));
+                                setRepairPriority((reqItem.priority as any) || 'HIGH');
+                                setRepairNotes(`Chargeable Repair (SO Confirmed): ${reqItem.issueDescription}`);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors shadow-2xs whitespace-nowrap"
+                            >
+                              <Wrench size={11} /> Dispatch Repair
+                            </button>
+                          )}
+
+                          {/* FSR button: only shown when field engineer explicitly linked a job card */}
+                          {reqItem.fsrId && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveFsrId(reqItem.fsrId!)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap shadow-2xs"
+                              title={`View Field Service Report (${reqItem.fsrNumber || 'FSR'}) submitted by Field Engineer`}
+                            >
+                              <Wrench size={11} /> FSR Report
+                            </button>
+                          )}
+
+                          {/* PM Defect Report: original PM visit that surfaced this breakdown */}
+                          {reqItem.originServiceVisitId && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveReportVisitId(reqItem.originServiceVisitId!)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-medium cursor-pointer transition-colors whitespace-nowrap"
+                              title="View Original PM Defect Report"
+                            >
+                              <AlertTriangle size={11} className="text-amber-600" /> PM Defect Report
+                            </button>
+                          )}
+
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedEscalateReq(reqItem);
-                              setTargetEscalationLevel(
-                                reqItem.escalationLevel === 'LEVEL_1' ? 'LEVEL_2' :
-                                reqItem.escalationLevel === 'LEVEL_2' ? 'LEVEL_3' : 'LEVEL_3'
-                              );
-                              setEscalationNotes('');
-                              setIsEscalateModalOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
+                            onClick={() => setSelectedBreakdownReqDetail(reqItem)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer transition-colors whitespace-nowrap"
                           >
-                            <AlertTriangle size={11} /> Escalate
+                            Details
                           </button>
-                        )}
-
-                        {reqItem.amcServiceVisitId && (
-                          <button
-                            type="button"
-                            onClick={() => setActiveReportVisitId(reqItem.amcServiceVisitId!)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
-                          >
-                            <FileText size={11} /> Service Report
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => setSelectedBreakdownReqDetail(reqItem)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer transition-colors whitespace-nowrap"
-                        >
-                          Details
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1317,6 +1798,41 @@ export const AmcContractDetailPage: React.FC = () => {
                   )}
                 </div>
 
+                {/* Linked Service Reports */}
+                {(selectedBreakdownReqDetail.fsrId || selectedBreakdownReqDetail.amcServiceVisitId || selectedBreakdownReqDetail.originServiceVisitId) && (
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs flex flex-col gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Linked Service Reports</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* FSR button: only shown when field engineer explicitly linked a job card */}
+                      {selectedBreakdownReqDetail.fsrId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveFsrId(selectedBreakdownReqDetail.fsrId!);
+                            setSelectedBreakdownReqDetail(null);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold cursor-pointer transition-colors shadow-2xs"
+                        >
+                          <Wrench size={13} /> View FSR ({selectedBreakdownReqDetail.fsrNumber || 'Field Report'})
+                        </button>
+                      )}
+                      {/* PM Defect Report: original PM visit that surfaced this breakdown */}
+                      {selectedBreakdownReqDetail.originServiceVisitId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveReportVisitId(selectedBreakdownReqDetail.originServiceVisitId!);
+                            setSelectedBreakdownReqDetail(null);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold cursor-pointer transition-colors"
+                        >
+                          <AlertTriangle size={13} className="text-amber-600" /> View PM Defect Report
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {selectedBreakdownReqDetail.notes && (
                   <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs flex flex-col gap-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Audit / Escalation Notes</span>
@@ -1539,14 +2055,20 @@ export const AmcContractDetailPage: React.FC = () => {
                       </select>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold text-slate-600">Scheduled Visits</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-600">Scheduled Visits</label>
+                        <span className="text-[9px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-full border border-teal-200">
+                          Calculated
+                        </span>
+                      </div>
                       <input
                         type="number"
-                        min={1}
-                        max={52}
-                        value={renewalScheduledVisits}
-                        onChange={(e) => setRenewalScheduledVisits(e.target.value)}
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500 focus:bg-white font-bold"
+                        min={0}
+                        value={calculatedRenewalVisits}
+                        readOnly
+                        disabled
+                        tabIndex={-1}
+                        className="w-full p-2.5 bg-slate-100/80 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 cursor-not-allowed select-none"
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
@@ -1705,14 +2227,20 @@ export const AmcContractDetailPage: React.FC = () => {
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-slate-700">Scheduled Visits</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700">Scheduled Visits</label>
+                        <span className="text-[10px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                          Calculated
+                        </span>
+                      </div>
                       <input
                         type="number"
-                        min={1}
-                        max={24}
-                        value={editScheduledVisits}
-                        onChange={(e) => setEditScheduledVisits(e.target.value)}
-                        className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white font-bold"
+                        min={0}
+                        value={calculatedEditVisits}
+                        readOnly
+                        disabled
+                        tabIndex={-1}
+                        className="w-full px-3 py-2.5 text-xs bg-slate-100/80 border border-slate-200 rounded-xl font-bold text-slate-800 cursor-not-allowed select-none"
                       />
                     </div>
                   </div>
@@ -1798,6 +2326,441 @@ export const AmcContractDetailPage: React.FC = () => {
         document.body
       )}
 
+      {/* Coverage Review Modal */}
+      {selectedReqForCoverage && createPortal(
+        <div className="fixed inset-0 z-[100] overflow-hidden select-none">
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-300 animate-fade-in"
+            onClick={() => setSelectedReqForCoverage(null)}
+          />
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-[100]">
+            <div
+              className="w-screen max-w-lg bg-white shadow-2xl flex flex-col border-l border-slate-200 animate-slide-in-right overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-10">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-200">
+                    <ShieldAlert size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Commercial Coverage Review</h3>
+                    <p className="text-xs text-amber-700 font-bold">{selectedReqForCoverage.requestNumber}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReqForCoverage(null)}
+                  className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer border border-slate-200/80"
+                  title="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Form Body */}
+              <form onSubmit={handleCoverageSubmit} className="flex-1 overflow-y-auto flex flex-col justify-between">
+                <div className="p-6 space-y-4">
+                  {/* Defect Context */}
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Equipment</span>
+                      <span className="font-bold text-slate-900">{selectedReqForCoverage.equipmentName || 'Whole System'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Defect Finding</span>
+                      <span className="text-rose-700 font-bold">{selectedReqForCoverage.equipmentConditionStatus || 'NEEDS_REPAIR'}</span>
+                    </div>
+                    <div className="mt-1 pt-1.5 border-t border-slate-200/80">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Engineer Observation</span>
+                      <p className="text-slate-800 font-medium mt-0.5 whitespace-pre-wrap">{selectedReqForCoverage.issueDescription}</p>
+                    </div>
+                  </div>
+
+                  {/* Coverage Decision Options */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-slate-800">Commercial Classification <span className="text-rose-600">*</span></label>
+                    <div className="grid grid-cols-1 gap-2.5">
+                      <label className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                        coverageType === 'AMC_COVERED'
+                          ? 'border-emerald-500 bg-emerald-50/50 shadow-2xs'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="coverageType"
+                          value="AMC_COVERED"
+                          checked={coverageType === 'AMC_COVERED'}
+                          onChange={() => setCoverageType('AMC_COVERED')}
+                          className="mt-1 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                            <ShieldCheck size={14} className="text-emerald-600" /> AMC Covered (Track A)
+                          </span>
+                          <span className="text-[11px] text-emerald-800 mt-0.5">
+                            Covered under contract terms. Service office can immediately dispatch a Repair Task. No customer quotation required.
+                          </span>
+                        </div>
+                      </label>
+
+                      <label className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                        coverageType === 'CHARGEABLE'
+                          ? 'border-purple-500 bg-purple-50/50 shadow-2xs'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="coverageType"
+                          value="CHARGEABLE"
+                          checked={coverageType === 'CHARGEABLE'}
+                          onChange={() => setCoverageType('CHARGEABLE')}
+                          className="mt-1 text-purple-600 focus:ring-purple-500"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
+                            <DollarSign size={14} className="text-purple-600" /> Chargeable Repair / Parts (Track B)
+                          </span>
+                          <span className="text-[11px] text-purple-800 mt-0.5">
+                            Requires a new commercial quotation. Repair task will remain blocked until quotation is accepted and Sales Order is confirmed.
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Coverage Decision Notes */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-700">Commercial Notes / Justification</label>
+                    <textarea
+                      rows={3}
+                      value={coverageNotes}
+                      onChange={(e) => setCoverageNotes(e.target.value)}
+                      placeholder="e.g. Defect caused by external surge outside scope / Standard component replacement covered under Comprehensive AMC."
+                      className="w-full p-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white leading-relaxed"
+                    />
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/90 backdrop-blur-md sticky bottom-0 z-10 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReqForCoverage(null)}
+                    className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={coverageSubmitting}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                  >
+                    {coverageSubmitting ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
+                    <span>Confirm Coverage Decision</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Repair Task Dispatch Modal */}
+      {selectedReqForRepairTask && createPortal(
+        <div className="fixed inset-0 z-[100] overflow-hidden select-none">
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-300 animate-fade-in"
+            onClick={() => setSelectedReqForRepairTask(null)}
+          />
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-[100]">
+            <div
+              className="w-screen max-w-md bg-white shadow-2xl flex flex-col border-l border-slate-200 animate-slide-in-right overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-10">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-200">
+                    <Wrench size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Dispatch Repair Task</h3>
+                    <p className="text-xs text-emerald-700 font-bold">{selectedReqForRepairTask.requestNumber}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReqForRepairTask(null)}
+                  className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer border border-slate-200/80"
+                  title="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Form Body */}
+              <form onSubmit={handleRepairTaskSubmit} className="flex-1 overflow-y-auto flex flex-col justify-between">
+                <div className="p-6 space-y-4">
+                  {/* Context banner */}
+                  <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-emerald-950">
+                    <span>Authorized repair for defect in <strong>{selectedReqForRepairTask.equipmentName || 'Whole System'}</strong>. Completing this field task will mark the unit as restored/repaired.</span>
+                  </div>
+
+                  {/* Assignee Custom Dropdown */}
+                  <div className="flex flex-col gap-1.5 relative" ref={assigneeDropdownRef}>
+                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                      <span>Assign Field Engineer</span>
+                      {selectedEngineer && (
+                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          Selected
+                        </span>
+                      )}
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsAssigneeDropdownOpen((prev) => !prev)}
+                      className={`w-full px-3.5 py-2.5 text-xs bg-slate-50 border rounded-xl flex items-center justify-between text-left transition-all cursor-pointer font-semibold ${
+                        isAssigneeDropdownOpen
+                          ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-white'
+                          : 'border-slate-200 hover:border-slate-300 hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {selectedEngineer ? (
+                          <>
+                            <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 shadow-2xs">
+                              {selectedEngineer.fullName.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex items-center gap-2 truncate">
+                              <span className="text-slate-900 font-bold truncate">
+                                {selectedEngineer.fullName}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80 shrink-0">
+                                {selectedEngineer.designation || 'Field Engineer'}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 text-[11px] font-bold flex items-center justify-center shrink-0">
+                              <UserX size={13} />
+                            </div>
+                            <span className="text-slate-500 font-semibold">Unassigned (Assign Later)</span>
+                          </>
+                        )}
+                      </div>
+                      <ChevronDown
+                        size={16}
+                        className={`text-slate-400 shrink-0 transition-transform duration-200 ${
+                          isAssigneeDropdownOpen ? 'rotate-180 text-emerald-600' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {/* Dropdown Menu Panel */}
+                    {isAssigneeDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100 flex flex-col">
+                        {/* Search Bar */}
+                        <div className="p-2 border-b border-slate-100 bg-slate-50/70">
+                          <div className="relative">
+                            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="text"
+                              autoFocus
+                              value={assigneeSearchQuery}
+                              onChange={(e) => setAssigneeSearchQuery(e.target.value)}
+                              placeholder="Search field engineer..."
+                              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder:text-slate-400 text-slate-900 font-medium"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Options List */}
+                        <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 p-1">
+                          {/* Unassigned Option */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRepairAssignedToId('');
+                              setIsAssigneeDropdownOpen(false);
+                              setAssigneeSearchQuery('');
+                            }}
+                            className={`w-full px-3 py-2 text-xs rounded-xl flex items-center justify-between text-left transition-colors cursor-pointer ${
+                              !repairAssignedToId
+                                ? 'bg-emerald-50 text-emerald-950 font-bold'
+                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center">
+                                <UserX size={13} />
+                              </div>
+                              <span className="font-semibold">Unassigned (Assign Later)</span>
+                            </div>
+                            {!repairAssignedToId && <Check size={14} className="text-emerald-600 shrink-0" />}
+                          </button>
+
+                          {/* Engineer List */}
+                          {filteredFieldEmployees.map((emp) => {
+                            const isSelected = repairAssignedToId === emp.id;
+                            return (
+                              <button
+                                key={emp.id}
+                                type="button"
+                                onClick={() => {
+                                  setRepairAssignedToId(emp.id);
+                                  setIsAssigneeDropdownOpen(false);
+                                  setAssigneeSearchQuery('');
+                                }}
+                                className={`w-full px-3 py-2 text-xs rounded-xl flex items-center justify-between text-left transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-emerald-50 text-emerald-950 font-bold'
+                                    : 'text-slate-800 hover:bg-emerald-50/50 hover:text-emerald-950'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div
+                                    className={`w-6 h-6 rounded-lg text-[11px] font-bold flex items-center justify-center shrink-0 ${
+                                      isSelected
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-slate-100 text-slate-700'
+                                    }`}
+                                  >
+                                    {emp.fullName.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="flex flex-col truncate">
+                                    <span className="font-bold text-slate-900 truncate">{emp.fullName}</span>
+                                    <span className="text-[10px] text-slate-500 font-medium">
+                                      {emp.designation || 'Field Engineer'}
+                                    </span>
+                                  </div>
+                                </div>
+                                {isSelected && <Check size={14} className="text-emerald-600 shrink-0" />}
+                              </button>
+                            );
+                          })}
+
+                          {filteredFieldEmployees.length === 0 && (
+                            <div className="py-4 text-center text-xs text-slate-400">
+                              No matching field engineers found.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Scheduled Date */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-700">Scheduled Date <span className="text-rose-600">*</span></label>
+                    <input
+                      type="date"
+                      required
+                      value={repairScheduledDate}
+                      onChange={(e) => setRepairScheduledDate(e.target.value)}
+                      className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+                    />
+                  </div>
+
+                  {/* Start & End Time */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-slate-700">Start Time</label>
+                      <input
+                        type="time"
+                        value={repairScheduledStartTime}
+                        onChange={(e) => setRepairScheduledStartTime(e.target.value)}
+                        className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-slate-700">End Time</label>
+                      <input
+                        type="time"
+                        value={repairScheduledEndTime}
+                        onChange={(e) => setRepairScheduledEndTime(e.target.value)}
+                        className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Priority Pill Selector */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-700">Priority</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const).map((p) => {
+                        const isSelected = repairPriority === p;
+                        const colorClasses = {
+                          LOW: isSelected
+                            ? 'bg-slate-800 text-white border-slate-800 shadow-2xs font-bold'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 font-semibold',
+                          MEDIUM: isSelected
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-2xs font-bold'
+                            : 'bg-amber-50/60 text-amber-700 border-amber-200 hover:bg-amber-100/60 font-semibold',
+                          HIGH: isSelected
+                            ? 'bg-orange-600 text-white border-orange-600 shadow-2xs font-bold'
+                            : 'bg-orange-50/60 text-orange-700 border-orange-200 hover:bg-orange-100/60 font-semibold',
+                          URGENT: isSelected
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-2xs font-bold'
+                            : 'bg-rose-50/60 text-rose-700 border-rose-200 hover:bg-rose-100/60 font-semibold',
+                        }[p];
+
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setRepairPriority(p)}
+                            className={`py-2 text-xs rounded-xl border text-center transition-all cursor-pointer ${colorClasses}`}
+                          >
+                            {p}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Notes / Instructions */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-700">Repair Task Instructions</label>
+                    <textarea
+                      rows={3}
+                      value={repairNotes}
+                      onChange={(e) => setRepairNotes(e.target.value)}
+                      placeholder="Specific replacement instructions, required tools/spares to carry, safety precautions."
+                      className="w-full p-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white leading-relaxed"
+                    />
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/90 backdrop-blur-md sticky bottom-0 z-10 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReqForRepairTask(null)}
+                    className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={repairTaskSubmitting}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                  >
+                    {repairTaskSubmitting ? <RefreshCw size={14} className="animate-spin" /> : <Wrench size={14} />}
+                    <span>Dispatch Task</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Service Report Drawer / Modal */}
       {activeReportVisitId && (
         <AmcServiceReportModal
@@ -1805,6 +2768,25 @@ export const AmcContractDetailPage: React.FC = () => {
           isOpen={!!activeReportVisitId}
           onClose={() => setActiveReportVisitId(null)}
           onSuccess={() => fetchContractDetail()}
+        />
+      )}
+
+      {/* Field Service Report (FSR) Modal */}
+      {activeFsrId && (
+        <FsrReportModal
+          fsrId={activeFsrId}
+          isOpen={Boolean(activeFsrId)}
+          onClose={() => setActiveFsrId(null)}
+        />
+      )}
+
+      {/* Update AMC Payment Status Modal */}
+      {canUpdatePayment && isUpdatePaymentModalOpen && contract && (
+        <UpdateAmcPaymentModal
+          isOpen={isUpdatePaymentModalOpen}
+          onClose={() => setIsUpdatePaymentModalOpen(false)}
+          onSuccess={() => fetchContractDetail()}
+          contract={contract}
         />
       )}
     </div>

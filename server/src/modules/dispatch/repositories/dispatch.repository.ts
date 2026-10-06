@@ -105,6 +105,16 @@ export class DispatchRepository {
       },
     });
 
+    if (dispatch) {
+      const equipmentRes = await txClient.execute(
+        sql`SELECT id, asset_number, product_name, sku, serial_number, unit_index, condition_status, asset_status, delivery_date
+            FROM customer_equipment
+            WHERE delivery_id = ${id}
+            ORDER BY unit_index ASC`
+      );
+      (dispatch as any).customerEquipment = equipmentRes.rows || equipmentRes;
+    }
+
     return dispatch || null;
   }
 

@@ -197,21 +197,24 @@ export const FollowUpModal: React.FC<FollowUpModalProps> = ({
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] overflow-hidden select-none">
+    <div
+      className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-xs select-none animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+    >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-300 animate-fade-in"
+        className="fixed inset-0"
         onClick={onClose}
       />
 
-      {/* Drawer Panel */}
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-[100]">
-        <div
-          className="w-screen max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-10 shrink-0">
+      {/* Centered Modal Card */}
+      <div
+        className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] z-10 animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-10 shrink-0">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-200">
                 <Calendar className="w-5 h-5" />
@@ -445,7 +448,6 @@ export const FollowUpModal: React.FC<FollowUpModalProps> = ({
             </Button>
           </div>
         </div>
-      </div>
     </div>,
     document.body
   );

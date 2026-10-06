@@ -2,19 +2,31 @@ export type LeadPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 
 export type LeadStatus =
   | 'New'
+  | 'NEW LEADS'
   | 'Contacted'
+  | 'CONTACTED'
   | 'Meeting Scheduled'
-  | 'Proposal Sent'
+  | 'MEETING SCHEDULED'
   | 'Quotation Sent'
+  | 'QUOTATION SENT'
+  | 'Proposal Sent'
   | 'Negotiation'
   | 'NEGOTIATION'
+  | 'Order Confirmed'
+  | 'ORDER CONFIRMED'
   | 'Approved'
   | 'APPROVED/PO'
+  | 'Ready for Dispatch'
+  | 'READY FOR DISPATCH'
+  | 'Dispatched'
+  | 'DISPATCHED'
   | 'Installation'
-  | 'AMC Support'
+  | 'INSTALLATION'
   | 'Completed'
   | 'COMPLETED'
-  | 'Lost';
+  | 'Lost'
+  | 'LOST'
+  | string;
 
 export type LeadSource = 'Web' | 'Referral' | 'Field Call' | 'Exhibition' | 'Direct';
 

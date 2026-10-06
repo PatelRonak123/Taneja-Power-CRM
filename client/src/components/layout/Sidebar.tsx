@@ -26,6 +26,7 @@ import {
   Truck,
   ShoppingCart,
   Receipt,
+  Cpu,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -170,6 +171,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       label: 'Dispatch / Delivery Challan',
       icon: Truck,
       description: 'Shipments & physical stock delivery',
+    },
+    {
+      id: 'customer-equipment-management',
+      path: '/customer-equipment',
+      aliasPaths: ['/admin/customer-equipment'],
+      label: 'Customer Equipment / Assets',
+      icon: Cpu,
+      description: 'Physical installed assets & lifecycle',
     },
     {
       id: 'task-management',
@@ -323,13 +332,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           icon: Truck,
         },
         {
-          id: 'employee-amc-contracts',
-          path: '/amc-contracts',
-          aliasPaths: [],
-          label: 'AMC Contracts',
-          icon: ShieldCheck,
-        },
-        {
           id: 'employee-attendance',
           path: '/employee/attendance',
           aliasPaths: ['/attendance'],
@@ -373,6 +375,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           aliasPaths: [],
           label: 'AMC Contracts',
           icon: ShieldCheck,
+        },
+        {
+          id: 'employee-customer-equipment',
+          path: '/customer-equipment',
+          aliasPaths: [],
+          label: 'Customer Equipment',
+          icon: Cpu,
         },
         {
           id: 'employee-follow-ups',
@@ -450,13 +459,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           icon: FileSpreadsheet,
         },
         {
-          id: 'employee-sales-orders',
-          path: '/sales-orders',
-          aliasPaths: ['/admin/sales-orders'],
-          label: 'Sales Orders',
-          icon: ShoppingCart,
-        },
-        {
           id: 'employee-tasks',
           path: '/tasks',
           aliasPaths: ['/admin/tasks'],
@@ -495,13 +497,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           aliasPaths: ['/quotations/new'],
           label: 'Quotations & Proposals',
           icon: FileSpreadsheet,
-        },
-        {
-          id: 'employee-sales-orders',
-          path: '/sales-orders',
-          aliasPaths: ['/admin/sales-orders'],
-          label: 'Sales Orders',
-          icon: ShoppingCart,
         },
         {
           id: 'employee-tasks',

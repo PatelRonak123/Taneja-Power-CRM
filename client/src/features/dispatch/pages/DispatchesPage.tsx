@@ -17,6 +17,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
+import { confirmModal } from '../../../utils/confirmModal';
 import type {
   DispatchStatus,
   CreateDispatchPayload,
@@ -82,15 +83,19 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({
   // Sales Invoices eligible for delivery challan (Phase 4/5)
   const { data: invRes, isLoading: loadingInvoices } = useSalesInvoices({ limit: 500 });
   const invoices = (invRes?.data || []).filter((inv: any) =>
-    ['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status)
+    ['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status) &&
+    inv.quotationType !== 'AMC' &&
+    inv.salesOrder?.quotation?.quotationType !== 'AMC'
   );
 
-  // Sales Orders eligible for dispatch
+  // Sales Orders eligible for dispatch (AMC service contracts are excluded)
   const { data: soRes, isLoading: loadingSOs } = useSalesOrders();
   const salesOrders = (soRes?.data || []).filter(
     (so: any) =>
       ['CONFIRMED', 'PARTIALLY_INVOICED', 'FULLY_INVOICED'].includes(so.status) &&
-      so.dispatchStatus !== 'FULLY_DISPATCHED'
+      so.dispatchStatus !== 'FULLY_DISPATCHED' &&
+      so.dispatchStatus !== 'NOT_APPLICABLE' &&
+      so.quotation?.quotationType !== 'AMC'
   );
 
   // Auto-sync SO ID when an invoice is chosen or loaded from initial prop
@@ -165,8 +170,14 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden max-h-[90vh] flex flex-col">
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -675,8 +686,14 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
 
   if (isLoading || !dispatch) {
     return (
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-xs z-50 flex justify-end">
-        <div className="bg-white w-full max-w-2xl h-full p-6 flex items-center justify-center">
+      <div
+        className="fixed inset-0 bg-black/30 backdrop-blur-xs z-50 flex justify-end"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white w-full max-w-2xl h-full p-6 flex items-center justify-center"
+          onClick={(e) => e.stopPropagation()}
+        >
           <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
         </div>
       </div>
@@ -689,13 +706,28 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
   const isCancelled = dispatch.status === 'CANCELLED';
 
   const handleConfirmStockOut = async () => {
-    if (
-      !confirm(
-        `Are you sure you want to confirm Delivery Challan ${dispatch.dispatchNumber}?\n\nThis will physically deduct stock from inventory (Stock OUT) through StockService.`
-      )
-    ) {
-      return;
-    }
+    const isConfirmed = await confirmModal({
+      title: 'Confirm Delivery Challan & Stock OUT',
+      message: (
+        <div className="space-y-2 text-xs text-slate-600">
+          <p>
+            Are you sure you want to confirm Delivery Challan{' '}
+            <strong className="font-mono text-slate-900 font-bold">{dispatch.dispatchNumber}</strong>?
+          </p>
+          <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200/80 text-xs text-emerald-800 flex items-start gap-2">
+            <PackageCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <span>
+              This will <strong>physically deduct stock from inventory (Stock OUT)</strong> in real time via StockService.
+            </span>
+          </div>
+        </div>
+      ),
+      variant: 'success',
+      confirmText: 'Confirm Stock OUT',
+      cancelText: 'Cancel',
+    });
+
+    if (!isConfirmed) return;
     await confirmMutation.mutateAsync(dispatch.id);
   };
 
@@ -707,8 +739,14 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex justify-end">
-      <div className="bg-white w-full max-w-2xl h-full shadow-2xl flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex justify-end"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-2xl h-full shadow-2xl flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
           <div>
@@ -870,6 +908,46 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
               </p>
             </div>
           )}
+
+          {/* Generated Customer Equipment / Installed Assets */}
+          {isDispatched && dispatch.customerEquipment && dispatch.customerEquipment.length > 0 && (
+            <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-4 text-xs">
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-bold flex items-center gap-1.5 text-blue-900">
+                  <PackageCheck className="w-4 h-4 text-blue-600" />
+                  <span>Generated Customer Equipment ({dispatch.customerEquipment.length} units)</span>
+                </div>
+                <span className="text-[10px] text-blue-600 font-medium">Click asset to view full lifecycle</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {dispatch.customerEquipment.map((eqItem) => (
+                  <button
+                    key={eqItem.id}
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      navigate(`/customer-equipment/${eqItem.id}`);
+                    }}
+                    className="p-2.5 bg-white border border-blue-200 rounded-lg text-left hover:border-blue-400 hover:shadow-sm transition-all group"
+                  >
+                    <div className="font-mono font-bold text-blue-700 group-hover:text-blue-900 flex items-center justify-between">
+                      <span>{eqItem.assetNumber}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 font-sans font-medium">
+                        {eqItem.conditionStatus}
+                      </span>
+                    </div>
+                    <div className="text-[11px] font-medium text-slate-800 truncate mt-0.5">
+                      {eqItem.productName}
+                    </div>
+                    <div className="text-[10px] text-gray-500 flex items-center justify-between mt-1">
+                      <span>Unit #{eqItem.unitIndex}</span>
+                      {eqItem.serialNumber && <span>SN: {eqItem.serialNumber}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer Actions */}
@@ -916,8 +994,15 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
 
       {/* Cancel Modal */}
       {showCancelModal && (
-        <div className="fixed inset-0 bg-black/50 z-60 flex items-center justify-center p-4">
-          <form onSubmit={handleCancelSubmit} className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+        <div
+          className="fixed inset-0 bg-black/50 z-60 flex items-center justify-center p-4"
+          onClick={() => setShowCancelModal(false)}
+        >
+          <form
+            onSubmit={handleCancelSubmit}
+            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-base font-bold text-gray-900 mb-2">Cancel Dispatch</h3>
             <p className="text-xs text-gray-500 mb-4">
               Please enter the reason for cancelling this Delivery Challan. This operation is permanent.
@@ -952,8 +1037,14 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
 
       {/* Print DC Modal */}
       {showPrintModal && (
-        <div className="fixed inset-0 bg-black/60 z-60 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-100 rounded-2xl w-full max-w-4xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden">
+        <div
+          className="fixed inset-0 bg-black/60 z-60 flex items-center justify-center p-4 overflow-y-auto"
+          onClick={() => setShowPrintModal(false)}
+        >
+          <div
+            className="bg-slate-100 rounded-2xl w-full max-w-4xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 bg-white border-b border-gray-200 flex justify-between items-center print:hidden">
               <div className="flex items-center gap-2">
                 <Printer className="w-5 h-5 text-gray-700" />

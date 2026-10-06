@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuthStore } from '../../../stores/authStore';
+import { calculateContractDurationMonths, calculatePreventiveVisits } from '../../../utils/amcCalculations';
 import {
   CreateQuotationPayload,
   LineItemFormInput,
@@ -10,6 +11,8 @@ import {
   QuotationAmcEscalation,
 } from '../types/quotation.types';
 import { customerService } from '../../customers/services/customerService';
+import { customerEquipmentService } from '../../customer-equipment/services/customerEquipmentService';
+import type { CustomerEquipment } from '../../customer-equipment/types/customer-equipment.types';
 import { productService } from '../../products/services/productService';
 import { Customer, CustomerDestination, CustomerStatus } from '../../customers/types/customer.types';
 import { CustomerModal } from '../../customers/components/CustomerModal';
@@ -22,6 +25,7 @@ import {
   Building2,
   Package,
   FileText,
+  Cpu,
   DollarSign,
   AlertTriangle,
   Save,
@@ -63,6 +67,13 @@ export const QuotationForm: React.FC<Props> = ({
     initialData?.destinationId || ''
   );
 
+  // Customer Equipment Registry State for AMC Quotations
+  const [customerEquipmentList, setCustomerEquipmentList] = useState<CustomerEquipment[]>([]);
+  const [loadingEquipment, setLoadingEquipment] = useState<boolean>(false);
+  const [activeEquipmentModalItemIndex, setActiveEquipmentModalItemIndex] = useState<number | null>(null);
+  const [modalSelectedEquipmentIds, setModalSelectedEquipmentIds] = useState<string[]>([]);
+  const [equipmentModalSearch, setEquipmentModalSearch] = useState<string>('');
+
   const { user } = useAuthStore();
   const designationLower = (user?.designation || '').toLowerCase();
   const isSalesOffice =
@@ -75,6 +86,13 @@ export const QuotationForm: React.FC<Props> = ({
   // Header State
   const [quotationType, setQuotationType] = useState<QuotationType>(() => {
     if (initialData?.quotationType) return initialData.quotationType;
+    try {
+      const urlType = new URLSearchParams(window.location.search).get('type');
+      if (urlType === 'SERVICE' || urlType === 'PRODUCT' || urlType === 'TECHNICAL' || urlType === 'AMC') {
+        return urlType as QuotationType;
+      }
+      if (sessionStorage.getItem('pending_repair_link')) return 'SERVICE';
+    } catch {}
     if (isServiceOffice) return 'SERVICE';
     return 'PRODUCT';
   });
@@ -86,12 +104,23 @@ export const QuotationForm: React.FC<Props> = ({
   const [validityDays, setValidityDays] = useState<number>(
     initialData?.currentRevision?.validityDays || 30
   );
+  
   const [currency] = useState<string>(
     initialData?.currentRevision?.currency || 'INR'
   );
-  const [subject, setSubject] = useState<string>(
-    initialData?.currentRevision?.subject || ''
-  );
+  const [subject, setSubject] = useState<string>(() => {
+    if (initialData?.currentRevision?.subject) return initialData.currentRevision.subject;
+    try {
+      const stored = sessionStorage.getItem('pending_repair_link');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.amcContractNumber) {
+          return `Repair Quotation - AMC ${parsed.amcContractNumber}${parsed.defectNotes ? ` (${parsed.defectNotes})` : ''}`;
+        }
+      }
+    } catch {}
+    return '';
+  });
 
   // AMC Contract Configuration State
   const [amcPlan, setAmcPlan] = useState<string>(
@@ -109,9 +138,6 @@ export const QuotationForm: React.FC<Props> = ({
   );
   const [amcServiceFrequency, setAmcServiceFrequency] = useState<string>(
     initialData?.currentRevision?.amcServiceFrequency || 'Quarterly'
-  );
-  const [amcScheduledVisits, setAmcScheduledVisits] = useState<number>(
-    initialData?.currentRevision?.amcScheduledVisits ?? 4
   );
   const [amcBreakdownVisitType, setAmcBreakdownVisitType] = useState<string>(
     initialData?.currentRevision?.amcBreakdownVisitType || 'UNLIMITED'
@@ -234,8 +260,39 @@ export const QuotationForm: React.FC<Props> = ({
         equipmentConfiguration: it.equipmentConfiguration || null,
         equipmentRating: it.equipmentRating || null,
         sortOrder: it.sortOrder || 0,
+        customerEquipmentIds: (it as any).customerEquipmentIds || ((it as any).customerEquipment?.map((e: any) => e.id)) || [],
       }));
     }
+    let pendingRepair: any = null;
+    try {
+      const stored = sessionStorage.getItem('pending_repair_link');
+      if (stored) pendingRepair = JSON.parse(stored);
+    } catch {}
+
+    const isServiceQuote = (new URLSearchParams(window.location.search).get('type') === 'SERVICE') || !!pendingRepair;
+
+    if (isServiceQuote && initialData?.quotationType !== 'AMC') {
+      return [
+        {
+          itemType: 'SERVICE',
+          productName: 'Repair & Service Charges',
+          description: pendingRepair?.defectNotes || 'Breakdown repair and service charges',
+          equipmentType: null,
+          equipmentConfiguration: null,
+          equipmentRating: null,
+          unit: 'JOB',
+          quantity: 1,
+          unitPrice: 0,
+          discountPercent: 0,
+          discountAmount: 0,
+          gstRate: 18,
+          hsnSac: '998719',
+          sortOrder: 0,
+          customerEquipmentIds: pendingRepair?.equipmentId ? [pendingRepair.equipmentId] : [],
+        },
+      ];
+    }
+
     return [
       {
         itemType: initialData?.quotationType === 'AMC' ? 'AMC' : 'PRODUCT',
@@ -251,6 +308,7 @@ export const QuotationForm: React.FC<Props> = ({
         gstRate: 18,
         hsnSac: initialData?.quotationType === 'AMC' ? '998719' : null,
         sortOrder: 0,
+        customerEquipmentIds: [],
       },
     ];
   });
@@ -402,9 +460,19 @@ export const QuotationForm: React.FC<Props> = ({
 
         // Auto-select client if URL search parameters provide customer info (e.g. from Leads pipeline)
         const params = new URLSearchParams(window.location.search);
-        const paramCustomerId = params.get('customerId');
+        let paramCustomerId = params.get('customerId');
         const paramCustomerName = params.get('customerName');
         const paramCompanyName = params.get('companyName');
+
+        if (!paramCustomerId) {
+          try {
+            const stored = sessionStorage.getItem('pending_repair_link');
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (parsed.customerId) paramCustomerId = parsed.customerId;
+            }
+          } catch {}
+        }
 
         let targetId = initialData?.customerId || '';
 
@@ -475,6 +543,29 @@ export const QuotationForm: React.FC<Props> = ({
     loadDestinations();
   }, [selectedCustomerId]);
 
+  // Load customer installed equipment when selected customer changes
+  useEffect(() => {
+    if (!selectedCustomerId) {
+      setCustomerEquipmentList([]);
+      return;
+    }
+
+    const loadCustomerEquipment = async () => {
+      try {
+        setLoadingEquipment(true);
+        const eqList = await customerEquipmentService.getEquipmentByCustomer(selectedCustomerId);
+        setCustomerEquipmentList(eqList || []);
+      } catch (err) {
+        console.error('Failed to load customer equipment', err);
+        setCustomerEquipmentList([]);
+      } finally {
+        setLoadingEquipment(false);
+      }
+    };
+
+    loadCustomerEquipment();
+  }, [selectedCustomerId]);
+
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) || initialData?.customer;
   const selectedDestination = destinations.find((d) => d.id === selectedDestinationId) || initialData?.destination;
 
@@ -485,16 +576,16 @@ export const QuotationForm: React.FC<Props> = ({
     }
   }, [sameAsCustomer, selectedCustomer]);
 
-  // Calculated AMC Duration (Months)
-  const calculateAmcDurationMonths = () => {
-    if (!amcStartDate || !amcEndDate) return 12;
-    const start = new Date(amcStartDate);
-    const end = new Date(amcEndDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const months = Math.round(diffDays / 30);
-    return months > 0 ? months : 12;
-  };
+  // Calculated AMC Duration (Months) & Scheduled Preventive Visits
+  const calculatedAmcDuration = useMemo(
+    () => calculateContractDurationMonths(amcStartDate, amcEndDate),
+    [amcStartDate, amcEndDate]
+  );
+
+  const autoScheduledVisits = useMemo(
+    () => calculatePreventiveVisits(amcStartDate, amcEndDate, amcServiceFrequency),
+    [amcStartDate, amcEndDate, amcServiceFrequency]
+  );
 
   // Determine state for provisional tax calculation
   const customerState = selectedDestination?.state || selectedCustomer?.state || 'Gujarat';
@@ -515,7 +606,9 @@ export const QuotationForm: React.FC<Props> = ({
         if (prod) {
           item.productName = prod.name;
           item.productSku = prod.sku;
-          item.unitPrice = Number(prod.price) || 0;
+          if (quotationType !== 'AMC') {
+            item.unitPrice = Number(prod.price) || 0;
+          }
           item.description = prod.description || '';
         }
       }
@@ -554,6 +647,7 @@ export const QuotationForm: React.FC<Props> = ({
         gstRate: 18,
         hsnSac: quotationType === 'AMC' ? '998719' : null,
         sortOrder: prev.length,
+        customerEquipmentIds: [],
       },
     ]);
   };
@@ -746,6 +840,7 @@ export const QuotationForm: React.FC<Props> = ({
         equipmentConfiguration: quotationType === 'AMC' ? it.equipmentConfiguration || null : it.equipmentConfiguration || null,
         equipmentRating: quotationType === 'AMC' ? it.equipmentRating || null : it.equipmentRating || null,
         sortOrder: idx,
+        customerEquipmentIds: it.customerEquipmentIds && it.customerEquipmentIds.length > 0 ? it.customerEquipmentIds : undefined,
       })),
     };
 
@@ -754,7 +849,7 @@ export const QuotationForm: React.FC<Props> = ({
       payload.amcStartDate = amcStartDate;
       payload.amcEndDate = amcEndDate;
       payload.amcServiceFrequency = amcServiceFrequency;
-      payload.amcScheduledVisits = Number(amcScheduledVisits) || 0;
+      payload.amcScheduledVisits = autoScheduledVisits;
       payload.amcBreakdownVisitType = amcBreakdownVisitType;
       payload.customerCode = customerCode.trim() || null;
       payload.branch = branch.trim() || null;
@@ -1091,8 +1186,14 @@ export const QuotationForm: React.FC<Props> = ({
                 2. AMC Contract Configuration
               </h2>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
-              Calculated Period: {calculateAmcDurationMonths()} Months
+            <span
+              className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                calculatedAmcDuration > 0
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
+              }`}
+            >
+              Calculated Period: {calculatedAmcDuration} {calculatedAmcDuration === 1 ? 'Month' : 'Months'}
             </span>
           </div>
 
@@ -1157,17 +1258,30 @@ export const QuotationForm: React.FC<Props> = ({
               </select>
             </div>
 
-            {/* Scheduled Visits */}
+            {/* Scheduled Visits (Calculated / Read-Only) */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700">Scheduled Preventive Visits</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700">Scheduled Preventive Visits</label>
+                <span className="text-[10px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                  Calculated
+                </span>
+              </div>
               <input
                 type="number"
                 min={0}
-                value={amcScheduledVisits}
-                onChange={(e) => setAmcScheduledVisits(Number(e.target.value))}
-                className="px-3 py-2 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl"
-                required
+                value={autoScheduledVisits}
+                readOnly
+                disabled
+                tabIndex={-1}
+                className="px-3 py-2 text-xs font-bold text-slate-800 bg-slate-100/90 border border-slate-200 rounded-xl cursor-not-allowed select-none focus:outline-none"
               />
+              <p className="text-[10px] text-slate-500 font-medium">
+                {calculatedAmcDuration > 0
+                  ? `${autoScheduledVisits} visits based on ${calculatedAmcDuration} ${calculatedAmcDuration === 1 ? 'month' : 'months'} @ ${amcServiceFrequency}`
+                  : amcEndDate && amcStartDate && new Date(amcEndDate) < new Date(amcStartDate)
+                  ? 'Invalid date range: End Date cannot be earlier than Start Date'
+                  : 'Calculated automatically from contract duration and frequency'}
+              </p>
             </div>
 
             {/* Breakdown Visit Entitlement */}
@@ -1242,36 +1356,121 @@ export const QuotationForm: React.FC<Props> = ({
 
                 {/* AMC Specific Equipment Specification Inputs */}
                 {quotationType === 'AMC' && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-blue-50/50 border border-blue-200/60 rounded-xl">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-bold text-blue-900">Equipment Type</label>
-                      <input
-                        type="text"
-                        value={item.equipmentType || ''}
-                        onChange={(e) => handleItemChange(index, 'equipmentType', e.target.value)}
-                        placeholder="e.g. STABILIZER / TRANSFORMER"
-                        className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
-                      />
+                  <div className="flex flex-col gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-blue-50/50 border border-blue-200/60 rounded-xl">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-bold text-blue-900">Equipment Type</label>
+                        <input
+                          type="text"
+                          value={item.equipmentType || ''}
+                          onChange={(e) => handleItemChange(index, 'equipmentType', e.target.value)}
+                          placeholder="e.g. STABILIZER / TRANSFORMER"
+                          className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-bold text-blue-900">Equipment Configuration</label>
+                        <input
+                          type="text"
+                          value={item.equipmentConfiguration || ''}
+                          onChange={(e) => handleItemChange(index, 'equipmentConfiguration', e.target.value)}
+                          placeholder="e.g. 50 KVA"
+                          className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-bold text-blue-900">Equipment Rating</label>
+                        <input
+                          type="text"
+                          value={item.equipmentRating || ''}
+                          onChange={(e) => handleItemChange(index, 'equipmentRating', e.target.value)}
+                          placeholder="e.g. 30 KVA"
+                          className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
+                        />
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-bold text-blue-900">Equipment Configuration</label>
-                      <input
-                        type="text"
-                        value={item.equipmentConfiguration || ''}
-                        onChange={(e) => handleItemChange(index, 'equipmentConfiguration', e.target.value)}
-                        placeholder="e.g. 50 KVA"
-                        className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-bold text-blue-900">Equipment Rating</label>
-                      <input
-                        type="text"
-                        value={item.equipmentRating || ''}
-                        onChange={(e) => handleItemChange(index, 'equipmentRating', e.target.value)}
-                        placeholder="e.g. 30 KVA"
-                        className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
-                      />
+
+                    {/* Customer Installed Equipment Selection Box */}
+                    <div className="p-3 bg-indigo-50/50 border border-indigo-200/60 rounded-xl flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Cpu size={15} className="text-indigo-600" />
+                          <span className="text-xs font-bold text-indigo-950">
+                            Covered Physical Assets (Installed Equipment)
+                          </span>
+                          {item.customerEquipmentIds && item.customerEquipmentIds.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-700">
+                              {item.customerEquipmentIds.length} Assets Attached
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveEquipmentModalItemIndex(index);
+                            setModalSelectedEquipmentIds(item.customerEquipmentIds || []);
+                            setEquipmentModalSearch('');
+                          }}
+                          className="px-3 py-1 text-xs font-semibold text-indigo-700 bg-white hover:bg-indigo-100 border border-indigo-300 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <Plus size={13} />
+                          <span>Attach Customer Assets</span>
+                        </button>
+                      </div>
+
+                      {item.customerEquipmentIds && item.customerEquipmentIds.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {item.customerEquipmentIds.map((eqId) => {
+                            const eq = customerEquipmentList.find((e) => e.id === eqId);
+                            return (
+                              <div
+                                key={eqId}
+                                className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white text-indigo-950 border border-indigo-200 shadow-2xs"
+                              >
+                                <span className="font-mono font-bold text-blue-700">
+                                  {eq?.assetNumber || eqId}
+                                </span>
+                                {eq?.productName && (
+                                  <span className="text-slate-600 truncate max-w-[150px]">
+                                    {eq.productName}
+                                  </span>
+                                )}
+                                {eq?.serialNumber && (
+                                  <span className="text-slate-400 font-mono text-[10px]">
+                                    SN: {eq.serialNumber}
+                                  </span>
+                                )}
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
+                                  eq?.conditionStatus === 'OPERATIONAL'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}>
+                                  {eq?.conditionStatus || 'OPERATIONAL'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = (item.customerEquipmentIds || []).filter((id) => id !== eqId);
+                                    handleItemChange(index, 'customerEquipmentIds', next);
+                                    if (next.length > 0) {
+                                      handleItemChange(index, 'quantity', next.length);
+                                    }
+                                  }}
+                                  className="text-slate-400 hover:text-rose-600 transition-colors ml-1"
+                                  title="Detach asset"
+                                >
+                                  <XCircle size={14} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 italic">
+                          No physical equipment attached to this line. Click "Attach Customer Assets" to select from customer's delivered equipment.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1846,6 +2045,158 @@ export const QuotationForm: React.FC<Props> = ({
         formSubmitting={customerFormSubmitting}
         formError={customerFormError}
       />
+
+      {/* Customer Equipment Selection Modal */}
+      {activeEquipmentModalItemIndex !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-slate-900 font-bold">
+                <Cpu size={18} className="text-indigo-600" />
+                <h3>Select Customer Equipment (Item #{activeEquipmentModalItemIndex + 1})</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveEquipmentModalItemIndex(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <XCircle size={18} />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span>Customer: <strong>{selectedCustomer?.companyName || selectedCustomer?.name || 'Selected Customer'}</strong></span>
+              <span>Available Assets: <strong>{loadingEquipment ? 'Loading...' : customerEquipmentList.length}</strong></span>
+            </div>
+
+            <input
+              type="text"
+              value={equipmentModalSearch}
+              onChange={(e) => setEquipmentModalSearch(e.target.value)}
+              placeholder="Search by asset number, product, serial number, or model..."
+              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-hidden focus:border-indigo-500"
+            />
+
+            <div className="flex-1 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
+              {customerEquipmentList.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-400">
+                  <Package size={28} className="mx-auto mb-2 text-slate-300" />
+                  No customer equipment found for this customer.
+                </div>
+              ) : (
+                customerEquipmentList
+                  .filter((eq) => {
+                    const q = equipmentModalSearch.trim().toLowerCase();
+                    if (!q) return true;
+                    return (
+                      eq.assetNumber.toLowerCase().includes(q) ||
+                      eq.productName.toLowerCase().includes(q) ||
+                      (eq.serialNumber && eq.serialNumber.toLowerCase().includes(q)) ||
+                      (eq.model && eq.model.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((eq) => {
+                    const isChecked = modalSelectedEquipmentIds.includes(eq.id);
+                    return (
+                      <div
+                        key={eq.id}
+                        onClick={() => {
+                          if (isChecked) {
+                            setModalSelectedEquipmentIds((prev) => prev.filter((id) => id !== eq.id));
+                          } else {
+                            setModalSelectedEquipmentIds((prev) => [...prev, eq.id]);
+                          }
+                        }}
+                        className={`p-3 flex items-center justify-between gap-3 text-xs cursor-pointer hover:bg-slate-50 transition-colors ${
+                          isChecked ? 'bg-indigo-50/60' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 pointer-events-none"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2 font-mono font-bold text-indigo-900">
+                              <span>{eq.assetNumber}</span>
+                              {eq.serialNumber && (
+                                <span className="font-normal text-slate-500 text-[11px]">
+                                  SN: {eq.serialNumber}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-slate-700 font-medium mt-0.5">
+                              {eq.productName}
+                              {eq.model && <span className="text-slate-500 font-normal"> • {eq.model}</span>}
+                              {eq.capacityRating && <span className="text-slate-500 font-normal"> • {eq.capacityRating}</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            eq.conditionStatus === 'OPERATIONAL'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            {eq.conditionStatus}
+                          </span>
+                          <div className="text-[10px] text-slate-400 mt-1">
+                            Delivered: {eq.deliveryDate ? new Date(eq.deliveryDate).toLocaleDateString() : '—'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <span className="text-xs text-slate-600 font-medium">
+                {modalSelectedEquipmentIds.length} Assets Selected
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveEquipmentModalItemIndex(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    const idx = activeEquipmentModalItemIndex;
+                    if (idx !== null) {
+                      handleItemChange(idx, 'customerEquipmentIds', modalSelectedEquipmentIds);
+                      if (modalSelectedEquipmentIds.length > 0) {
+                        handleItemChange(idx, 'quantity', modalSelectedEquipmentIds.length);
+                        // Pre-populate technical details from first asset if available
+                        const firstAsset = customerEquipmentList.find((e) => e.id === modalSelectedEquipmentIds[0]);
+                        if (firstAsset) {
+                          if (firstAsset.productName) handleItemChange(idx, 'productName', firstAsset.productName);
+                          if (firstAsset.make) handleItemChange(idx, 'make', firstAsset.make);
+                          if (firstAsset.model) handleItemChange(idx, 'model', firstAsset.model);
+                          if (firstAsset.capacityRating) handleItemChange(idx, 'equipmentRating', firstAsset.capacityRating);
+                          if (firstAsset.productId) handleItemChange(idx, 'productId', firstAsset.productId);
+                        }
+                      }
+                    }
+                    setActiveEquipmentModalItemIndex(null);
+                  }}
+                >
+                  Apply Selection
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 };

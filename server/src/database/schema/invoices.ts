@@ -87,6 +87,7 @@ export const salesInvoices = pgTable(
     totalTax: numeric('total_tax', { precision: 14, scale: 2 }).notNull().default('0.00'),
     roundOff: numeric('round_off', { precision: 10, scale: 2 }).notNull().default('0.00'),
     totalAmount: numeric('total_amount', { precision: 14, scale: 2 }).notNull().default('0.00'),
+    paidAmount: numeric('paid_amount', { precision: 14, scale: 2 }).notNull().default('0.00'),
 
     // Audit Fields
     createdBy: uuid('created_by')

@@ -69,7 +69,7 @@ export interface SalesOrder {
   totalAmount: string;
 
   status: SalesOrderStatus;
-  dispatchStatus?: 'NOT_DISPATCHED' | 'PARTIALLY_DISPATCHED' | 'FULLY_DISPATCHED' | string;
+  dispatchStatus?: 'NOT_DISPATCHED' | 'PARTIALLY_DISPATCHED' | 'FULLY_DISPATCHED' | 'NOT_APPLICABLE' | string;
 
   createdBy: string;
   confirmedBy: string | null;
@@ -102,6 +102,12 @@ export interface SalesOrder {
   createdByUser?: { id: string; fullName: string; email: string };
   confirmedByUser?: { id: string; fullName: string; email: string } | null;
   cancelledByUser?: { id: string; fullName: string; email: string } | null;
+  // Enriched by the service layer – present on GET /sales-orders/:id and list responses
+  linkedAmcContract?: {
+    id: string;
+    contractNumber: string;
+    status: string;
+  } | null;
 }
 
 // ─── Request/Response Types ──────────────────────────────────────────────────

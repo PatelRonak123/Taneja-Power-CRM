@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   FileText,
   Plus,
@@ -15,6 +15,11 @@ import {
   CheckCheck,
   Receipt,
   AlertTriangle,
+  ShieldCheck,
+  IndianRupee,
+  CreditCard,
+  Building2,
+  Users,
 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
 import { navigate } from '../../../app/router/navigation';
@@ -22,13 +27,12 @@ import type {
   SalesInvoice,
   SalesInvoiceStatus,
   VendorInvoiceStatus,
-  CreateSalesInvoiceFromSoPayload,
   CreateVendorInvoicePayload,
+  CustomerReceivableSummary,
 } from '../types/invoice.types';
 import {
   useSalesInvoices,
   useSalesInvoice,
-  useCreateSalesInvoiceFromSo,
   useSubmitSalesInvoice,
   useIssueSalesInvoice,
   useCancelSalesInvoice,
@@ -39,9 +43,12 @@ import {
   useVerifyVendorInvoice,
   usePostVendorInvoice,
   useCancelVendorInvoice,
+  usePayments,
+  useReceivablesSummary,
 } from '../hooks';
-import { useSalesOrders } from '../../sales-orders/hooks';
 import { SalesInvoicePrintDocument } from '../components/SalesInvoicePrintDocument';
+import { CreateSalesInvoiceModal } from '../components/CreateSalesInvoiceModal';
+import { RecordPaymentModal } from '../components/RecordPaymentModal';
 
 // ─── Status Badges ────────────────────────────────────────────────────────────
 
@@ -89,131 +96,7 @@ const fmt = (v: string | number | null | undefined) =>
 const fmtDate = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
-// ─── Create Sales Invoice Modal ───────────────────────────────────────────────
 
-interface CreateSalesInvoiceModalProps {
-  onClose: () => void;
-  initialSalesOrderId?: string;
-}
-
-const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = ({
-  onClose,
-  initialSalesOrderId,
-}) => {
-  const [salesOrderId, setSalesOrderId] = useState(initialSalesOrderId || '');
-  const [notes, setNotes] = useState('');
-  const [dueDate, setDueDate] = useState('');
-
-  // Fetch confirmed sales orders for selection
-  const { data: soRes, isLoading: loadingSos } = useSalesOrders({ status: 'CONFIRMED', limit: 50 });
-  const confirmedSos = soRes?.data || [];
-
-  const createInvoice = useCreateSalesInvoiceFromSo();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!salesOrderId) return;
-    try {
-      const payload: CreateSalesInvoiceFromSoPayload = {
-        notes: notes.trim() || undefined,
-        dueDate: dueDate || undefined,
-      };
-      await createInvoice.mutateAsync({ salesOrderId, payload });
-      onClose();
-    } catch (_) {}
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Generate Sales Invoice</h2>
-              <p className="text-xs text-gray-500">From a confirmed Sales Order</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Select Confirmed Sales Order <span className="text-red-500">*</span>
-            </label>
-            {loadingSos ? (
-              <div className="py-2 text-sm text-gray-400">Loading sales orders...</div>
-            ) : confirmedSos.length === 0 ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                No confirmed sales orders awaiting invoice. Please confirm a Sales Order first.
-              </div>
-            ) : (
-              <select
-                id="create-inv-so-select"
-                value={salesOrderId}
-                onChange={(e) => setSalesOrderId(e.target.value)}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="">-- Choose Sales Order --</option>
-                {confirmedSos.map((so) => (
-                  <option key={so.id} value={so.id}>
-                    {so.salesOrderNumber} — {fmt(so.totalAmount)}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Payment Due Date</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional notes or instructions..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              id="create-inv-submit-btn"
-              type="submit"
-              disabled={!salesOrderId || createInvoice.isPending}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {createInvoice.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Generate Invoice
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
 
 // ─── Record Vendor Invoice Modal ──────────────────────────────────────────────
 
@@ -505,8 +388,28 @@ export const InvoicesPage: React.FC = () => {
   const isAdmin = user?.role === 'ADMIN';
   const isManager = (user as any)?.role === 'MANAGER';
   const canIssueOrPost = isAdmin || isManager;
+  const designationLower = (user?.designation || '').toLowerCase();
+  const isPrivileged = isAdmin || isManager;
+  const isServiceOffice =
+    ((user?.role === 'USER' || (user as any)?.role === 'SERVICE') &&
+      designationLower.includes('service')) ||
+    (user?.workType === 'OFFICE' && designationLower.includes('service'));
+  const isAccountantOffice = user?.role === 'USER' && designationLower.includes('accountant');
+  const isSalesOffice =
+    user?.role === 'USER' && designationLower.includes('sales') && !designationLower.includes('service');
+  // Payment recording/updating is restricted to Admin, Manager, or Accountant Office only (NOT Service Office)
+  const canManagePayments = (isPrivileged || isAccountantOffice) && !isServiceOffice;
+  const canCreateAmcContract = (isServiceOffice || isPrivileged) && !isAccountantOffice && !isSalesOffice;
+  const canViewAmcContract = (isServiceOffice || isPrivileged) && !isAccountantOffice && !isSalesOffice;
 
-  const [activeTab, setActiveTab] = useState<'sales' | 'vendor'>('sales');
+  const [activeTab, setActiveTab] = useState<'sales' | 'vendor' | 'collections'>('sales');
+  const [collectionsSubTab, setCollectionsSubTab] = useState<'receivables' | 'ledger'>('receivables');
+  const [paymentsSearch, setPaymentsSearch] = useState('');
+  const [paymentsPage, setPaymentsPage] = useState(1);
+  const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
+  const [selectedPaymentInvoice, setSelectedPaymentInvoice] = useState<any>(null);
+  const [selectedPaymentCustomer, setSelectedPaymentCustomer] = useState<{ id: string; name: string } | null>(null);
+  const [customerSearch, setCustomerSearch] = useState('');
 
   // Sales Invoice filters
   const [salesSearch, setSalesSearch] = useState('');
@@ -518,9 +421,28 @@ export const InvoicesPage: React.FC = () => {
   const [vendorStatusFilter, setVendorStatusFilter] = useState('');
   const [vendorPage, setVendorPage] = useState(1);
 
-  // Modals & Drawers
   const [showCreateSalesModal, setShowCreateSalesModal] = useState(false);
+  const [initialSalesOrderId, setInitialSalesOrderId] = useState<string | undefined>(undefined);
   const [showRecordVendorModal, setShowRecordVendorModal] = useState(false);
+
+  useEffect(() => {
+    const checkParams = () => {
+      const params = new URLSearchParams(window.location.search);
+      const soId = params.get('salesOrderId');
+      const openCreate = params.get('create') === 'true' || !!soId;
+      if (soId) {
+        setInitialSalesOrderId(soId);
+        setActiveTab('sales');
+        if (openCreate) {
+          setShowCreateSalesModal(true);
+        }
+      }
+    };
+
+    checkParams();
+    window.addEventListener('popstate', checkParams);
+    return () => window.removeEventListener('popstate', checkParams);
+  }, []);
   const [selectedSalesInvoiceId, setSelectedSalesInvoiceId] = useState<string | null>(null);
   const [selectedVendorInvoiceId, setSelectedVendorInvoiceId] = useState<string | null>(null);
   const [printInvoice, setPrintInvoice] = useState<SalesInvoice | null>(null);
@@ -550,6 +472,29 @@ export const InvoicesPage: React.FC = () => {
     status: vendorStatusFilter || undefined,
     page: vendorPage,
     limit: 25,
+  });
+
+  const {
+    data: receivablesData,
+    isLoading: loadingReceivables,
+    refetch: refetchReceivables,
+  } = useReceivablesSummary();
+
+  const {
+    data: paymentsData,
+    isLoading: loadingPayments,
+    refetch: refetchPayments,
+  } = usePayments({
+    search: paymentsSearch || undefined,
+    page: paymentsPage,
+    limit: 25,
+  });
+
+  const {
+    data: invoicePaymentsData,
+    refetch: refetchInvoicePayments,
+  } = usePayments({
+    salesInvoiceId: selectedSalesInvoiceId || undefined,
   });
 
   const { data: salesDetail, isLoading: loadingSalesDetail } = useSalesInvoice(
@@ -593,8 +538,15 @@ export const InvoicesPage: React.FC = () => {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => (activeTab === 'sales' ? refetchSales() : refetchVendor())}
-            className="p-2 border border-gray-300 rounded-xl hover:bg-gray-50 text-gray-600 transition-colors"
+            onClick={() => {
+              if (activeTab === 'sales') refetchSales();
+              else if (activeTab === 'vendor') refetchVendor();
+              else {
+                refetchReceivables();
+                refetchPayments();
+              }
+            }}
+            className="p-2 border border-gray-300 rounded-xl hover:bg-gray-50 text-gray-600 transition-colors cursor-pointer"
             title="Refresh"
           >
             <RefreshCw className="w-4 h-4" />
@@ -604,19 +556,31 @@ export const InvoicesPage: React.FC = () => {
             <button
               id="new-sales-invoice-btn"
               onClick={() => setShowCreateSalesModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Generate Sales Invoice
             </button>
-          ) : (
+          ) : activeTab === 'vendor' ? (
             <button
               id="new-vendor-invoice-btn"
               onClick={() => setShowRecordVendorModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Record Vendor Bill
             </button>
-          )}
+          ) : canManagePayments ? (
+            <button
+              id="new-payment-btn"
+              onClick={() => {
+                setSelectedPaymentInvoice(null);
+                setSelectedPaymentCustomer(null);
+                setShowRecordPaymentModal(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> Record Payment Receipt
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -624,7 +588,7 @@ export const InvoicesPage: React.FC = () => {
       <div className="flex border-b border-gray-200 gap-8">
         <button
           onClick={() => setActiveTab('sales')}
-          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${
+          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'sales'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -639,7 +603,7 @@ export const InvoicesPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('vendor')}
-          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${
+          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'vendor'
               ? 'border-purple-600 text-purple-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -650,6 +614,23 @@ export const InvoicesPage: React.FC = () => {
           <span className="ml-1.5 px-2 py-0.5 text-xs rounded-full bg-purple-50 text-purple-700 font-bold">
             {vendorData?.meta?.total ?? vendorInvoices.length}
           </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('collections')}
+          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
+            activeTab === 'collections'
+              ? 'border-emerald-600 text-emerald-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <IndianRupee className="w-4 h-4" />
+          Payments & Collections
+          {receivablesData?.summary?.totalOutstanding ? (
+            <span className="ml-1.5 px-2 py-0.5 text-xs rounded-full bg-rose-50 text-rose-700 font-bold">
+              ₹{Number(receivablesData.summary.totalOutstanding).toLocaleString('en-IN', { maximumFractionDigits: 0 })} Due
+            </span>
+          ) : null}
         </button>
       </div>
 
@@ -685,6 +666,8 @@ export const InvoicesPage: React.FC = () => {
                 <option value="DRAFT">Draft</option>
                 <option value="PENDING_ISSUE">Pending Issue</option>
                 <option value="ISSUED">Issued</option>
+                <option value="PARTIALLY_PAID">Partially Paid</option>
+                <option value="PAID">Paid</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -743,6 +726,12 @@ export const InvoicesPage: React.FC = () => {
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
                       Grand Total
                     </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                      Paid
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                      Balance Due
+                    </th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
                       Status
                     </th>
@@ -775,12 +764,38 @@ export const InvoicesPage: React.FC = () => {
                       <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">
                         {fmt(inv.totalAmount)}
                       </td>
+                      <td className="px-4 py-3 text-right font-mono font-semibold text-emerald-700">
+                        {fmt(inv.paidAmount || '0.00')}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono font-bold">
+                        {Math.max(0, Number(inv.totalAmount) - Number(inv.paidAmount || 0)) <= 0 ? (
+                          <span className="text-emerald-600">₹0.00</span>
+                        ) : (
+                          <span className="text-rose-600">
+                            {fmt(Math.max(0, Number(inv.totalAmount) - Number(inv.paidAmount || 0)))}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-center">
                         <SalesStatusBadge status={inv.status} />
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status) && (
+                          {/* Record Payment Button */}
+                          {canManagePayments && ['ISSUED', 'PARTIALLY_PAID'].includes(inv.status) && (
+                            <button
+                              onClick={() => {
+                                setSelectedPaymentInvoice(inv);
+                                setShowRecordPaymentModal(true);
+                              }}
+                              className="p-1.5 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200"
+                              title="Record Payment Received"
+                            >
+                              <IndianRupee className="w-4 h-4" />
+                            </button>
+                          )}
+                          {/* Dispatch button: only for non-AMC invoices */}
+                          {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status) && (inv as any).quotationType !== 'AMC' && (
                             <button
                               onClick={() =>
                                 navigate(
@@ -799,6 +814,16 @@ export const InvoicesPage: React.FC = () => {
                               title="Create Delivery Challan / Dispatch"
                             >
                               <Truck className="w-4 h-4" />
+                            </button>
+                          )}
+                          {/* AMC Contract icon for AMC invoices */}
+                          {(inv as any).quotationType === 'AMC' && (inv as any).linkedAmcContractId && canViewAmcContract && (
+                            <button
+                              onClick={() => navigate(`/amc-contracts/${(inv as any).linkedAmcContractId}`)}
+                              className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                              title="View AMC Contract"
+                            >
+                              <ShieldCheck className="w-4 h-4" />
                             </button>
                           )}
                           <button
@@ -824,7 +849,7 @@ export const InvoicesPage: React.FC = () => {
             </div>
           )}
         </div>
-      ) : (
+      ) : activeTab === 'vendor' ? (
         <div className="flex flex-col gap-4">
           {/* Vendor Filters */}
           <div className="flex gap-3 flex-wrap items-center bg-white p-4 rounded-xl border border-gray-200">
@@ -962,6 +987,368 @@ export const InvoicesPage: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ─── PAYMENTS & COLLECTIONS TAB ─── */
+        <div className="flex flex-col gap-6">
+          {/* KPI Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Total Invoiced</span>
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <FileText className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-bold font-mono text-slate-900">
+                ₹{Number(receivablesData?.summary?.totalInvoiced || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">Across all issued sales invoices</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Total Collected</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-bold font-mono text-emerald-600">
+                ₹{Number(receivablesData?.summary?.totalPaid || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">Total payments received to date</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Total Outstanding Due</span>
+                <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-bold font-mono text-rose-600">
+                ₹{Number(receivablesData?.summary?.totalOutstanding || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">Pending customer receivables</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Customers with Dues</span>
+                <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Users className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-bold font-mono text-slate-900">
+                {receivablesData?.customers?.filter((c: CustomerReceivableSummary) => Number(c.totalOutstanding) > 0).length || 0}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">Active customer accounts with pending balance</p>
+            </div>
+          </div>
+
+          {/* Sub-tabs header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-2">
+            <div className="flex gap-4">
+              <button
+                onClick={() => setCollectionsSubTab('receivables')}
+                className={`pb-2 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
+                  collectionsSubTab === 'receivables'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                Customer Receivables
+                <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700 font-bold">
+                  {receivablesData?.customers?.length || 0}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setCollectionsSubTab('ledger')}
+                className={`pb-2 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
+                  collectionsSubTab === 'ledger'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Receipt className="w-4 h-4" />
+                Payment Receipts History
+                <span className="px-2 py-0.5 text-xs rounded-full bg-emerald-50 text-emerald-700 font-bold">
+                  {paymentsData?.meta?.total ?? paymentsData?.data?.length ?? 0}
+                </span>
+              </button>
+            </div>
+
+            {canManagePayments && (
+              <button
+                onClick={() => {
+                  setSelectedPaymentInvoice(null);
+                  setSelectedPaymentCustomer(null);
+                  setShowRecordPaymentModal(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5" /> Record Payment
+              </button>
+            )}
+          </div>
+
+          {/* Sub-tab 1: Receivables by Customer */}
+          {collectionsSubTab === 'receivables' ? (
+            <div className="flex flex-col gap-4">
+              {/* Search */}
+              <div className="flex gap-3 items-center bg-white p-4 rounded-xl border border-gray-200">
+                <div className="relative flex-1 min-w-48 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Filter customer by name or phone..."
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    className="pl-9 pr-3 py-2 w-full border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                {customerSearch && (
+                  <button
+                    onClick={() => setCustomerSearch('')}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    <X className="w-3.5 h-3.5" /> Clear
+                  </button>
+                )}
+              </div>
+
+              {loadingReceivables ? (
+                <div className="flex items-center justify-center py-16">
+                  <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
+                </div>
+              ) : !receivablesData?.customers || receivablesData.customers.length === 0 ? (
+                <div className="bg-white p-12 text-center rounded-2xl border border-gray-200">
+                  <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <h3 className="font-semibold text-gray-800">No Receivables Found</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Customer invoices will appear here once issued.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                          Customer
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                          Contact
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                          Total Invoiced
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                          Amount Received
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                          Outstanding Balance
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
+                          Account Status
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {receivablesData.customers
+                        .filter((c: CustomerReceivableSummary) =>
+                          !customerSearch
+                            ? true
+                            : c.customerName.toLowerCase().includes(customerSearch.toLowerCase()) ||
+                              (c.phone && c.phone.includes(customerSearch))
+                        )
+                        .map((c: CustomerReceivableSummary) => {
+                          const outstanding = Number(c.totalOutstanding ?? c.outstandingBalance ?? 0);
+                          return (
+                            <tr key={c.customerId} className="hover:bg-gray-50/70 transition-colors">
+                              <td className="px-4 py-3">
+                                <p className="font-semibold text-gray-900">{c.customerName}</p>
+                              </td>
+                              <td className="px-4 py-3 text-gray-600 text-xs">
+                                {c.phone || c.email || '—'}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono font-medium text-gray-700">
+                                {fmt(c.totalInvoiced)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono font-semibold text-emerald-700">
+                                {fmt(c.totalPaid)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono font-bold">
+                                {outstanding > 0 ? (
+                                  <span className="text-rose-600">{fmt(outstanding)}</span>
+                                ) : (
+                                  <span className="text-emerald-600">₹0.00</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {outstanding > 0 ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/60">
+                                    Pending Payment
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                                    All Settled
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {canManagePayments ? (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedPaymentCustomer({
+                                        id: c.customerId,
+                                        name: c.customerName,
+                                      });
+                                      setSelectedPaymentInvoice(null);
+                                      setShowRecordPaymentModal(true);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200 transition-colors cursor-pointer"
+                                  >
+                                    <IndianRupee className="w-3.5 h-3.5" /> Record Payment
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-400 font-medium">View only</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Sub-tab 2: Payment Receipts History */
+            <div className="flex flex-col gap-4">
+              {/* Search */}
+              <div className="flex gap-3 items-center bg-white p-4 rounded-xl border border-gray-200">
+                <div className="relative flex-1 min-w-48 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search receipt #, UTR # or customer..."
+                    value={paymentsSearch}
+                    onChange={(e) => {
+                      setPaymentsSearch(e.target.value);
+                      setPaymentsPage(1);
+                    }}
+                    className="pl-9 pr-3 py-2 w-full border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                {paymentsSearch && (
+                  <button
+                    onClick={() => {
+                      setPaymentsSearch('');
+                      setPaymentsPage(1);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    <X className="w-3.5 h-3.5" /> Clear
+                  </button>
+                )}
+              </div>
+
+              {loadingPayments ? (
+                <div className="flex items-center justify-center py-16">
+                  <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
+                </div>
+              ) : !paymentsData?.data || paymentsData.data.length === 0 ? (
+                <div className="bg-white p-12 text-center rounded-2xl border border-gray-200">
+                  <Receipt className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <h3 className="font-semibold text-gray-800">No Payment Receipts Found</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Payments recorded for sales invoices or AMC contracts will be listed here.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                          Receipt #
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                          Date
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                          Customer
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                          Mode
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                          Ref / UTR #
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                          Linked Document
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                          Amount Received
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                          Notes
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {paymentsData.data.map((pmt) => (
+                        <tr key={pmt.id} className="hover:bg-gray-50/70 transition-colors">
+                          <td className="px-4 py-3 font-mono font-bold text-emerald-700">
+                            {pmt.receiptNumber}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 text-xs">
+                            {fmtDate(pmt.paymentDate)}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            {pmt.customer?.name || '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/50">
+                              {pmt.paymentMode}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                            {pmt.referenceNumber || '—'}
+                          </td>
+                          <td className="px-4 py-3 text-xs">
+                            {pmt.salesInvoice ? (
+                              <span className="font-mono text-blue-600 font-semibold">
+                                Inv: {pmt.salesInvoice.invoiceNumber}
+                              </span>
+                            ) : pmt.amcContract ? (
+                              <span className="font-mono text-purple-600 font-semibold">
+                                AMC: {pmt.amcContract.contractNumber}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">Direct / Advance</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">
+                            {fmt(pmt.amount)}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">
+                            {pmt.notes || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1104,10 +1491,92 @@ export const InvoicesPage: React.FC = () => {
                       <span>Grand Total:</span>
                       <span className="font-mono text-blue-700">{fmt(salesDetail.totalAmount)}</span>
                     </div>
+                    <div className="flex justify-between font-bold text-slate-800 text-xs">
+                      <span>Amount Received:</span>
+                      <span className="font-mono text-emerald-700">{fmt(salesDetail.paidAmount || '0.00')}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-slate-800 text-xs pt-1 border-t border-slate-200/80">
+                      <span>Remaining Balance:</span>
+                      <span className={`font-mono ${Number(salesDetail.totalAmount) - Number(salesDetail.paidAmount || 0) <= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {fmt(Math.max(0, Number(salesDetail.totalAmount) - Number(salesDetail.paidAmount || 0)))}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Payment Receipts History for this Invoice */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        Payment Receipts ({invoicePaymentsData?.data?.length || 0})
+                      </h3>
+                      {canManagePayments && ['ISSUED', 'PARTIALLY_PAID'].includes(salesDetail.status) && (
+                        <button
+                          onClick={() => {
+                            setSelectedPaymentInvoice(salesDetail);
+                            setShowRecordPaymentModal(true);
+                          }}
+                          className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add Payment
+                        </button>
+                      )}
+                    </div>
+                    {!invoicePaymentsData?.data || invoicePaymentsData.data.length === 0 ? (
+                      <div className="p-3 bg-gray-50 rounded-xl text-center text-xs text-gray-500 border border-gray-100">
+                        No payment receipts recorded yet for this invoice.
+                      </div>
+                    ) : (
+                      <div className="border border-gray-200 rounded-xl overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead className="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                              <th className="py-2 px-3 text-left">Receipt #</th>
+                              <th className="py-2 px-2 text-left">Date</th>
+                              <th className="py-2 px-2 text-left">Mode / Ref</th>
+                              <th className="py-2 px-3 text-right">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {invoicePaymentsData.data.map((p) => (
+                              <tr key={p.id}>
+                                <td className="py-2 px-3 font-mono font-bold text-blue-700">
+                                  {p.receiptNumber}
+                                </td>
+                                <td className="py-2 px-2 text-gray-600">
+                                  {fmtDate(p.paymentDate)}
+                                </td>
+                                <td className="py-2 px-2 text-gray-600">
+                                  <span className="font-semibold text-gray-800">{p.paymentMode}</span>
+                                  {p.referenceNumber && (
+                                    <span className="block text-[10px] font-mono text-gray-400">Ref: {p.referenceNumber}</span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">
+                                  {fmt(p.amount)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
 
                   {/* Action Buttons */}
                   <div className="space-y-3 pt-4 border-t border-gray-100">
+                    {/* Record Payment Button */}
+                    {canManagePayments && ['ISSUED', 'PARTIALLY_PAID'].includes(salesDetail.status) && (
+                      <button
+                        onClick={() => {
+                          setSelectedPaymentInvoice(salesDetail);
+                          setShowRecordPaymentModal(true);
+                        }}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
+                      >
+                        <IndianRupee className="w-4 h-4" /> Record Payment Received
+                      </button>
+                    )}
+
                     <button
                       onClick={() => setPrintInvoice(salesDetail)}
                       className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors"
@@ -1139,7 +1608,8 @@ export const InvoicesPage: React.FC = () => {
                       </button>
                     )}
 
-                    {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(salesDetail.status) && (
+                    {/* Dispatch button: only for non-AMC invoices */}
+                    {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(salesDetail.status) && (salesDetail as any).quotationType !== 'AMC' && (
                       <button
                         onClick={() =>
                           navigate(
@@ -1158,6 +1628,29 @@ export const InvoicesPage: React.FC = () => {
                       >
                         <Truck className="w-4 h-4" /> Create Delivery Challan / Dispatch
                       </button>
+                    )}
+
+                    {/* AMC Contract button: only for AMC invoices */}
+                    {(salesDetail as any).quotationType === 'AMC' && ['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(salesDetail.status) && (
+                      (salesDetail as any).linkedAmcContractId ? (
+                        canViewAmcContract && (
+                          <button
+                            onClick={() => navigate(`/amc-contracts/${(salesDetail as any).linkedAmcContractId}`)}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm"
+                          >
+                            <ShieldCheck className="w-4 h-4" /> View AMC Contract
+                          </button>
+                        )
+                      ) : (
+                        canCreateAmcContract && (
+                          <button
+                            onClick={() => (salesDetail as any).quotationId && navigate(`/quotations/${(salesDetail as any).quotationId}`)}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm"
+                          >
+                            <ShieldCheck className="w-4 h-4" /> Create AMC Contract
+                          </button>
+                        )
+                      )
                     )}
 
                     {['DRAFT', 'PENDING_ISSUE'].includes(salesDetail.status) && canIssueOrPost && (
@@ -1389,7 +1882,13 @@ export const InvoicesPage: React.FC = () => {
 
       {/* Modals */}
       {showCreateSalesModal && (
-        <CreateSalesInvoiceModal onClose={() => setShowCreateSalesModal(false)} />
+        <CreateSalesInvoiceModal
+          initialSalesOrderId={initialSalesOrderId}
+          onClose={() => {
+            setShowCreateSalesModal(false);
+            setInitialSalesOrderId(undefined);
+          }}
+        />
       )}
       {showRecordVendorModal && (
         <RecordVendorInvoiceModal onClose={() => setShowRecordVendorModal(false)} />
@@ -1422,6 +1921,25 @@ export const InvoicesPage: React.FC = () => {
             setCancelModalData(null);
             setSelectedSalesInvoiceId(null);
             setSelectedVendorInvoiceId(null);
+          }}
+        />
+      )}
+      {canManagePayments && showRecordPaymentModal && (
+        <RecordPaymentModal
+          invoice={selectedPaymentInvoice}
+          customer={selectedPaymentCustomer}
+          onClose={() => {
+            setShowRecordPaymentModal(false);
+            setSelectedPaymentInvoice(null);
+            setSelectedPaymentCustomer(null);
+          }}
+          onSuccess={() => {
+            refetchSales();
+            refetchReceivables();
+            refetchPayments();
+            if (selectedSalesInvoiceId) {
+              refetchInvoicePayments();
+            }
           }}
         />
       )}

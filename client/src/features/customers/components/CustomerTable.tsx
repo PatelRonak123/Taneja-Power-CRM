@@ -7,6 +7,7 @@ import {
   Trash2,
   Plus,
   CalendarClock,
+  Cpu,
 } from 'lucide-react';
 import { Customer } from '../types/customer.types';
 import {
@@ -31,6 +32,7 @@ interface CustomerTableProps {
   deletingCustomerId: string | null;
   onOpenDestinations: (customer: Customer) => void;
   onOpenFollowUps?: (customer: Customer) => void;
+  onOpenEquipment?: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
   onDeleteCustomer: (customer: Customer) => void;
   page: number;
@@ -50,6 +52,7 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   deletingCustomerId,
   onOpenDestinations,
   onOpenFollowUps,
+  onOpenEquipment,
   onEditCustomer,
   onDeleteCustomer,
   page,
@@ -205,6 +208,18 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                     {/* Actions */}
                     <TableCell align="right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {onOpenEquipment && (
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-blue-50 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600"
+                            onClick={() => onOpenEquipment(cust)}
+                            title="Installed Equipment & Assets"
+                            aria-label={`Equipment for ${cust.name}`}
+                          >
+                            <Cpu size={13} />
+                          </button>
+                        )}
+
                         {onOpenFollowUps && (
                           <button
                             type="button"

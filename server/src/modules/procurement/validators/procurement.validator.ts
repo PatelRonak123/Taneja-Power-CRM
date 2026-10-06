@@ -6,7 +6,7 @@ const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 
 export const createSupplierSchema = z.object({
   body: z.object({
-    supplierCode: z.string().trim().min(2).max(50).optional(),
+    supplierCode: z.string().trim().min(2).max(50).optional().nullable().or(z.literal('')),
     name: z.string().trim().min(2, 'Supplier name must be at least 2 characters'),
     legalName: z.string().trim().max(255).optional().nullable(),
     contactPerson: z.string().trim().max(255).optional().nullable(),

@@ -390,6 +390,46 @@ export const DESIGNATION_RESTRICTIONS: Record<string, { deny?: string[]; allow?:
       'dispatch:submit',
     ],
   },
+  'Sales Office': {
+    deny: [
+      'sales_order:read',
+      'sales_order:create',
+      'sales_order:update',
+      'sales_order:submit',
+      'sales_order:confirm',
+      'sales_order:cancel',
+      'procurement:po:approve',
+      'procurement:po:cancel',
+      'procurement:grn:post',
+      'sales_invoice:issue',
+      'sales_invoice:cancel',
+      'vendor_invoice:verify',
+      'vendor_invoice:post',
+      'vendor_invoice:cancel',
+      'dispatch:dispatch',
+      'dispatch:cancel',
+    ],
+  },
+  'Sales': {
+    deny: [
+      'sales_order:read',
+      'sales_order:create',
+      'sales_order:update',
+      'sales_order:submit',
+      'sales_order:confirm',
+      'sales_order:cancel',
+      'procurement:po:approve',
+      'procurement:po:cancel',
+      'procurement:grn:post',
+      'sales_invoice:issue',
+      'sales_invoice:cancel',
+      'vendor_invoice:verify',
+      'vendor_invoice:post',
+      'vendor_invoice:cancel',
+      'dispatch:dispatch',
+      'dispatch:cancel',
+    ],
+  },
 };
 
 export const hasPermission = (
@@ -397,10 +437,17 @@ export const hasPermission = (
   permission: string,
   designation?: string | null
 ): boolean => {
+  if (role === APP_CONSTANTS.ROLES.ADMIN) return true;
   if (designation && DESIGNATION_RESTRICTIONS[designation]) {
     const { deny, allow } = DESIGNATION_RESTRICTIONS[designation];
     if (deny?.includes(permission)) return false;
     if (allow?.includes(permission)) return true;
+  }
+  if (designation && designation.toLowerCase().includes('sales')) {
+    if (permission.startsWith('sales_order:')) return false;
+  }
+  if ((role as string) === 'SALES_OFFICE' || (role as string) === 'SALES') {
+    if (permission.startsWith('sales_order:')) return false;
   }
   const permissions = ROLE_PERMISSIONS[role] || [];
   return permissions.includes(permission);

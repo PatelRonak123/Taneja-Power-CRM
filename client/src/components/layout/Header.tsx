@@ -23,8 +23,6 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
   const lastScrollY = useRef(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const isAdmin = user?.role === 'ADMIN';
-
   // Reset visibility on route navigation
   useEffect(() => {
     setIsVisible(true);
@@ -82,31 +80,149 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
     };
   }, []);
 
+  const designation = (user?.designation || '').toLowerCase();
+  const isAdmin = user?.role === 'ADMIN';
+  const isManager = (user as any)?.role === 'MANAGER';
+  const isSalesOffice = (user?.role === 'USER' || (user as any)?.role === 'SALES') && designation.includes('sales');
+  const isServiceOffice = (user?.role === 'USER' || (user as any)?.role === 'SERVICE') && designation.includes('service');
+  const isAccountantOffice = user?.role === 'USER' && designation.includes('accountant');
+  const isHrOffice = (user?.role === 'USER' || (user as any)?.role === 'HR') && (designation.includes('hr') || designation.includes('human resources'));
+
+  const getDashboardTitle = (): string => {
+    if (isAdmin) return 'Admin Dashboard';
+    if (isServiceOffice) return 'Service Dashboard';
+    if (isSalesOffice) return 'Sales Dashboard';
+    if (isAccountantOffice) return 'Accountant Dashboard';
+    if (isHrOffice) return 'HR Dashboard';
+    if (isManager) return 'Manager Dashboard';
+    return 'Employee Dashboard';
+  };
+
   const getPageTitle = (path: string): string => {
-    if (path === '/admin/dashboard' || path === '/admin') return 'Admin Dashboard';
-    if (path.startsWith('/employees') || path.startsWith('/admin/employees')) return 'Employee Management';
-    if (path.startsWith('/customers') || path.startsWith('/admin/customers')) return 'Customer Management';
-    if (path.startsWith('/leads') || path.startsWith('/admin/leads')) return 'Lead Management';
-    if (path.startsWith('/pipeline') || path.startsWith('/admin/pipeline')) return 'Deals Pipeline';
-    if (path.startsWith('/tasks') || path.startsWith('/admin/tasks')) return 'Field Tasks';
-    if (path.startsWith('/attendance') || path.startsWith('/admin/attendance')) return 'Employee Attendance';
-    if (path.startsWith('/admin/whatsapp') || path.startsWith('/whatsapp')) return 'WhatsApp Integration';
-    if (path === '/field-service') return 'Field Service Dashboard';
+    // 1. Dashboards
+    if (
+      path === '/admin/dashboard' ||
+      path === '/admin' ||
+      path === '/employee/dashboard' ||
+      path === '/dashboard' ||
+      path === '/service-dashboard' ||
+      path === '/accountant/dashboard' ||
+      path === '/hr/dashboard' ||
+      path === '/'
+    ) {
+      return getDashboardTitle();
+    }
+
+    // 2. Customer Equipment & Installed Assets
+    if (path.startsWith('/customer-equipment') || path.startsWith('/admin/customer-equipment')) {
+      const parts = path.split('?')[0].split('/').filter(Boolean);
+      const isDetail = parts.length >= 2 && parts[0] === 'customer-equipment';
+      return isDetail ? 'Equipment Asset Details' : 'Customer Equipment';
+    }
+
+    // 3. Follow-ups & Reminders
+    if (path.startsWith('/follow-ups') || path.startsWith('/admin/follow-ups')) {
+      return 'Follow-ups & Reminders';
+    }
+
+    // 4. Sales Orders
+    if (path.startsWith('/sales-orders') || path.startsWith('/admin/sales-orders')) {
+      return 'Sales Orders';
+    }
+
+    // 5. Invoices (Sales & Vendor)
+    if (path.startsWith('/invoices') || path.startsWith('/admin/invoices')) {
+      return 'Invoice Management';
+    }
+
+    // 6. Dispatch / Delivery Challan
+    if (path.startsWith('/dispatches') || path.startsWith('/admin/dispatches')) {
+      return 'Dispatch & Delivery Challan';
+    }
+
+    // 7. Procurement, POs, GRN, Suppliers
+    if (path.startsWith('/procurement') || path.startsWith('/admin/procurement')) {
+      return 'Procurement & Orders';
+    }
+    if (path.startsWith('/purchase-orders')) {
+      return 'Purchase Orders';
+    }
+    if (path.startsWith('/goods-receipts')) {
+      return 'Goods Receipts (GRN)';
+    }
+    if (path.startsWith('/suppliers')) {
+      return 'Suppliers & Vendors';
+    }
+
+    // 8. AMC Contracts
+    if (path.startsWith('/amc-contracts') || path.startsWith('/admin/amc-contracts')) {
+      const parts = path.split('?')[0].split('/').filter(Boolean);
+      const isDetail = parts.length >= 2 && parts[0] === 'amc-contracts';
+      return isDetail ? 'AMC Contract Details' : 'AMC Contracts';
+    }
+
+    // 9. Quotations & Deals
+    if (path === '/quotations/new') return 'New Quotation';
+    if (path.startsWith('/quotations/') && path.endsWith('/edit')) return 'Edit Quotation';
+    if (path.startsWith('/quotations/') && path.split('?')[0].split('/').filter(Boolean).length > 1) {
+      return 'Quotation Details';
+    }
+    if (path.startsWith('/quotations')) {
+      return isServiceOffice ? 'Service Quotations' : 'Quotations & Proposals';
+    }
+
+    // 10. Field Service (FSR)
     if (path === '/field-service/reports') return 'Field Service Reports';
     if (path === '/field-service/my-visits') return 'My Service Visits';
     if (path === '/field-service/new') return 'New Field Service Report';
     if (path.startsWith('/field-service/') && path.endsWith('/edit')) return 'Edit Service Report';
-    if (path.startsWith('/field-service/')) return 'Service Visit Details';
-    if (path === '/quotations') return 'Quotations & Proposals';
-    if (path === '/quotations/new') return 'New Quotation';
-    if (path.startsWith('/quotations/') && path.endsWith('/edit')) return 'Edit Quotation';
-    if (path.startsWith('/quotations/')) return 'Quotation Details';
-    if (path.startsWith('/amc-contracts') || path.startsWith('/admin/amc-contracts')) return 'AMC Contracts';
-    if (path.startsWith('/products')) return 'Equipment & Inventory';
+    if (path.startsWith('/field-service/') && path.split('?')[0].split('/').filter(Boolean).length > 1) {
+      return 'Service Visit Details';
+    }
+    if (path.startsWith('/field-service')) return 'Field Service (FSR)';
+
+    // 11. Field Tasks / Tasks
+    if (path.startsWith('/tasks') || path.startsWith('/admin/tasks')) {
+      return isServiceOffice ? 'Field Task Management' : 'Field Tasks';
+    }
+
+    // 12. Attendance
+    if (path === '/employee/attendance') return 'My Attendance';
+    if (path.startsWith('/attendance') || path.startsWith('/admin/attendance')) {
+      return isHrOffice ? 'Employee Attendance' : 'Attendance Management';
+    }
+
+    // 13. Customers
+    if (path.startsWith('/customers') || path.startsWith('/admin/customers')) {
+      const parts = path.split('?')[0].split('/').filter(Boolean);
+      const isDetail = parts.length >= 2 && parts[0] === 'customers';
+      return isDetail ? 'Customer Details' : 'Customer Management';
+    }
+
+    // 14. Leads & Pipeline
+    if (path.startsWith('/leads') || path.startsWith('/admin/leads')) return 'Lead Management';
+    if (path.startsWith('/pipeline') || path.startsWith('/admin/pipeline')) return 'Deals Pipeline';
+
+    // 15. Employees
+    if (path.startsWith('/employees') || path.startsWith('/admin/employees')) return 'Employee Management';
+
+    // 16. Products / Equipment & Inventory
+    if (path.startsWith('/products') || path.startsWith('/equipment') || path.startsWith('/inventory')) {
+      return 'Equipment & Inventory';
+    }
+
+    // 17. Reports & Analytics
+    if (path.startsWith('/admin/reports') || path.startsWith('/reports')) return 'Reports & Analytics';
     if (path.startsWith('/analytics')) return 'Energy Telemetry';
+
+    // 18. WhatsApp
+    if (path.startsWith('/admin/whatsapp') || path.startsWith('/whatsapp')) return 'WhatsApp Integration';
+
+    // 19. Settings & Profile
     if (path.startsWith('/settings')) return 'System Configuration';
     if (path.startsWith('/profile')) return 'My Profile';
-    return isAdmin ? 'Admin Dashboard' : 'Employee Dashboard';
+
+    return getDashboardTitle();
   };
 
   const pageTitle = getPageTitle(currentPath);
@@ -201,7 +317,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
                     }}
                   >
                     <LayoutDashboard size={15} className="text-slate-400" />
-                    <span>{isAdmin ? 'Admin Dashboard' : 'Employee Dashboard'}</span>
+                    <span>{getDashboardTitle()}</span>
                   </button>
 
                   <button

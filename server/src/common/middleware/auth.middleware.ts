@@ -32,11 +32,13 @@ export const isServiceOfficeUser = (user?: JwtPayload): boolean => {
 export const isSalesOfficeUser = (user?: JwtPayload): boolean => {
   if (!user) return false;
   const roleStr = String(user.role || '').toUpperCase();
-  return (
-    (roleStr === APP_CONSTANTS.ROLES.USER || roleStr === 'SALES') &&
-    (user.workType === APP_CONSTANTS.WORK_TYPES.OFFICE || !user.workType) &&
-    String(user.designation || '').toLowerCase().includes('sales')
-  );
+  if (roleStr === APP_CONSTANTS.ROLES.ADMIN || roleStr === APP_CONSTANTS.ROLES.MANAGER) {
+    return false;
+  }
+  if (roleStr === 'SALES_OFFICE' || roleStr === 'SALES') {
+    return true;
+  }
+  return String(user.designation || '').toLowerCase().includes('sales');
 };
 
 export const isAccountantOfficeUser = (user?: JwtPayload): boolean => {

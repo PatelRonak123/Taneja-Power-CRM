@@ -69,7 +69,7 @@ export const QuotationListPage: React.FC = () => {
   // Filter States
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState(isServiceOffice ? 'SERVICE' : '');
+  const [typeFilter, setTypeFilter] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
   const [datePreset, setDatePreset] = useState<DatePreset>('ALL_TIME');
   const [startDate, setStartDate] = useState('');
@@ -152,7 +152,7 @@ export const QuotationListPage: React.FC = () => {
   const handleResetFilters = () => {
     setSearch('');
     setStatusFilter('');
-    setTypeFilter(isServiceOffice ? 'SERVICE' : '');
+    setTypeFilter('');
     setCustomerFilter('');
     setDatePreset('ALL_TIME');
     setStartDate('');
@@ -165,11 +165,11 @@ export const QuotationListPage: React.FC = () => {
     let count = 0;
     if (search.trim()) count++;
     if (statusFilter) count++;
-    if (typeFilter && !(isServiceOffice && typeFilter === 'SERVICE')) count++;
+    if (typeFilter) count++;
     if (customerFilter) count++;
     if (datePreset !== 'ALL_TIME' || startDate || endDate) count++;
     return count;
-  }, [search, statusFilter, typeFilter, customerFilter, datePreset, startDate, endDate, isServiceOffice]);
+  }, [search, statusFilter, typeFilter, customerFilter, datePreset, startDate, endDate]);
 
   // Fetch quotations list
   const fetchQuotations = useCallback(async () => {

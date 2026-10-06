@@ -1,3 +1,5 @@
+import { sql } from 'drizzle-orm';
+import { db } from '../../../database/db.js';
 import { SupplierRepository, ListSuppliersQuery } from '../repositories/supplier.repository.js';
 import { ProcurementNumberService } from './procurement-number.service.js';
 import { SupplierEntity, NewSupplierEntity } from '../../../database/schema/procurement.js';
@@ -9,6 +11,10 @@ export class SupplierService {
     private readonly supplierRepo: SupplierRepository = new SupplierRepository(),
     private readonly numberService: ProcurementNumberService = new ProcurementNumberService()
   ) {}
+
+  async getNextSupplierCode(): Promise<string> {
+    return this.numberService.peekNextNumber('SUP');
+  }
 
   async createSupplier(data: {
     supplierCode?: string;
@@ -34,6 +40,24 @@ export class SupplierService {
       const existing = await this.supplierRepo.findByCode(code);
       if (existing) {
         throw AppError.conflict(`Supplier code "${code}" already exists`, 'DUPLICATE_SUPPLIER_CODE');
+      }
+
+      // If supplierCode is formatted like SUP-XXXX, ensure the sequence reflects this number
+      const match = code.match(/^SUP-(\d+)$/i);
+      if (match) {
+        const customNum = parseInt(match[1], 10);
+        if (!isNaN(customNum) && customNum > 0) {
+          try {
+            await db.execute(sql`
+              INSERT INTO procurement_sequences (id, prefix, financial_year, current_sequence, updated_at)
+              VALUES (gen_random_uuid(), 'SUP', '', ${customNum}, now())
+              ON CONFLICT (prefix, financial_year)
+              DO UPDATE SET current_sequence = GREATEST(procurement_sequences.current_sequence, ${customNum}), updated_at = now();
+            `);
+          } catch (err) {
+            console.warn('Could not sync procurement sequence for SUP:', err);
+          }
+        }
       }
     }
 

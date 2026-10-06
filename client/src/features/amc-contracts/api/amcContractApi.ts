@@ -31,6 +31,10 @@ export interface AmcContract {
   terminatedAt?: string;
   renewedFromContractId?: string;
   sourceQuotationNumber?: string;
+  sourceQuotationId?: string;
+  salesOrderId?: string;
+  salesOrderNumber?: string;
+  salesOrderStatus?: string;
   equipment?: Array<{
     id: string;
     equipmentType?: string;
@@ -43,6 +47,7 @@ export interface AmcContract {
     unitPrice: string;
     lineTotal: string;
     status: string;
+    conditionStatus?: string;
   }>;
   scopeItems?: Array<{
     id: string;
@@ -70,13 +75,22 @@ export interface AmcContract {
     status: string;
     assignedEmployeeId?: string;
     taskId?: string;
-    completedAt?: string;
-    notes?: string;
+    actualStartAt?: string | null;
+    actualEndAt?: string | null;
+    completedAt?: string | null;
+    notes?: string | null;
+    report?: {
+      id: string;
+      reportNumber?: string | null;
+      status?: string | null;
+    } | null;
   }>;
   serviceRequests?: AmcServiceRequest[];
   createdAt: string;
   updatedAt: string;
 }
+
+export type AmcServiceVisit = NonNullable<AmcContract['serviceVisits']>[number];
 
 export interface AmcServiceRequest {
   id: string;
@@ -86,6 +100,7 @@ export interface AmcServiceRequest {
   equipmentId?: string;
   equipmentName?: string;
   equipmentConfiguration?: string;
+  equipmentConditionStatus?: string | null;
   issueDescription: string;
   priority: string;
   escalationLevel: string;
@@ -100,8 +115,30 @@ export interface AmcServiceRequest {
   amcServiceVisitId?: string;
   visitStatus?: string;
   serviceReportId?: string;
+  serviceReportNumber?: string | null;
   serviceReportStatus?: string;
+  originServiceVisitId?: string | null;
+  originVisitNumber?: number | null;
+  originReportId?: string | null;
+  originReportNumber?: string | null;
+  originReportStatus?: string | null;
+  fsrId?: string | null;
+  fsrNumber?: string | null;
+  fsrStatus?: string | null;
+  fsrEngineerName?: string | null;
   resolvedAt?: string;
+  coverageType?: 'PENDING_REVIEW' | 'AMC_COVERED' | 'CHARGEABLE' | string;
+  quotationId?: string | null;
+  quotationNumber?: string | null;
+  quotationStatus?: string | null;
+  salesOrderId?: string | null;
+  salesOrderNumber?: string | null;
+  salesOrderStatus?: string | null;
+  taskTitle?: string | null;
+  taskStatus?: string | null;
+  coverageDecidedAt?: string | null;
+  coverageDecidedById?: string | null;
+  coverageNotes?: string | null;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -297,6 +334,48 @@ export const amcContractApi = {
     }
   ): Promise<{ success: boolean; message: string; data: AmcContract }> => {
     return (await apiClient.post(`/amc-contracts/${id}/renew`, renewalData)) as any;
+  },
+
+  setCoverageDecision: async (
+    contractId: string,
+    requestId: string,
+    data: { coverageType: 'AMC_COVERED' | 'CHARGEABLE'; coverageNotes?: string }
+  ): Promise<{ success: boolean; message: string; data: AmcServiceRequest }> => {
+    return (await apiClient.post(`/amc-contracts/${contractId}/service-requests/${requestId}/coverage`, data)) as any;
+  },
+
+  createRepairTask: async (
+    contractId: string,
+    requestId: string,
+    data: {
+      assignedToId?: string;
+      assignedTo?: string;
+      scheduledDate?: string;
+      scheduledStartTime?: string;
+      scheduledEndTime?: string;
+      scheduledAt?: string;
+      dueAt?: string;
+      priority?: string;
+      notes?: string;
+    }
+  ): Promise<{ success: boolean; message: string; data: { task: any; request: AmcServiceRequest } }> => {
+    return (await apiClient.post(`/amc-contracts/${contractId}/service-requests/${requestId}/create-repair-task`, data)) as any;
+  },
+
+  linkQuotationToRequest: async (
+    contractId: string,
+    requestId: string,
+    quotationId: string
+  ): Promise<{ success: boolean; message: string; data: AmcServiceRequest }> => {
+    return (await apiClient.post(`/amc-contracts/${contractId}/service-requests/${requestId}/link-quotation`, { quotationId })) as any;
+  },
+
+  linkSalesOrderToRequest: async (
+    contractId: string,
+    requestId: string,
+    salesOrderId: string
+  ): Promise<{ success: boolean; message: string; data: AmcServiceRequest }> => {
+    return (await apiClient.post(`/amc-contracts/${contractId}/service-requests/${requestId}/link-sales-order`, { salesOrderId })) as any;
   },
 
   getContractHistory: async (id: string): Promise<{

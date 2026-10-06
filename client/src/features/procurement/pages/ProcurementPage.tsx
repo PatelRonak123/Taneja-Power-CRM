@@ -13,6 +13,8 @@ import {
 import { useSearchParams, useNavigationState } from '../../../app/router/navigation';
 import { ProductForm } from '../../products/modules/ProductForm/ProductForm';
 import { Supplier, PurchaseOrder, GoodsReceipt } from '../types/procurement.types';
+import { procurementService } from '../services/procurementService';
+import { Drawer } from '../../../components/ui/Drawer';
 import { useAuthStore } from '../../../stores/authStore';
 import {
   useSuppliers,
@@ -213,6 +215,34 @@ export const ProcurementPage: React.FC = () => {
   const postGrn = usePostGoodsReceipt();
 
   // ── Handlers: Suppliers ──────────────────────────────────────────────────────
+  const handleOpenAddSupplier = async () => {
+    setEditingSupplier(null);
+    let nextCode = '';
+    try {
+      const res = await procurementService.getNextSupplierCode();
+      if (res.data?.nextCode) {
+        nextCode = res.data.nextCode;
+      }
+    } catch {
+      // Fallback: calculate from already loaded suppliers list
+      const nums = (suppliers || [])
+        .map((s) => {
+          const m = s.supplierCode?.match(/^SUP-(\d+)$/i);
+          return m ? parseInt(m[1], 10) : 0;
+        })
+        .filter((n) => !isNaN(n));
+      const max = nums.length > 0 ? Math.max(...nums) : 0;
+      nextCode = `SUP-${String(max + 1).padStart(4, '0')}`;
+    }
+
+    setSupplierForm({
+      ...defaultSupplierForm,
+      supplierCode: nextCode,
+      paymentTerms: 'Net 30 Days',
+    });
+    setShowSupplierModal(true);
+  };
+
   const handleSaveSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingSupplier) {
@@ -563,11 +593,7 @@ export const ProcurementPage: React.FC = () => {
               </select>
             </div>
             <button
-              onClick={() => {
-                setEditingSupplier(null);
-                setSupplierForm({ ...defaultSupplierForm, paymentTerms: 'Net 30 Days' });
-                setShowSupplierModal(true);
-              }}
+              onClick={handleOpenAddSupplier}
               className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-colors shadow-sm"
             >
               <Plus className="w-4 h-4" />
@@ -661,81 +687,266 @@ export const ProcurementPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── MODAL: ADD / EDIT SUPPLIER ───────────────────────────────────────── */}
-      {showSupplierModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h3 className="font-bold text-slate-900 text-lg">
-                {editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
-              </h3>
-              <button onClick={() => setShowSupplierModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
-                <X className="w-5 h-5" />
-              </button>
+      {/* ── DRAWER: ADD / EDIT SUPPLIER ───────────────────────────────────────── */}
+      <Drawer
+        isOpen={showSupplierModal}
+        onClose={() => {
+          setShowSupplierModal(false);
+          setEditingSupplier(null);
+        }}
+        title={
+          <div>
+            <div className="text-base font-bold text-slate-900 leading-tight">
+              {editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
             </div>
-            <form onSubmit={handleSaveSupplier} className="p-6 flex flex-col gap-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Supplier Code (Auto if blank)</label>
-                  <input type="text" value={supplierForm.supplierCode} onChange={(e) => setSupplierForm({ ...supplierForm, supplierCode: e.target.value })} placeholder="e.g. SUP-0001" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+            <p className="text-xs text-slate-500 font-normal mt-0.5">
+              {editingSupplier
+                ? 'Update vendor details, contact person, or GST information'
+                : 'Register a new vendor in the procurement database'}
+            </p>
+          </div>
+        }
+        maxWidth="lg"
+        footer={
+          <div className="flex items-center justify-end gap-3 w-full">
+            <button
+              type="button"
+              onClick={() => {
+                setShowSupplierModal(false);
+                setEditingSupplier(null);
+              }}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="supplier-drawer-form"
+              disabled={createSupplier.isPending || updateSupplier.isPending}
+              className="px-5 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl shadow-sm transition-colors cursor-pointer"
+            >
+              {createSupplier.isPending || updateSupplier.isPending
+                ? 'Saving...'
+                : editingSupplier
+                ? 'Save Changes'
+                : 'Create Supplier'}
+            </button>
+          </div>
+        }
+      >
+        <form id="supplier-drawer-form" onSubmit={handleSaveSupplier} className="flex flex-col gap-5 py-1">
+          {/* Section: Basic Details */}
+          <div>
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+              Basic Information
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Supplier Code (Auto if blank)
+                  </label>
+                  {!editingSupplier && (
+                    <span className="text-[10px] text-indigo-600 bg-indigo-50 font-medium px-1.5 py-0.5 rounded">
+                      Auto-generated
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Supplier Name *</label>
-                  <input type="text" required value={supplierForm.name} onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })} placeholder="Company or Business Name" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Legal Name</label>
-                  <input type="text" value={supplierForm.legalName} onChange={(e) => setSupplierForm({ ...supplierForm, legalName: e.target.value })} placeholder="Registered Legal Entity" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Contact Person</label>
-                  <input type="text" value={supplierForm.contactPerson} onChange={(e) => setSupplierForm({ ...supplierForm, contactPerson: e.target.value })} placeholder="Key contact representative" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone</label>
-                  <input type="text" value={supplierForm.phone} onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })} placeholder="+91..." className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
-                  <input type="email" value={supplierForm.email} onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })} placeholder="vendor@company.com" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">GSTIN</label>
-                  <input type="text" value={supplierForm.gstin} onChange={(e) => setSupplierForm({ ...supplierForm, gstin: e.target.value.toUpperCase() })} placeholder="15-character GSTIN" className="w-full px-3 py-2 text-sm font-mono uppercase border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">PAN</label>
-                  <input type="text" value={supplierForm.pan} onChange={(e) => setSupplierForm({ ...supplierForm, pan: e.target.value.toUpperCase() })} placeholder="10-character PAN" className="w-full px-3 py-2 text-sm font-mono uppercase border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
-                </div>
+                <input
+                  type="text"
+                  value={supplierForm.supplierCode}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, supplierCode: e.target.value })}
+                  placeholder="e.g. SUP-0001"
+                  className="w-full px-3 py-2 text-sm font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Address</label>
-                <textarea rows={2} value={supplierForm.address} onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })} placeholder="Street address, unit, industrial area..." className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Supplier Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={supplierForm.name}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+                  placeholder="Company or Business Name"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Legal / Registered Name
+                </label>
+                <input
+                  type="text"
+                  value={supplierForm.legalName}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, legalName: e.target.value })}
+                  placeholder="Official entity name"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Contact Person
+                </label>
+                <input
+                  type="text"
+                  value={supplierForm.contactPerson}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, contactPerson: e.target.value })}
+                  placeholder="Key account manager / representative"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Contact & Tax Information */}
+          <div className="pt-2 border-t border-slate-100">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+              Contact &amp; Tax Identifiers
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="text"
+                  value={supplierForm.phone}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
+                  placeholder="+91..."
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={supplierForm.email}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
+                  placeholder="vendor@company.com"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  GSTIN
+                </label>
+                <input
+                  type="text"
+                  value={supplierForm.gstin}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, gstin: e.target.value.toUpperCase() })}
+                  placeholder="15-character GSTIN"
+                  className="w-full px-3 py-2 text-sm font-mono uppercase border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  PAN
+                </label>
+                <input
+                  type="text"
+                  value={supplierForm.pan}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, pan: e.target.value.toUpperCase() })}
+                  placeholder="10-character PAN"
+                  className="w-full px-3 py-2 text-sm font-mono uppercase border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Address Details */}
+          <div className="pt-2 border-t border-slate-100">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+              Location &amp; Address
+            </h4>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Street Address
+                </label>
+                <textarea
+                  rows={2}
+                  value={supplierForm.address}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })}
+                  placeholder="Street address, unit, industrial area..."
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">City</label>
-                  <input type="text" value={supplierForm.city} onChange={(e) => setSupplierForm({ ...supplierForm, city: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl" />
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierForm.city}
+                    onChange={(e) => setSupplierForm({ ...supplierForm, city: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">State</label>
-                  <input type="text" value={supplierForm.state} onChange={(e) => setSupplierForm({ ...supplierForm, state: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl" />
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierForm.state}
+                    onChange={(e) => setSupplierForm({ ...supplierForm, state: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Pincode</label>
-                  <input type="text" value={supplierForm.pincode} onChange={(e) => setSupplierForm({ ...supplierForm, pincode: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl" />
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Pincode
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierForm.pincode}
+                    onChange={(e) => setSupplierForm({ ...supplierForm, pincode: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  />
                 </div>
               </div>
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setShowSupplierModal(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
-                <button type="submit" disabled={createSupplier.isPending || updateSupplier.isPending} className="px-5 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl shadow-sm">
-                  {editingSupplier ? 'Save Changes' : 'Create Supplier'}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+
+          {/* Section: Terms & Notes */}
+          <div className="pt-2 border-t border-slate-100">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+              Commercial Terms &amp; Notes
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Payment Terms
+                </label>
+                <input
+                  type="text"
+                  value={supplierForm.paymentTerms}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, paymentTerms: e.target.value })}
+                  placeholder="e.g. Net 30 Days, 50% Advance"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Internal Notes
+                </label>
+                <input
+                  type="text"
+                  value={supplierForm.notes}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })}
+                  placeholder="Delivery terms, special vendor agreements..."
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+        </form>
+      </Drawer>
 
       {/* ── MODAL: CREATE PURCHASE ORDER ─────────────────────────────────────── */}
       {showPoModal && (

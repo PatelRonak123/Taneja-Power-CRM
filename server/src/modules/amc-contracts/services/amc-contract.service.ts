@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, like, or, lte, gte, gt } from 'drizzle-orm';
+import { eq, and, ne, desc, sql, like, or, lte, gte, gt, inArray } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import {
   amcContracts,
@@ -20,9 +20,14 @@ import { customers, customerDestinations } from '../../../database/schema/custom
 import { tasks } from '../../../database/schema/tasks.js';
 import { users } from '../../../database/schema/users.js';
 import { products } from '../../../database/schema/products.js';
+import { salesOrders } from '../../../database/schema/sales-orders.js';
+import { customerEquipment, quotationItemEquipment } from '../../../database/schema/customer-equipment.js';
+import { fieldServiceReports } from '../../../database/schema/field-service.js';
 import { AmcContractNumberService } from './amc-contract-number.service.js';
 import { AmcServiceReportPdfService, ServiceReportPdfData } from './amc-service-report-pdf.service.js';
 import { StockService } from '../../inventory/services/stock.service.js';
+import { calculatePreventiveVisits } from '../../quotations/utils/amc-calculation.util.js';
+import { APP_CONSTANTS } from '../../../config/constants.js';
 
 export class AmcContractService {
   private numberService = new AmcContractNumberService();
@@ -37,12 +42,30 @@ export class AmcContractService {
   ): Promise<AmcContractEntity> {
     if (createdById) {
       const [creator] = await db
-        .select({ designation: users.designation })
+        .select({ designation: users.designation, role: users.role, workType: users.workType })
         .from(users)
         .where(eq(users.id, createdById))
         .limit(1);
-      if (creator?.designation === 'Accountant Office') {
-        throw new Error('Accountant Office is not permitted to create AMC Contracts.');
+
+      if (creator) {
+        const roleStr = String(creator.role || '').toUpperCase();
+        const desLower = String(creator.designation || '').toLowerCase();
+        const isPrivileged = roleStr === 'ADMIN' || roleStr === 'MANAGER';
+        const isServiceOffice =
+          ((roleStr === APP_CONSTANTS.ROLES.USER || roleStr === 'SERVICE') &&
+            (creator.workType === APP_CONSTANTS.WORK_TYPES.OFFICE || !creator.workType) &&
+            desLower.includes('service')) ||
+          desLower.includes('service office');
+
+        if (!isPrivileged && !isServiceOffice) {
+          throw new Error('Only Service Office users or Admins/Managers are permitted to create AMC Contracts.');
+        }
+
+        if (creator.designation === 'Accountant Office' || creator.designation === 'Sales Office') {
+          if (!isPrivileged) {
+            throw new Error(`${creator.designation} is not permitted to create AMC Contracts.`);
+          }
+        }
       }
     }
 
@@ -60,6 +83,35 @@ export class AmcContractService {
 
       if (quotation.quotationType !== 'AMC') {
         throw new Error(`Only AMC type quotations can be converted into an AMC Contract.`);
+      }
+
+      if (quotation.status !== 'ACCEPTED') {
+        throw new Error(
+          `Cannot create AMC Contract: Customer has not accepted the quotation. Current status: ${quotation.status}`
+        );
+      }
+
+      // Check linked Sales Order – must exist and be in an allowed post-confirmation status.
+      // AMC Contract creation is allowed when the Sales Order is CONFIRMED, PARTIALLY_INVOICED,
+      // or FULLY_INVOICED. An invoice does NOT block AMC Contract creation.
+      const [linkedSo] = await tx
+        .select()
+        .from(salesOrders)
+        .where(eq(salesOrders.quotationId, quotationId))
+        .orderBy(desc(salesOrders.createdAt))
+        .limit(1);
+
+      if (!linkedSo) {
+        throw new Error(
+          'Cannot create AMC Contract: Sales Order must be created and confirmed first.'
+        );
+      }
+
+      const allowedSoStatuses = ['CONFIRMED', 'PARTIALLY_INVOICED', 'FULLY_INVOICED'];
+      if (!allowedSoStatuses.includes(linkedSo.status)) {
+        throw new Error(
+          `Cannot create AMC Contract: Sales Order must be CONFIRMED or INVOICED. Current status: ${linkedSo.status}`
+        );
       }
 
       // 2. Check existing contract
@@ -129,6 +181,7 @@ export class AmcContractService {
           contractNumber,
           quotationId: quotation.id,
           quotationRevisionId: revision.id,
+          salesOrderId: linkedSo.id,
           customerId: quotation.customerId,
           destinationId: quotation.destinationId,
           customerName: revision.customerName,
@@ -141,7 +194,10 @@ export class AmcContractService {
           contractStartDate: startDate,
           contractEndDate: endDate,
           serviceFrequency: revision.amcServiceFrequency || 'Quarterly',
-          scheduledVisits: revision.amcScheduledVisits || 4,
+          scheduledVisits:
+            (revision.amcStartDate && revision.amcEndDate && revision.amcServiceFrequency
+              ? calculatePreventiveVisits(startDate, endDate, revision.amcServiceFrequency)
+              : null) || revision.amcScheduledVisits || 4,
           completedVisits: 0,
           breakdownVisitType: revision.amcBreakdownVisitType || 'UNLIMITED',
           status: 'PENDING_ACTIVATION',
@@ -155,22 +211,69 @@ export class AmcContractService {
 
       // 8. Copy equipment rows
       if (items.length > 0) {
-        await tx.insert(amcContractEquipment).values(
-          items.map((item) => ({
-            amcContractId: contract.id,
-            quotationItemId: item.id,
-            equipmentType: item.equipmentType || 'STABILIZER',
-            equipmentName: item.productName,
-            configuration: item.equipmentConfiguration || item.model,
-            rating: item.equipmentRating,
-            make: item.make,
-            model: item.model,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            lineTotal: item.lineTotal,
-            status: 'ACTIVE',
-          }))
-        );
+        // Query linked customer equipment from junction table
+        const itemIds = items.map((i) => i.id);
+        const itemEquipmentLinks = await tx
+          .select({
+            quotationItemId: quotationItemEquipment.quotationItemId,
+            customerEquipmentId: quotationItemEquipment.customerEquipmentId,
+          })
+          .from(quotationItemEquipment)
+          .where(inArray(quotationItemEquipment.quotationItemId, itemIds));
+
+        const itemToEquipmentMap = new Map<string, string[]>();
+        for (const link of itemEquipmentLinks) {
+          if (!itemToEquipmentMap.has(link.quotationItemId)) {
+            itemToEquipmentMap.set(link.quotationItemId, []);
+          }
+          itemToEquipmentMap.get(link.quotationItemId)!.push(link.customerEquipmentId);
+        }
+
+        const contractEquipmentRows: any[] = [];
+        for (const item of items) {
+          const linkedEqIds = itemToEquipmentMap.get(item.id) || [];
+          if (linkedEqIds.length > 0) {
+            // If multiple physical equipment units are linked to this line, create 1 contract equipment row per physical asset
+            for (const eqId of linkedEqIds) {
+              contractEquipmentRows.push({
+                amcContractId: contract.id,
+                quotationItemId: item.id,
+                customerEquipmentId: eqId,
+                equipmentType: item.equipmentType || 'STABILIZER',
+                equipmentName: item.productName,
+                configuration: item.equipmentConfiguration || item.model,
+                rating: item.equipmentRating,
+                make: item.make,
+                model: item.model,
+                quantity: '1.000',
+                unitPrice: item.unitPrice,
+                lineTotal: item.unitPrice,
+                status: 'ACTIVE',
+              });
+            }
+          } else {
+            // Standard / legacy line without specific customer equipment link
+            contractEquipmentRows.push({
+              amcContractId: contract.id,
+              quotationItemId: item.id,
+              customerEquipmentId: null,
+              equipmentType: item.equipmentType || 'STABILIZER',
+              equipmentName: item.productName,
+              configuration: item.equipmentConfiguration || item.model,
+              rating: item.equipmentRating,
+              make: item.make,
+              model: item.model,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              lineTotal: item.lineTotal,
+              status: 'ACTIVE',
+            });
+          }
+        }
+
+        if (contractEquipmentRows.length > 0) {
+          await tx.insert(amcContractEquipment).values(contractEquipmentRows);
+        }
       }
 
       // 9. Copy scope items
@@ -361,10 +464,20 @@ export class AmcContractService {
     if (data.specialClauses !== undefined) updateFields.specialClauses = data.specialClauses;
     if (data.amcPaymentTerms !== undefined) updateFields.amcPaymentTerms = data.amcPaymentTerms;
     if (data.serviceFrequency !== undefined) updateFields.serviceFrequency = data.serviceFrequency;
-    if (data.scheduledVisits !== undefined) updateFields.scheduledVisits = Number(data.scheduledVisits);
-    if (data.breakdownVisitType !== undefined) updateFields.breakdownVisitType = data.breakdownVisitType;
     if (data.contractStartDate !== undefined) updateFields.contractStartDate = new Date(data.contractStartDate);
     if (data.contractEndDate !== undefined) updateFields.contractEndDate = new Date(data.contractEndDate);
+
+    const effectiveStart = updateFields.contractStartDate || contract.contractStartDate;
+    const effectiveEnd = updateFields.contractEndDate || contract.contractEndDate;
+    const effectiveFreq = updateFields.serviceFrequency || contract.serviceFrequency;
+
+    if (effectiveStart && effectiveEnd && effectiveFreq) {
+      updateFields.scheduledVisits = calculatePreventiveVisits(effectiveStart, effectiveEnd, effectiveFreq);
+    } else if (data.scheduledVisits !== undefined) {
+      updateFields.scheduledVisits = Number(data.scheduledVisits);
+    }
+
+    if (data.breakdownVisitType !== undefined) updateFields.breakdownVisitType = data.breakdownVisitType;
     if (data.totalAmount !== undefined) updateFields.totalAmount = String(data.totalAmount);
     if (data.paymentStatus !== undefined) updateFields.paymentStatus = data.paymentStatus;
 
@@ -565,6 +678,18 @@ export class AmcContractService {
         .where(eq(amcContractEscalations.amcContractId, sourceContractId))
         .orderBy(amcContractEscalations.level);
 
+      // Recalculate scheduledVisits from renewal dates and frequency
+      const renewalFrequency = renewalData.serviceFrequency ?? source.serviceFrequency;
+      const calculatedRenewalVisits = calculatePreventiveVisits(
+        renewalData.contractStartDate,
+        renewalData.contractEndDate,
+        renewalFrequency
+      );
+      const scheduledVisits =
+        calculatedRenewalVisits > 0
+          ? calculatedRenewalVisits
+          : (renewalData.scheduledVisits ?? source.scheduledVisits);
+
       // 6. Create the new (renewal) contract
       const [newContract] = await tx
         .insert(amcContracts)
@@ -583,8 +708,8 @@ export class AmcContractService {
           amcPlan: renewalData.amcPlan ?? source.amcPlan,
           contractStartDate: renewalData.contractStartDate,
           contractEndDate: renewalData.contractEndDate,
-          serviceFrequency: renewalData.serviceFrequency ?? source.serviceFrequency,
-          scheduledVisits: renewalData.scheduledVisits ?? source.scheduledVisits,
+          serviceFrequency: renewalFrequency,
+          scheduledVisits,
           completedVisits: 0,
           breakdownVisitType: renewalData.breakdownVisitType ?? source.breakdownVisitType,
           status: 'PENDING_ACTIVATION',
@@ -877,31 +1002,107 @@ export class AmcContractService {
       .where(eq(amcServiceRequests.amcContractId, contractId))
       .orderBy(desc(amcServiceRequests.createdAt));
 
-    const visitIds = requestsRaw.map((r) => r.amcServiceVisitId).filter((id): id is string => Boolean(id));
-    const reportsForVisits = visitIds.length > 0
+    const allVisitIds = Array.from(new Set([
+      ...visits.map((v) => v.id),
+      ...requestsRaw.map((r) => r.amcServiceVisitId).filter((id): id is string => Boolean(id)),
+      ...requestsRaw.map((r) => r.originServiceVisitId).filter((id): id is string => Boolean(id)),
+    ]));
+    const reportsForVisits = allVisitIds.length > 0
       ? await db
-          .select({ id: amcServiceReports.id, visitId: amcServiceReports.amcServiceVisitId, status: amcServiceReports.status })
+          .select({
+            id: amcServiceReports.id,
+            visitId: amcServiceReports.amcServiceVisitId,
+            reportNumber: amcServiceReports.reportNumber,
+            status: amcServiceReports.status,
+          })
           .from(amcServiceReports)
-          .where(sql`${amcServiceReports.amcServiceVisitId} IN ${visitIds}`)
+          .where(sql`${amcServiceReports.amcServiceVisitId} IN ${allVisitIds}`)
       : [];
     const reportMap = new Map(reportsForVisits.map((rep) => [rep.visitId, rep]));
+
+    // Batch load linked quotations, sales orders, and tasks for requests
+    const quotationIds = requestsRaw.map((r) => r.quotationId).filter((id): id is string => Boolean(id));
+    const rawQuotations = quotationIds.length > 0
+      ? await db
+          .select({ id: quotations.id, quotationNumber: quotations.quotationNumber, status: quotations.status })
+          .from(quotations)
+          .where(sql`${quotations.id} IN ${quotationIds}`)
+      : [];
+    const quotationMap = new Map(rawQuotations.map((q) => [q.id, q]));
+
+    const soIds = requestsRaw.map((r) => r.salesOrderId).filter((id): id is string => Boolean(id));
+    const rawSos = soIds.length > 0
+      ? await db
+          .select({ id: salesOrders.id, salesOrderNumber: salesOrders.salesOrderNumber, status: salesOrders.status })
+          .from(salesOrders)
+          .where(sql`${salesOrders.id} IN ${soIds}`)
+      : [];
+    const soMap = new Map(rawSos.map((s) => [s.id, s]));
+
+    const taskIds = requestsRaw.map((r) => r.taskId).filter((id): id is string => Boolean(id));
+    const rawTasks = taskIds.length > 0
+      ? await db
+          .select({ id: tasks.id, title: tasks.title, status: tasks.status, assignedTo: tasks.assignedTo })
+          .from(tasks)
+          .where(sql`${tasks.id} IN ${taskIds}`)
+      : [];
+    const taskMap = new Map(rawTasks.map((t) => [t.id, t]));
+
+    const fsrIds = requestsRaw.map((r) => r.fsrId).filter((id): id is string => Boolean(id));
+    const rawFsrs = fsrIds.length > 0
+      ? await db
+          .select({
+            id: fieldServiceReports.id,
+            fsrNumber: fieldServiceReports.fsrNumber,
+            status: fieldServiceReports.status,
+            callType: fieldServiceReports.callType,
+            fseName: fieldServiceReports.fseName,
+            visitDate: fieldServiceReports.visitDate,
+          })
+          .from(fieldServiceReports)
+          .where(sql`${fieldServiceReports.id} IN ${fsrIds}`)
+      : [];
+    const fsrMap = new Map(rawFsrs.map((f) => [f.id, f]));
 
     const requests = requestsRaw.map((req) => {
       const eqItem = req.equipmentId ? equipment.find((e) => e.id === req.equipmentId) : null;
       const escItem = escalations.find((e) => e.level === req.escalationLevel);
       const visitItem = req.amcServiceVisitId ? visits.find((v) => v.id === req.amcServiceVisitId) : null;
       const repItem = req.amcServiceVisitId ? reportMap.get(req.amcServiceVisitId) : null;
+      const originVisitItem = req.originServiceVisitId ? visits.find((v) => v.id === req.originServiceVisitId) : null;
+      const originRepItem = req.originServiceVisitId ? reportMap.get(req.originServiceVisitId) : null;
+      const linkedQuo = req.quotationId ? quotationMap.get(req.quotationId) : null;
+      const linkedSo = req.salesOrderId ? soMap.get(req.salesOrderId) : null;
+      const linkedTask = req.taskId ? taskMap.get(req.taskId) : null;
+      const linkedFsr = req.fsrId ? fsrMap.get(req.fsrId) : null;
 
       return {
         ...req,
         equipmentName: eqItem?.equipmentName || null,
         equipmentConfiguration: eqItem?.configuration || null,
+        equipmentConditionStatus: eqItem?.conditionStatus || null,
         escalationContactName: escItem?.contactName || null,
         escalationPhone: escItem?.phone || null,
         escalationEmail: escItem?.email || null,
         visitStatus: visitItem?.status || null,
         serviceReportId: repItem?.id || null,
+        serviceReportNumber: repItem?.reportNumber || null,
         serviceReportStatus: repItem?.status || null,
+        originServiceVisitId: req.originServiceVisitId || null,
+        originVisitNumber: originVisitItem?.visitNumber || null,
+        originReportId: originRepItem?.id || null,
+        originReportNumber: originRepItem?.reportNumber || null,
+        originReportStatus: originRepItem?.status || null,
+        fsrId: req.fsrId || null,
+        fsrNumber: linkedFsr?.fsrNumber || null,
+        fsrStatus: linkedFsr?.status || null,
+        fsrEngineerName: linkedFsr?.fseName || null,
+        quotationNumber: linkedQuo?.quotationNumber || null,
+        quotationStatus: linkedQuo?.status || null,
+        salesOrderNumber: linkedSo?.salesOrderNumber || null,
+        salesOrderStatus: linkedSo?.status || null,
+        taskTitle: linkedTask?.title || null,
+        taskStatus: linkedTask?.status || null,
       };
     });
 
@@ -910,6 +1111,24 @@ export class AmcContractService {
       .from(quotations)
       .where(eq(quotations.id, contract.quotationId))
       .limit(1);
+
+    let salesOrder = null;
+    if (contract.salesOrderId) {
+      const [so] = await db
+        .select()
+        .from(salesOrders)
+        .where(eq(salesOrders.id, contract.salesOrderId))
+        .limit(1);
+      salesOrder = so;
+    } else if (contract.quotationId) {
+      const [so] = await db
+        .select()
+        .from(salesOrders)
+        .where(eq(salesOrders.quotationId, contract.quotationId))
+        .orderBy(desc(salesOrders.createdAt))
+        .limit(1);
+      salesOrder = so;
+    }
 
     let computedStatus = contract.status;
     const now = new Date();
@@ -930,9 +1149,16 @@ export class AmcContractService {
       scopeItems,
       exclusions,
       escalations,
-      serviceVisits: visits,
+      serviceVisits: visits.map((v) => ({
+        ...v,
+        report: reportMap.get(v.id) || null,
+      })),
       serviceRequests: requests,
       sourceQuotationNumber: quotation?.quotationNumber,
+      sourceQuotationId: quotation?.id,
+      salesOrderId: salesOrder?.id || contract.salesOrderId || null,
+      salesOrderNumber: salesOrder?.salesOrderNumber || null,
+      salesOrderStatus: salesOrder?.status || null,
     };
   }
 
@@ -943,6 +1169,7 @@ export class AmcContractService {
     contractId: string,
     data: {
       equipmentId?: string;
+      customerEquipmentId?: string;
       issueDescription: string;
       priority?: string;
       escalationLevel?: string;
@@ -1030,6 +1257,15 @@ export class AmcContractService {
       })
       .returning();
 
+    // Resolve customer equipment ID
+    let resolvedCustomerEquipmentId = data.customerEquipmentId || null;
+    if (data.equipmentId && !resolvedCustomerEquipmentId) {
+      const eqItem = contract.equipment?.find((e) => e.id === data.equipmentId);
+      if (eqItem?.customerEquipmentId) {
+        resolvedCustomerEquipmentId = eqItem.customerEquipmentId;
+      }
+    }
+
     // Create Breakdown Service Request
     const [request] = await db
       .insert(amcServiceRequests)
@@ -1038,6 +1274,7 @@ export class AmcContractService {
         requestNumber,
         serviceType: 'BREAKDOWN',
         equipmentId: data.equipmentId || null,
+        customerEquipmentId: resolvedCustomerEquipmentId,
         issueDescription: data.issueDescription,
         priority: data.priority || 'HIGH',
         escalationLevel,
@@ -1049,6 +1286,17 @@ export class AmcContractService {
         createdById: (userId || contract.createdById)!,
       })
       .returning();
+
+    // Mark customerEquipment as NEEDS_REPAIR
+    if (resolvedCustomerEquipmentId) {
+      await db
+        .update(customerEquipment)
+        .set({
+          conditionStatus: 'NEEDS_REPAIR',
+          updatedAt: new Date(),
+        })
+        .where(eq(customerEquipment.id, resolvedCustomerEquipmentId));
+    }
 
     return request;
   }
@@ -1151,18 +1399,66 @@ export class AmcContractService {
       }
     }
 
+    let linkedQuotation = null;
+    if (request.quotationId) {
+      [linkedQuotation] = await db
+        .select({
+          id: quotations.id,
+          quotationNumber: quotations.quotationNumber,
+          status: quotations.status,
+          quotationType: quotations.quotationType,
+        })
+        .from(quotations)
+        .where(eq(quotations.id, request.quotationId))
+        .limit(1);
+    }
+
+    let linkedSalesOrder = null;
+    if (request.salesOrderId) {
+      [linkedSalesOrder] = await db
+        .select({
+          id: salesOrders.id,
+          salesOrderNumber: salesOrders.salesOrderNumber,
+          status: salesOrders.status,
+          totalAmount: salesOrders.totalAmount,
+        })
+        .from(salesOrders)
+        .where(eq(salesOrders.id, request.salesOrderId))
+        .limit(1);
+    }
+
+    let linkedTask = null;
+    if (request.taskId) {
+      [linkedTask] = await db
+        .select({
+          id: tasks.id,
+          title: tasks.title,
+          status: tasks.status,
+          assignedTo: tasks.assignedTo,
+          scheduledAt: tasks.scheduledAt,
+          completedAt: tasks.completedAt,
+        })
+        .from(tasks)
+        .where(eq(tasks.id, request.taskId))
+        .limit(1);
+    }
+
     return {
       ...request,
       contractNumber: contract.contractNumber,
       customerName: contract.customerName,
       equipmentName: eqItem?.equipmentName || null,
       equipmentConfiguration: eqItem?.configuration || null,
+      equipmentConditionStatus: eqItem?.conditionStatus || null,
       escalationContactName: escItem?.contactName || null,
       escalationPhone: escItem?.phone || null,
       escalationEmail: escItem?.email || null,
       visitStatus: visit?.status || null,
       serviceReportId: report?.id || null,
       serviceReportStatus: report?.status || null,
+      quotation: linkedQuotation,
+      salesOrder: linkedSalesOrder,
+      task: linkedTask,
     };
   }
 
@@ -1450,6 +1746,7 @@ export class AmcContractService {
           equipmentSnapshot.map((eqItem) => ({
             serviceReportId: report.id,
             equipmentId: eqItem.id,
+            customerEquipmentId: eqItem.customerEquipmentId || null,
             equipmentName: eqItem.equipmentName,
             configuration: eqItem.configuration,
             rating: eqItem.rating,
@@ -1534,13 +1831,35 @@ export class AmcContractService {
       if (data.equipment && Array.isArray(data.equipment)) {
         for (const eqData of data.equipment) {
           if (eqData.id) {
-            await tx
+            const updated = await tx
               .update(amcServiceReportEquipment)
               .set({
                 conditionStatus: eqData.conditionStatus || 'OPERATIONAL',
                 observations: eqData.observations !== undefined ? eqData.observations : null,
               })
-              .where(eq(amcServiceReportEquipment.id, eqData.id));
+              .where(
+                and(
+                  eq(amcServiceReportEquipment.serviceReportId, reportId),
+                  eq(amcServiceReportEquipment.id, eqData.id)
+                )
+              )
+              .returning();
+
+            if (updated.length === 0 && (eqData.equipmentId || eqData.id)) {
+              const eqId = eqData.equipmentId || eqData.id;
+              await tx
+                .update(amcServiceReportEquipment)
+                .set({
+                  conditionStatus: eqData.conditionStatus || 'OPERATIONAL',
+                  observations: eqData.observations !== undefined ? eqData.observations : null,
+                })
+                .where(
+                  and(
+                    eq(amcServiceReportEquipment.serviceReportId, reportId),
+                    eq(amcServiceReportEquipment.equipmentId, eqId)
+                  )
+                );
+            }
           }
         }
       }
@@ -1649,7 +1968,15 @@ export class AmcContractService {
       }
 
       if (visit.status === 'COMPLETED') {
-        throw new Error('This service visit is already marked COMPLETED.');
+        const [existingReport] = await tx
+          .select()
+          .from(amcServiceReports)
+          .where(eq(amcServiceReports.amcServiceVisitId, visitId))
+          .limit(1);
+        return {
+          visit,
+          report: existingReport,
+        };
       }
 
       const [contract] = await tx
@@ -1727,20 +2054,170 @@ export class AmcContractService {
         }
       }
 
-      // Update equipment status if provided
-      if (reportData?.equipment && Array.isArray(reportData.equipment)) {
-        for (const eqData of reportData.equipment) {
+      // Update equipment status if provided & collect defective units
+      const defectiveUnits: any[] = [];
+      const incomingEquipment = Array.isArray(reportData?.equipment)
+        ? reportData.equipment
+        : Array.isArray(reportData?.equipmentStatusList)
+        ? reportData.equipmentStatusList
+        : [];
+
+      if (incomingEquipment.length > 0) {
+        for (const eqData of incomingEquipment) {
+          const condition = eqData.conditionStatus || 'OPERATIONAL';
+          const isDefective = condition === 'NEEDS_REPAIR' || condition === 'FAULTY';
+
+          let targetReportEqId: string | null = null;
+          let resolvedContractEqId: string | null = eqData.equipmentId || null;
+          let resolvedCustomerEqId: string | null = eqData.customerEquipmentId || null;
+
+          // 1. Check if eqData.id matches amcServiceReportEquipment
           if (eqData.id) {
+            const [reportEq] = await tx
+              .select({
+                id: amcServiceReportEquipment.id,
+                equipmentId: amcServiceReportEquipment.equipmentId,
+                customerEquipmentId: amcServiceReportEquipment.customerEquipmentId,
+              })
+              .from(amcServiceReportEquipment)
+              .where(
+                and(
+                  eq(amcServiceReportEquipment.id, eqData.id),
+                  report ? eq(amcServiceReportEquipment.serviceReportId, report.id) : sql`true`
+                )
+              )
+              .limit(1);
+
+            if (reportEq) {
+              targetReportEqId = reportEq.id;
+              if (!resolvedContractEqId && reportEq.equipmentId) {
+                resolvedContractEqId = reportEq.equipmentId;
+              }
+              if (!resolvedCustomerEqId && reportEq.customerEquipmentId) {
+                resolvedCustomerEqId = reportEq.customerEquipmentId;
+              }
+            } else {
+              // If not found in amcServiceReportEquipment, eqData.id might be the amcContractEquipment id
+              if (!resolvedContractEqId) {
+                resolvedContractEqId = eqData.id;
+              }
+            }
+          }
+
+          // 2. Update amcServiceReportEquipment row if identified
+          if (targetReportEqId) {
             await tx
               .update(amcServiceReportEquipment)
               .set({
-                conditionStatus: eqData.conditionStatus || 'OPERATIONAL',
+                conditionStatus: condition,
                 observations: eqData.observations !== undefined ? eqData.observations : null,
               })
-              .where(eq(amcServiceReportEquipment.id, eqData.id));
+              .where(eq(amcServiceReportEquipment.id, targetReportEqId));
+          } else if (report && resolvedContractEqId) {
+            await tx
+              .update(amcServiceReportEquipment)
+              .set({
+                conditionStatus: condition,
+                observations: eqData.observations !== undefined ? eqData.observations : null,
+              })
+              .where(
+                and(
+                  eq(amcServiceReportEquipment.serviceReportId, report.id),
+                  eq(amcServiceReportEquipment.equipmentId, resolvedContractEqId)
+                )
+              );
+          }
+
+          // 3. Verify and update amcContractEquipment
+          let validContractEqId: string | null = null;
+          if (resolvedContractEqId) {
+            const [cEq] = await tx
+              .select({
+                id: amcContractEquipment.id,
+                customerEquipmentId: amcContractEquipment.customerEquipmentId,
+              })
+              .from(amcContractEquipment)
+              .where(eq(amcContractEquipment.id, resolvedContractEqId))
+              .limit(1);
+
+            if (cEq) {
+              validContractEqId = cEq.id;
+              if (!resolvedCustomerEqId && cEq.customerEquipmentId) {
+                resolvedCustomerEqId = cEq.customerEquipmentId;
+              }
+              await tx
+                .update(amcContractEquipment)
+                .set({ conditionStatus: condition })
+                .where(eq(amcContractEquipment.id, validContractEqId));
+            }
+          }
+
+          // 4. Update customerEquipment if resolved
+          if (resolvedCustomerEqId) {
+            await tx
+              .update(customerEquipment)
+              .set({
+                conditionStatus: condition,
+                updatedAt: now,
+              })
+              .where(eq(customerEquipment.id, resolvedCustomerEqId));
+          }
+
+          if (isDefective) {
+            defectiveUnits.push({
+              ...eqData,
+              reportEquipmentId: targetReportEqId,
+              equipmentId: validContractEqId,
+              customerEquipmentId: resolvedCustomerEqId,
+              observations: eqData.observations || eqData.observation || reportData.defectObservation || reportData.observations,
+            });
           }
         }
+      } else if (reportData?.unitCondition) {
+        const topCond = reportData.unitCondition === 'OK' ? 'OPERATIONAL' : reportData.unitCondition;
+        if (topCond === 'NEEDS_REPAIR' || topCond === 'FAULTY') {
+          defectiveUnits.push({
+            equipmentId: null,
+            customerEquipmentId: null,
+            observations: reportData.defectObservation || reportData.observations,
+          });
+        }
+        await tx
+          .update(amcContractEquipment)
+          .set({ conditionStatus: topCond })
+          .where(eq(amcContractEquipment.amcContractId, contract.id));
+
+        // Also update any linked customerEquipment
+        const contractEqs = await tx
+          .select({ customerEquipmentId: amcContractEquipment.customerEquipmentId })
+          .from(amcContractEquipment)
+          .where(eq(amcContractEquipment.amcContractId, contract.id));
+
+        const ceIds = contractEqs.map((e) => e.customerEquipmentId).filter(Boolean) as string[];
+        if (ceIds.length > 0) {
+          await tx
+            .update(customerEquipment)
+            .set({ conditionStatus: topCond, updatedAt: now })
+            .where(inArray(customerEquipment.id, ceIds));
+        }
       }
+
+      const outcomeInput = (reportData?.visitOutcome || '').toUpperCase();
+      const isDefectFlow =
+        defectiveUnits.length > 0 ||
+        outcomeInput === 'REQUIRES_FOLLOWUP' ||
+        outcomeInput === 'REQUIRES_FOLLOW_UP';
+
+      // Validation check: If REQUIRES_FOLLOW_UP or defective unit, observation is mandatory
+      if (isDefectFlow) {
+        const hasReportObservations = Boolean(reportData?.observations?.trim() || reportData?.defectObservation?.trim());
+        const hasEqObservations = defectiveUnits.some((u) => Boolean(u.observations?.trim() || (u as any).observation?.trim()));
+        if (!hasReportObservations && !hasEqObservations) {
+          throw new Error('Defect observation is mandatory / required when visit outcome is REQUIRES_FOLLOW_UP or equipment needs repair.');
+        }
+      }
+
+      const finalOutcome = isDefectFlow ? 'REQUIRES_FOLLOWUP' : (reportData?.visitOutcome || 'SATISFACTORY');
 
       // 3. Complete Service Visit
       const [completedVisit] = await tx
@@ -1753,11 +2230,65 @@ export class AmcContractService {
           technicianEmployeeId: userId,
           technicianNotes: reportData?.serviceSummary || visit.technicianNotes,
           customerRemarks: reportData?.customerRemarks || visit.customerRemarks,
-          visitOutcome: reportData?.visitOutcome || 'SATISFACTORY',
+          visitOutcome: finalOutcome,
           updatedAt: now,
         })
         .where(eq(amcServiceVisits.id, visitId))
         .returning();
+
+      // 3b. Create Follow-up Service Request if defect discovered during Preventive Maintenance Visit
+      if (isDefectFlow && visit.serviceType === 'PREVENTIVE') {
+        const [existingActiveRequest] = await tx
+          .select()
+          .from(amcServiceRequests)
+          .where(
+            and(
+              eq(amcServiceRequests.amcContractId, contract.id),
+              eq(amcServiceRequests.amcServiceVisitId, visit.id),
+              ne(amcServiceRequests.status, 'CANCELLED'),
+              ne(amcServiceRequests.status, 'RESOLVED')
+            )
+          )
+          .limit(1);
+
+        if (!existingActiveRequest) {
+          const srNumber = await this.numberService.generateNumber('SR', now, tx);
+          const firstDefective = defectiveUnits[0];
+          const partsInfo = reportData?.partsRequired?.trim()
+            ? `\nRequired Parts: ${reportData.partsRequired.trim()}`
+            : '';
+          const reportObs = reportData?.defectObservation?.trim() || reportData?.observations?.trim() || '';
+          const eqObs = firstDefective?.observations?.trim() || (firstDefective as any)?.observation?.trim() || '';
+
+          let defectDesc = '';
+          if (reportObs && eqObs && reportObs !== eqObs) {
+            defectDesc = `${reportObs} (Equipment Finding: ${eqObs})${partsInfo}`;
+          } else {
+            defectDesc = `${reportObs || eqObs || 'Defect detected during preventive maintenance inspection.'}${partsInfo}`;
+          }
+
+          const targetEquipmentId = firstDefective?.equipmentId || null;
+          const targetCustomerEquipmentId = firstDefective?.customerEquipmentId || null;
+
+          await tx.insert(amcServiceRequests).values({
+            amcContractId: contract.id,
+            requestNumber: srNumber,
+            serviceType: 'BREAKDOWN',
+            equipmentId: targetEquipmentId,
+            customerEquipmentId: targetCustomerEquipmentId,
+            issueDescription: defectDesc,
+            priority: 'HIGH',
+            escalationLevel: 'LEVEL_1',
+            status: 'OPEN',
+            coverageType: 'PENDING_REVIEW',
+            requestedAt: now,
+            amcServiceVisitId: visit.id,
+            originServiceVisitId: visit.id,
+            notes: `Follow-up request automatically generated from PM Visit #${visit.visitNumber} defect detection.`,
+            createdById: (userId && userId.trim().length > 0) ? userId : contract.createdById,
+          });
+        }
+      }
 
       // 4. Increment completed visits on AMC contract
       await tx
@@ -1966,5 +2497,318 @@ export class AmcContractService {
       .from(amcServiceReportMaterials)
       .where(eq(amcServiceReportMaterials.serviceReportId, reportId))
       .orderBy(amcServiceReportMaterials.sortOrder);
+  }
+
+  /**
+   * Service Office Coverage Decision: AMC_COVERED or CHARGEABLE
+   */
+  public async setCoverageDecision(
+    contractId: string,
+    requestId: string,
+    data: { coverageType: 'AMC_COVERED' | 'CHARGEABLE'; coverageNotes?: string },
+    userId?: string
+  ) {
+    const contract = await this.getContractById(contractId);
+    if (!contract) {
+      throw new Error(`AMC Contract ${contractId} not found.`);
+    }
+
+    const [request] = await db
+      .select()
+      .from(amcServiceRequests)
+      .where(and(eq(amcServiceRequests.id, requestId), eq(amcServiceRequests.amcContractId, contractId)))
+      .limit(1);
+
+    if (!request) {
+      throw new Error(`Service request ${requestId} not found on contract ${contractId}.`);
+    }
+
+    if (['RESOLVED', 'CANCELLED'].includes(request.status)) {
+      throw new Error(`Cannot change coverage for a request that is already ${request.status}.`);
+    }
+
+    if (!['AMC_COVERED', 'CHARGEABLE'].includes(data.coverageType)) {
+      throw new Error(`Invalid coverage type '${data.coverageType}'. Must be AMC_COVERED or CHARGEABLE.`);
+    }
+
+    const now = new Date();
+    const updatedNotes = request.notes
+      ? `${request.notes}\n[${now.toISOString()}]: Coverage classified as ${data.coverageType} by user ${userId}.${data.coverageNotes ? ` Note: ${data.coverageNotes}` : ''}`
+      : `[${now.toISOString()}]: Coverage classified as ${data.coverageType} by user ${userId}.${data.coverageNotes ? ` Note: ${data.coverageNotes}` : ''}`;
+
+    const [updated] = await db
+      .update(amcServiceRequests)
+      .set({
+        coverageType: data.coverageType,
+        coverageDecidedAt: now,
+        coverageDecidedById: userId,
+        coverageNotes: data.coverageNotes || null,
+        notes: updatedNotes,
+        updatedAt: now,
+      })
+      .where(eq(amcServiceRequests.id, requestId))
+      .returning();
+
+    return updated;
+  }
+
+  /**
+   * Create & Dispatch Repair Task for an authorized breakdown/follow-up request
+   */
+  public async createRepairTaskForRequest(
+    contractId: string,
+    requestId: string,
+    data: { assignedTo?: string; scheduledAt?: string; dueAt?: string; priority?: string; notes?: string },
+    userId?: string
+  ) {
+    const contract = await this.getContractById(contractId);
+    if (!contract) {
+      throw new Error(`AMC Contract ${contractId} not found.`);
+    }
+
+    const [request] = await db
+      .select()
+      .from(amcServiceRequests)
+      .where(and(eq(amcServiceRequests.id, requestId), eq(amcServiceRequests.amcContractId, contractId)))
+      .limit(1);
+
+    if (!request) {
+      throw new Error(`Service request ${requestId} not found.`);
+    }
+
+    if (['RESOLVED', 'CANCELLED'].includes(request.status)) {
+      throw new Error(`Cannot create repair task for request that is already ${request.status}.`);
+    }
+
+    // Duplicate check: Verify no active task already exists
+    if (request.taskId) {
+      const [existingTask] = await db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.id, request.taskId))
+        .limit(1);
+
+      if (existingTask && existingTask.status !== 'CANCELLED') {
+        throw new Error(`A repair task is already assigned for this service request (Task #${request.taskId.slice(0, 8)}).`);
+      }
+    }
+
+    // Coverage Guard: Must not be PENDING_REVIEW
+    if (request.coverageType === 'PENDING_REVIEW') {
+      throw new Error('Coverage decision (AMC_COVERED or CHARGEABLE) must be made before creating a repair task.');
+    }
+
+    // Chargeable Workflow Guards: Quotation ACCEPTED and Sales Order CONFIRMED
+    if (request.coverageType === 'CHARGEABLE') {
+      if (!request.quotationId) {
+        throw new Error('A chargeable repair requires a customer-accepted quotation and confirmed sales order before dispatching a repair task.');
+      }
+
+      const [quotation] = await db
+        .select()
+        .from(quotations)
+        .where(eq(quotations.id, request.quotationId))
+        .limit(1);
+
+      if (!quotation) {
+        throw new Error('Associated repair quotation not found.');
+      }
+
+      if (quotation.status !== 'ACCEPTED') {
+        throw new Error(`Chargeable repair quotation must be ACCEPTED by customer first (current status: ${quotation.status}).`);
+      }
+
+      if (!request.salesOrderId) {
+        throw new Error('A confirmed Sales Order is required before dispatching a chargeable repair task.');
+      }
+
+      const [so] = await db
+        .select()
+        .from(salesOrders)
+        .where(eq(salesOrders.id, request.salesOrderId))
+        .limit(1);
+
+      if (!so) {
+        throw new Error('Associated sales order not found.');
+      }
+
+      if (so.status !== 'CONFIRMED') {
+        throw new Error(`Sales Order must be CONFIRMED before dispatching a repair task (current status: ${so.status}).`);
+      }
+    }
+
+    // Retrieve equipment details
+    const eqItem = request.equipmentId ? contract.equipment?.find((e: any) => e.id === request.equipmentId) : null;
+    const taskTitle = `[Repair] ${eqItem?.equipmentName || 'Equipment'} - ${request.requestNumber}`;
+    const taskDescription = [
+      `Service Request: ${request.requestNumber}`,
+      `Coverage: ${request.coverageType}`,
+      `Reported Defect: ${request.issueDescription}`,
+      request.amcServiceVisitId ? `Derived from PM Visit #${request.amcServiceVisitId}` : null,
+      data.notes ? `Office Instructions: ${data.notes}` : null,
+    ].filter(Boolean).join('\n');
+
+    const now = new Date();
+    const scheduledDate = data.scheduledAt ? new Date(data.scheduledAt) : now;
+    const dueDate = data.dueAt ? new Date(data.dueAt) : null;
+
+    return await db.transaction(async (tx) => {
+      const destinationId = contract.destinationId || (await this.getDefaultDestination(contract.customerId, tx));
+
+      // Create repair task in tasks table
+      const [newTask] = await tx
+        .insert(tasks)
+        .values({
+          customerId: contract.customerId,
+          destinationId,
+          assignedTo: data.assignedTo || null,
+          title: taskTitle,
+          description: taskDescription,
+          priority: (data.priority || request.priority || 'HIGH') as any,
+          status: data.assignedTo ? 'ASSIGNED' : 'CREATED',
+          scheduledAt: scheduledDate,
+          dueAt: dueDate,
+          createdBy: userId || contract.createdById,
+        })
+        .returning();
+
+      // Update amcServiceRequests
+      const updatedNotes = request.notes
+        ? `${request.notes}\n[${now.toISOString()}]: Repair Task #${newTask.id.slice(0, 8)} created and dispatched.`
+        : `[${now.toISOString()}]: Repair Task #${newTask.id.slice(0, 8)} created and dispatched.`;
+
+      const [updatedRequest] = await tx
+        .update(amcServiceRequests)
+        .set({
+          taskId: newTask.id,
+          assignedEmployeeId: data.assignedTo || null,
+          status: data.assignedTo ? 'ASSIGNED' : 'OPEN',
+          notes: updatedNotes,
+          updatedAt: now,
+        })
+        .where(eq(amcServiceRequests.id, requestId))
+        .returning();
+
+      return {
+        task: newTask,
+        request: updatedRequest,
+      };
+    });
+  }
+
+  /**
+   * Link repair quotation to service request
+   */
+  public async linkQuotationToRequest(
+    contractId: string,
+    requestId: string,
+    quotationId: string,
+    userId?: string
+  ) {
+    const [request] = await db
+      .select()
+      .from(amcServiceRequests)
+      .where(and(eq(amcServiceRequests.id, requestId), eq(amcServiceRequests.amcContractId, contractId)))
+      .limit(1);
+
+    if (!request) {
+      throw new Error(`Service request ${requestId} not found.`);
+    }
+
+    const [quotation] = await db
+      .select()
+      .from(quotations)
+      .where(eq(quotations.id, quotationId))
+      .limit(1);
+
+    if (!quotation) {
+      throw new Error(`Quotation ${quotationId} not found.`);
+    }
+
+    // Duplicate check: Prevent overwriting active repair quotation if already linked
+    if (request.quotationId && request.quotationId !== quotationId) {
+      const [existingQuo] = await db
+        .select()
+        .from(quotations)
+        .where(eq(quotations.id, request.quotationId))
+        .limit(1);
+
+      if (existingQuo && existingQuo.status !== 'REJECTED') {
+        throw new Error(`An active repair quotation (${existingQuo.quotationNumber}) is already linked to this request.`);
+      }
+    }
+
+    const now = new Date();
+    const [updated] = await db
+      .update(amcServiceRequests)
+      .set({
+        quotationId,
+        coverageType: 'CHARGEABLE',
+        updatedAt: now,
+        notes: request.notes
+          ? `${request.notes}\n[${now.toISOString()}]: Repair Quotation ${quotation.quotationNumber} linked by user ${userId || 'Office'}.`
+          : `[${now.toISOString()}]: Repair Quotation ${quotation.quotationNumber} linked by user ${userId || 'Office'}.`,
+      })
+      .where(eq(amcServiceRequests.id, requestId))
+      .returning();
+
+    return updated;
+  }
+
+  /**
+   * Link confirmed sales order to service request
+   */
+  public async linkSalesOrderToRequest(
+    contractId: string,
+    requestId: string,
+    salesOrderId: string,
+    userId?: string
+  ) {
+    const [request] = await db
+      .select()
+      .from(amcServiceRequests)
+      .where(and(eq(amcServiceRequests.id, requestId), eq(amcServiceRequests.amcContractId, contractId)))
+      .limit(1);
+
+    if (!request) {
+      throw new Error(`Service request ${requestId} not found.`);
+    }
+
+    const [so] = await db
+      .select()
+      .from(salesOrders)
+      .where(eq(salesOrders.id, salesOrderId))
+      .limit(1);
+
+    if (!so) {
+      throw new Error(`Sales Order ${salesOrderId} not found.`);
+    }
+
+    const now = new Date();
+    const [updated] = await db
+      .update(amcServiceRequests)
+      .set({
+        salesOrderId,
+        updatedAt: now,
+        notes: request.notes
+          ? `${request.notes}\n[${now.toISOString()}]: Sales Order ${so.salesOrderNumber} linked by user ${userId}.`
+          : `[${now.toISOString()}]: Sales Order ${so.salesOrderNumber} linked by user ${userId}.`,
+      })
+      .where(eq(amcServiceRequests.id, requestId))
+      .returning();
+
+    return updated;
+  }
+
+  private async getDefaultDestination(customerId: string, tx: any): Promise<string> {
+    const [dest] = await tx
+      .select({ id: customerDestinations.id })
+      .from(customerDestinations)
+      .where(eq(customerDestinations.customerId, customerId))
+      .limit(1);
+    if (!dest) {
+      throw new Error(`Customer ${customerId} has no registered destination.`);
+    }
+    return dest.id;
   }
 }
