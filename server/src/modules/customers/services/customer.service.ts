@@ -31,6 +31,7 @@ export class CustomerService {
 
     let workType = user.workType;
     let designation = (user.designation || '').toLowerCase();
+    const roleStr = String(user.role || '').toUpperCase();
 
     // If workType or designation is missing from token, fetch from users table
     if (!workType || !designation) {
@@ -49,7 +50,16 @@ export class CustomerService {
       }
     }
 
-    // Office employees (Sales Office, Service Office, Accountant Office, HR) have full customer access
+    // Sales users (Sales Office, Sales reps, etc.) are strictly scoped to their own customers
+    if (
+      roleStr === 'SALES' ||
+      roleStr === 'SALES_OFFICE' ||
+      designation.includes('sales')
+    ) {
+      return true;
+    }
+
+    // Non-sales Office employees (Service Office, Accountant Office, HR) have full customer access
     if (workType === APP_CONSTANTS.WORK_TYPES.OFFICE) {
       return false;
     }
@@ -131,10 +141,7 @@ export class CustomerService {
     if (authUser && (await this.isScopedEmployee(authUser))) {
       const isOwner = customer.createdById === authUser.userId;
       if (!isOwner) {
-        const hasTask = await this.hasAssignedTaskForCustomer(authUser.userId, id);
-        if (!hasTask) {
-          throw AppError.forbidden('You do not have permission to view this customer');
-        }
+        throw AppError.forbidden('You do not have permission to view this customer');
       }
     }
 
@@ -145,6 +152,26 @@ export class CustomerService {
     input: CreateCustomerInput,
     authUser?: JwtPayload
   ): Promise<CustomerEntity> {
+    const isAdminOrManager =
+      authUser?.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser?.role === APP_CONSTANTS.ROLES.MANAGER;
+
+    let creatorName = input.createdBy || null;
+    if (authUser?.userId) {
+      try {
+        const [u] = await db
+          .select({ fullName: users.fullName })
+          .from(users)
+          .where(eq(users.id, authUser.userId))
+          .limit(1);
+        if (u?.fullName) {
+          creatorName = u.fullName;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
     return this.customerRepo.create({
       name: input.name,
       companyName: input.companyName || null,
@@ -156,8 +183,10 @@ export class CustomerService {
       pincode: input.pincode || null,
       notes: input.notes || null,
       status: input.status || 'ACTIVE',
-      createdById: authUser?.userId || input.createdById || null,
-      createdBy: (authUser as any)?.fullName || input.createdBy || null,
+      createdById: isAdminOrManager
+        ? (input.createdById || authUser?.userId || null)
+        : (authUser?.userId || null),
+      createdBy: creatorName,
     });
   }
 
@@ -171,13 +200,10 @@ export class CustomerService {
       throw AppError.notFound('Customer not found');
     }
 
-    if (
-      authUser &&
-      (await this.isScopedEmployee(authUser)) &&
-      existing.createdById &&
-      existing.createdById !== authUser.userId
-    ) {
-      throw AppError.forbidden('You do not have permission to edit this customer');
+    if (authUser && (await this.isScopedEmployee(authUser))) {
+      if (existing.createdById !== authUser.userId) {
+        throw AppError.forbidden('You do not have permission to edit this customer');
+      }
     }
 
     const updateData: any = {};
@@ -200,10 +226,16 @@ export class CustomerService {
     return updated;
   }
 
-  async deleteCustomer(id: string): Promise<void> {
+  async deleteCustomer(id: string, authUser?: JwtPayload): Promise<void> {
     const existing = await this.customerRepo.findById(id);
     if (!existing) {
       throw AppError.notFound('Customer not found');
+    }
+
+    if (authUser && (await this.isScopedEmployee(authUser))) {
+      if (existing.createdById !== authUser.userId) {
+        throw AppError.forbidden('You do not have permission to delete this customer');
+      }
     }
 
     await this.customerRepo.delete(id);

@@ -68,7 +68,7 @@ export class CustomerController {
 
   delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      await this.customerService.deleteCustomer(req.params.id);
+      await this.customerService.deleteCustomer(req.params.id, req.user);
       sendResponse(
         res,
         APP_CONSTANTS.HTTP_STATUS.OK,

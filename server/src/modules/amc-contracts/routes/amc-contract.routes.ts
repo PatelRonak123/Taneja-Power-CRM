@@ -18,7 +18,7 @@ router.get('/:id', denyNonServiceOffice, controller.getContractById);
 router.put('/:id', denyNonServiceOffice, controller.updateContract);
 router.post(
   '/:id/activate',
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  denyNonServiceOffice,
   controller.activateContract
 );
 router.post(

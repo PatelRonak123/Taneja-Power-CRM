@@ -53,6 +53,10 @@ export interface SalesInvoice {
   totalTax: string;
   roundOff: string;
   totalAmount: string;
+  paidAmount?: string;
+  balanceDue?: string;
+  quotationType?: string;
+  linkedAmcContractId?: string | null;
   notes: string | null;
 
   // Snapshots
@@ -255,4 +259,65 @@ export interface ListVendorInvoicesQuery {
   endDate?: string;
   page?: number;
   limit?: number;
+}
+
+// ─── Payment & Receivables Types ───────────────────────────────────────────────
+
+export interface PaymentReceipt {
+  id: string;
+  paymentNumber: string;
+  customerId: string;
+  customerName?: string;
+  customerCompanyName?: string;
+  salesInvoiceId?: string | null;
+  invoiceNumber?: string | null;
+  amcContractId?: string | null;
+  amcContractNumber?: string | null;
+  amount: string | number;
+  paymentDate: string;
+  paymentMode: 'BANK_TRANSFER' | 'NEFT_RTGS' | 'UPI' | 'CHEQUE' | 'CASH' | 'OTHER';
+  referenceNumber?: string | null;
+  notes?: string | null;
+  recordedBy: string;
+  recordedByName?: string;
+  createdAt: string;
+}
+
+export interface CustomerReceivableSummary {
+  customerId: string;
+  customerName: string;
+  companyName?: string;
+  phone?: string;
+  email?: string;
+  totalInvoiced: number;
+  totalPaid: number;
+  outstandingBalance: number;
+  totalOutstanding?: number;
+  totalInvoices: number;
+  unpaidInvoicesCount: number;
+  amcContractsCount: number;
+  unpaidAmcCount: number;
+  status: 'PAID' | 'PARTIALLY_PAID' | 'PENDING';
+}
+
+export interface ReceivablesData {
+  summary: {
+    totalInvoiced: number;
+    totalReceived: number;
+    totalOutstanding: number;
+    customersCount: number;
+  };
+  customerReceivables: CustomerReceivableSummary[];
+  customers?: CustomerReceivableSummary[];
+}
+
+export interface RecordPaymentPayload {
+  customerId: string;
+  salesInvoiceId?: string;
+  amcContractId?: string;
+  amount: number;
+  paymentDate?: string;
+  paymentMode: 'BANK_TRANSFER' | 'NEFT_RTGS' | 'UPI' | 'CHEQUE' | 'CASH' | 'OTHER';
+  referenceNumber?: string;
+  notes?: string;
 }

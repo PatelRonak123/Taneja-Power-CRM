@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { amcContractApi, AmcContract, AmcServiceRequest, AmcServiceVisit } from '../api/amcContractApi';
 import { calculatePreventiveVisits } from '../../../utils/amcCalculations';
 import { navigate, useCurrentPath } from '../../../app/router/navigation';
 import { useAuthStore } from '../../../stores/authStore';
 import { AmcServiceReportModal } from '../components/AmcServiceReportModal';
+import { FsrReportModal } from '../../field-service/components/FsrReportModal';
 import { toast } from '../../../utils/toast';
 import { FollowUpEntitySection } from '../../follow-ups/components/FollowUpEntitySection';
+import { UpdateAmcPaymentModal } from '../components/UpdateAmcPaymentModal';
 import { taskService } from '../../tasks/services/taskService';
 import { Employee } from '../../admin/types/employee.types';
 import {
@@ -37,11 +39,24 @@ import {
   ShieldCheck,
   Check,
   DollarSign,
+  ChevronDown,
+  UserX,
+  Search,
 } from 'lucide-react';
 
 export const AmcContractDetailPage: React.FC = () => {
   const { user } = useAuthStore();
   const isManagerOrAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const designationLower = (user?.designation || '').toLowerCase();
+  const isServiceOffice =
+    ((user?.role === 'USER' || (user as any)?.role === 'SERVICE') &&
+      designationLower.includes('service')) ||
+    (user?.workType === 'OFFICE' && designationLower.includes('service'));
+  const isAccountantOffice =
+    user?.role === 'USER' && designationLower.includes('accountant');
+  // Payment recording/updating is restricted to Admin, Manager, or Accountant Office only (NOT Service Office)
+  const canUpdatePayment = (isManagerOrAdmin || isAccountantOffice) && !isServiceOffice;
+  const canManageContract = isManagerOrAdmin || isServiceOffice;
   // Office roles (Admin, Manager, Service Office, or any Office user) do not start field visits directly
   const isOfficeRole =
     user?.role === 'ADMIN' ||
@@ -121,6 +136,7 @@ export const AmcContractDetailPage: React.FC = () => {
 
   // Service Report Modal
   const [activeReportVisitId, setActiveReportVisitId] = useState<string | null>(null);
+  const [activeFsrId, setActiveFsrId] = useState<string | null>(null);
 
   // Breakdown Request Modal
   const [isBreakdownModalOpen, setIsBreakdownModalOpen] = useState(false);
@@ -162,6 +178,7 @@ export const AmcContractDetailPage: React.FC = () => {
 
   // Renewal history chain
   const [renewalChain, setRenewalChain] = useState<{ ancestors: AmcContract[]; successors: AmcContract[] } | null>(null);
+  const [isUpdatePaymentModalOpen, setIsUpdatePaymentModalOpen] = useState(false);
 
   // Coverage Decision Modal State
   const [selectedReqForCoverage, setSelectedReqForCoverage] = useState<AmcServiceRequest | null>(null);
@@ -180,13 +197,51 @@ export const AmcContractDetailPage: React.FC = () => {
   const [repairTaskSubmitting, setRepairTaskSubmitting] = useState(false);
   const [fieldEmployees, setFieldEmployees] = useState<Employee[]>([]);
 
+  const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
+  const [assigneeSearchQuery, setAssigneeSearchQuery] = useState('');
+  const assigneeDropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (selectedReqForRepairTask) {
+      setIsAssigneeDropdownOpen(false);
+      setAssigneeSearchQuery('');
       taskService.getFieldEmployees().then((res) => {
         if (res.data) setFieldEmployees(res.data);
       }).catch((err) => console.error('Failed to load field employees', err));
     }
   }, [selectedReqForRepairTask]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        assigneeDropdownRef.current &&
+        !assigneeDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsAssigneeDropdownOpen(false);
+      }
+    };
+    if (isAssigneeDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isAssigneeDropdownOpen]);
+
+  const filteredFieldEmployees = useMemo(() => {
+    if (!assigneeSearchQuery.trim()) return fieldEmployees;
+    const q = assigneeSearchQuery.toLowerCase();
+    return fieldEmployees.filter(
+      (emp) =>
+        emp.fullName.toLowerCase().includes(q) ||
+        (emp.designation || '').toLowerCase().includes(q) ||
+        (emp.email || '').toLowerCase().includes(q)
+    );
+  }, [fieldEmployees, assigneeSearchQuery]);
+
+  const selectedEngineer = useMemo(() => {
+    return fieldEmployees.find((emp) => emp.id === repairAssignedToId);
+  }, [fieldEmployees, repairAssignedToId]);
 
   const handleCoverageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,7 +305,7 @@ export const AmcContractDetailPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to save repair link in session storage', err);
     }
-    navigate(`/quotations/create?type=SERVICE&customerId=${contract.customerId}&sourceRequestId=${reqItem.id}`);
+    navigate(`/quotations/new?type=SERVICE&customerId=${contract.customerId}&sourceRequestId=${reqItem.id}`);
   };
 
   const handleStartVisit = async (visitId: string) => {
@@ -559,7 +614,7 @@ export const AmcContractDetailPage: React.FC = () => {
             </button>
           )}
 
-          {isManagerOrAdmin && contract.status === 'PENDING_ACTIVATION' && (
+          {canManageContract && contract.status === 'PENDING_ACTIVATION' && (
             <button
               type="button"
               disabled={actionLoading}
@@ -571,7 +626,7 @@ export const AmcContractDetailPage: React.FC = () => {
             </button>
           )}
 
-          {isManagerOrAdmin && (contract.status === 'EXPIRING_SOON' || contract.status === 'EXPIRED') && (
+          {canManageContract && (contract.status === 'EXPIRING_SOON' || contract.status === 'EXPIRED') && (
             <button
               type="button"
               disabled={actionLoading}
@@ -671,12 +726,30 @@ export const AmcContractDetailPage: React.FC = () => {
         </div>
 
         {/* Financial Badge */}
-        <div className="bg-slate-900 text-white p-4 rounded-xl flex flex-col justify-between shrink-0 min-w-[200px]">
+        <div className="bg-slate-900 text-white p-4 rounded-xl flex flex-col justify-between shrink-0 min-w-[210px] shadow-sm">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Contract Value</span>
           <span className="text-2xl font-black text-emerald-400 mt-1">
             ₹{Number(contract.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </span>
-          <span className="text-[10px] text-slate-400 mt-1">Payment Status: <strong className="text-white">{contract.paymentStatus}</strong></span>
+          <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-800">
+            <span className="text-[10px] text-slate-400">
+              Payment: <strong className={`${
+                contract.paymentStatus === 'PAID' ? 'text-emerald-400 font-bold' :
+                contract.paymentStatus === 'PARTIALLY_PAID' ? 'text-blue-400 font-bold' :
+                contract.paymentStatus === 'OVERDUE' ? 'text-rose-400 font-bold' :
+                'text-amber-400 font-bold'
+              }`}>{contract.paymentStatus}</strong>
+            </span>
+            {canUpdatePayment && (
+              <button
+                type="button"
+                onClick={() => setIsUpdatePaymentModalOpen(true)}
+                className="text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-2 py-0.5 rounded cursor-pointer border border-slate-700 transition-colors shadow-2xs"
+              >
+                Update Payment
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -883,15 +956,37 @@ export const AmcContractDetailPage: React.FC = () => {
                           </button>
                         )}
 
-                        {(visit.status === 'IN_PROGRESS' || visit.status === 'COMPLETED' || visit.report) && (
-                          <button
-                            type="button"
-                            onClick={() => setActiveReportVisitId(visit.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
-                          >
-                            <FileText size={11} /> Service Report
-                          </button>
-                        )}
+                        {(visit.status === 'IN_PROGRESS' || visit.status === 'COMPLETED' || visit.report) && (() => {
+                          // For BREAKDOWN visits: find the linked service request and open FSR if available
+                          if (visit.serviceType === 'BREAKDOWN') {
+                            const linkedReq = (contract.serviceRequests || []).find(
+                              (r) => r.amcServiceVisitId === visit.id
+                            );
+                            if (linkedReq?.fsrId) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveFsrId(linkedReq.fsrId!)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
+                                >
+                                  <FileText size={11} /> FSR Report
+                                </button>
+                              );
+                            }
+                            // No FSR linked — no report button for breakdown visits
+                            return null;
+                          }
+                          // Standard PM visit: open AMC service report
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setActiveReportVisitId(visit.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
+                            >
+                              <FileText size={11} /> Service Report
+                            </button>
+                          );
+                        })()}
 
                         {!visit.taskId && visit.status !== 'COMPLETED' && (
                           <button
@@ -976,7 +1071,7 @@ export const AmcContractDetailPage: React.FC = () => {
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex flex-col gap-1">
                           <span className="font-bold text-amber-700">{reqItem.requestNumber}</span>
-                          {reqItem.amcServiceVisitId ? (
+                          {(reqItem.originServiceVisitId || (reqItem.notes && reqItem.notes.includes('PM Visit'))) ? (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold w-fit">
                               <AlertTriangle size={10} /> PM Visit Defect
                             </span>
@@ -1164,13 +1259,27 @@ export const AmcContractDetailPage: React.FC = () => {
                             </button>
                           )}
 
-                          {reqItem.amcServiceVisitId && (
+                          {/* FSR button: only shown when field engineer explicitly linked a job card */}
+                          {reqItem.fsrId && (
                             <button
                               type="button"
-                              onClick={() => setActiveReportVisitId(reqItem.amcServiceVisitId!)}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer transition-colors whitespace-nowrap"
+                              onClick={() => setActiveFsrId(reqItem.fsrId!)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap shadow-2xs"
+                              title={`View Field Service Report (${reqItem.fsrNumber || 'FSR'}) submitted by Field Engineer`}
                             >
-                              <FileText size={11} /> Report
+                              <Wrench size={11} /> FSR Report
+                            </button>
+                          )}
+
+                          {/* PM Defect Report: original PM visit that surfaced this breakdown */}
+                          {reqItem.originServiceVisitId && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveReportVisitId(reqItem.originServiceVisitId!)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-medium cursor-pointer transition-colors whitespace-nowrap"
+                              title="View Original PM Defect Report"
+                            >
+                              <AlertTriangle size={11} className="text-amber-600" /> PM Defect Report
                             </button>
                           )}
 
@@ -1688,6 +1797,41 @@ export const AmcContractDetailPage: React.FC = () => {
                     <span className="text-slate-400 italic">Not configured</span>
                   )}
                 </div>
+
+                {/* Linked Service Reports */}
+                {(selectedBreakdownReqDetail.fsrId || selectedBreakdownReqDetail.amcServiceVisitId || selectedBreakdownReqDetail.originServiceVisitId) && (
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs flex flex-col gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Linked Service Reports</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* FSR button: only shown when field engineer explicitly linked a job card */}
+                      {selectedBreakdownReqDetail.fsrId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveFsrId(selectedBreakdownReqDetail.fsrId!);
+                            setSelectedBreakdownReqDetail(null);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold cursor-pointer transition-colors shadow-2xs"
+                        >
+                          <Wrench size={13} /> View FSR ({selectedBreakdownReqDetail.fsrNumber || 'Field Report'})
+                        </button>
+                      )}
+                      {/* PM Defect Report: original PM visit that surfaced this breakdown */}
+                      {selectedBreakdownReqDetail.originServiceVisitId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveReportVisitId(selectedBreakdownReqDetail.originServiceVisitId!);
+                            setSelectedBreakdownReqDetail(null);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold cursor-pointer transition-colors"
+                        >
+                          <AlertTriangle size={13} className="text-amber-600" /> View PM Defect Report
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {selectedBreakdownReqDetail.notes && (
                   <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs flex flex-col gap-1">
@@ -2365,21 +2509,149 @@ export const AmcContractDetailPage: React.FC = () => {
                     <span>Authorized repair for defect in <strong>{selectedReqForRepairTask.equipmentName || 'Whole System'}</strong>. Completing this field task will mark the unit as restored/repaired.</span>
                   </div>
 
-                  {/* Assignee */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-700">Assign Field Engineer</label>
-                    <select
-                      value={repairAssignedToId}
-                      onChange={(e) => setRepairAssignedToId(e.target.value)}
-                      className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white font-semibold text-slate-900"
+                  {/* Assignee Custom Dropdown */}
+                  <div className="flex flex-col gap-1.5 relative" ref={assigneeDropdownRef}>
+                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                      <span>Assign Field Engineer</span>
+                      {selectedEngineer && (
+                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          Selected
+                        </span>
+                      )}
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsAssigneeDropdownOpen((prev) => !prev)}
+                      className={`w-full px-3.5 py-2.5 text-xs bg-slate-50 border rounded-xl flex items-center justify-between text-left transition-all cursor-pointer font-semibold ${
+                        isAssigneeDropdownOpen
+                          ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-white'
+                          : 'border-slate-200 hover:border-slate-300 hover:bg-white'
+                      }`}
                     >
-                      <option value="">Unassigned (Assign Later)</option>
-                      {fieldEmployees.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.fullName} ({emp.designation || 'Field Engineer'})
-                        </option>
-                      ))}
-                    </select>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {selectedEngineer ? (
+                          <>
+                            <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 shadow-2xs">
+                              {selectedEngineer.fullName.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex items-center gap-2 truncate">
+                              <span className="text-slate-900 font-bold truncate">
+                                {selectedEngineer.fullName}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80 shrink-0">
+                                {selectedEngineer.designation || 'Field Engineer'}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 text-[11px] font-bold flex items-center justify-center shrink-0">
+                              <UserX size={13} />
+                            </div>
+                            <span className="text-slate-500 font-semibold">Unassigned (Assign Later)</span>
+                          </>
+                        )}
+                      </div>
+                      <ChevronDown
+                        size={16}
+                        className={`text-slate-400 shrink-0 transition-transform duration-200 ${
+                          isAssigneeDropdownOpen ? 'rotate-180 text-emerald-600' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {/* Dropdown Menu Panel */}
+                    {isAssigneeDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100 flex flex-col">
+                        {/* Search Bar */}
+                        <div className="p-2 border-b border-slate-100 bg-slate-50/70">
+                          <div className="relative">
+                            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="text"
+                              autoFocus
+                              value={assigneeSearchQuery}
+                              onChange={(e) => setAssigneeSearchQuery(e.target.value)}
+                              placeholder="Search field engineer..."
+                              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder:text-slate-400 text-slate-900 font-medium"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Options List */}
+                        <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 p-1">
+                          {/* Unassigned Option */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRepairAssignedToId('');
+                              setIsAssigneeDropdownOpen(false);
+                              setAssigneeSearchQuery('');
+                            }}
+                            className={`w-full px-3 py-2 text-xs rounded-xl flex items-center justify-between text-left transition-colors cursor-pointer ${
+                              !repairAssignedToId
+                                ? 'bg-emerald-50 text-emerald-950 font-bold'
+                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center">
+                                <UserX size={13} />
+                              </div>
+                              <span className="font-semibold">Unassigned (Assign Later)</span>
+                            </div>
+                            {!repairAssignedToId && <Check size={14} className="text-emerald-600 shrink-0" />}
+                          </button>
+
+                          {/* Engineer List */}
+                          {filteredFieldEmployees.map((emp) => {
+                            const isSelected = repairAssignedToId === emp.id;
+                            return (
+                              <button
+                                key={emp.id}
+                                type="button"
+                                onClick={() => {
+                                  setRepairAssignedToId(emp.id);
+                                  setIsAssigneeDropdownOpen(false);
+                                  setAssigneeSearchQuery('');
+                                }}
+                                className={`w-full px-3 py-2 text-xs rounded-xl flex items-center justify-between text-left transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-emerald-50 text-emerald-950 font-bold'
+                                    : 'text-slate-800 hover:bg-emerald-50/50 hover:text-emerald-950'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div
+                                    className={`w-6 h-6 rounded-lg text-[11px] font-bold flex items-center justify-center shrink-0 ${
+                                      isSelected
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-slate-100 text-slate-700'
+                                    }`}
+                                  >
+                                    {emp.fullName.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="flex flex-col truncate">
+                                    <span className="font-bold text-slate-900 truncate">{emp.fullName}</span>
+                                    <span className="text-[10px] text-slate-500 font-medium">
+                                      {emp.designation || 'Field Engineer'}
+                                    </span>
+                                  </div>
+                                </div>
+                                {isSelected && <Check size={14} className="text-emerald-600 shrink-0" />}
+                              </button>
+                            );
+                          })}
+
+                          {filteredFieldEmployees.length === 0 && (
+                            <div className="py-4 text-center text-xs text-slate-400">
+                              No matching field engineers found.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Scheduled Date */}
@@ -2416,19 +2688,39 @@ export const AmcContractDetailPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Priority */}
+                  {/* Priority Pill Selector */}
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold text-slate-700">Priority</label>
-                    <select
-                      value={repairPriority}
-                      onChange={(e) => setRepairPriority(e.target.value as any)}
-                      className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white font-semibold text-slate-900"
-                    >
-                      <option value="LOW">LOW</option>
-                      <option value="MEDIUM">MEDIUM</option>
-                      <option value="HIGH">HIGH</option>
-                      <option value="URGENT">URGENT</option>
-                    </select>
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const).map((p) => {
+                        const isSelected = repairPriority === p;
+                        const colorClasses = {
+                          LOW: isSelected
+                            ? 'bg-slate-800 text-white border-slate-800 shadow-2xs font-bold'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 font-semibold',
+                          MEDIUM: isSelected
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-2xs font-bold'
+                            : 'bg-amber-50/60 text-amber-700 border-amber-200 hover:bg-amber-100/60 font-semibold',
+                          HIGH: isSelected
+                            ? 'bg-orange-600 text-white border-orange-600 shadow-2xs font-bold'
+                            : 'bg-orange-50/60 text-orange-700 border-orange-200 hover:bg-orange-100/60 font-semibold',
+                          URGENT: isSelected
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-2xs font-bold'
+                            : 'bg-rose-50/60 text-rose-700 border-rose-200 hover:bg-rose-100/60 font-semibold',
+                        }[p];
+
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setRepairPriority(p)}
+                            className={`py-2 text-xs rounded-xl border text-center transition-all cursor-pointer ${colorClasses}`}
+                          >
+                            {p}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Notes / Instructions */}
@@ -2476,6 +2768,25 @@ export const AmcContractDetailPage: React.FC = () => {
           isOpen={!!activeReportVisitId}
           onClose={() => setActiveReportVisitId(null)}
           onSuccess={() => fetchContractDetail()}
+        />
+      )}
+
+      {/* Field Service Report (FSR) Modal */}
+      {activeFsrId && (
+        <FsrReportModal
+          fsrId={activeFsrId}
+          isOpen={Boolean(activeFsrId)}
+          onClose={() => setActiveFsrId(null)}
+        />
+      )}
+
+      {/* Update AMC Payment Status Modal */}
+      {canUpdatePayment && isUpdatePaymentModalOpen && contract && (
+        <UpdateAmcPaymentModal
+          isOpen={isUpdatePaymentModalOpen}
+          onClose={() => setIsUpdatePaymentModalOpen(false)}
+          onSuccess={() => fetchContractDetail()}
+          contract={contract}
         />
       )}
     </div>

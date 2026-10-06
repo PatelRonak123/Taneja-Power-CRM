@@ -70,12 +70,17 @@ export const AppRouter: React.FC = () => {
         navigate('/employee/dashboard');
       } else if (
         (currentPath.startsWith('/sales-orders') || currentPath.startsWith('/admin/sales-orders')) &&
-        isServiceOffice
+        (isServiceOffice || isSalesOffice)
+      ) {
+        navigate('/employee/dashboard');
+      } else if (
+        currentPath.startsWith('/amc-contracts') &&
+        (isSalesOffice || isAccountantOffice)
       ) {
         navigate('/employee/dashboard');
       } else if (
         isAccountantOffice &&
-        (currentPath === '/quotations/new' || /^\/quotations\/[^/]+\/edit$/.test(currentPath))
+        (currentPath === '/quotations/new' || currentPath === '/quotations/create' || /^\/quotations\/[^/]+\/edit$/.test(currentPath))
       ) {
         navigate('/quotations');
       } else if (

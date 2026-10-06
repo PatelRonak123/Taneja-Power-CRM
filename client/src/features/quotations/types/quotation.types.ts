@@ -78,6 +78,8 @@ export interface QuotationItem {
   equipmentRating?: string | null;
   sortOrder: number;
   stockQuantity?: number;
+  customerEquipmentIds?: string[];
+  customerEquipment?: any[];
   createdAt: string;
   updatedAt: string;
 }
@@ -338,6 +340,7 @@ export interface LineItemFormInput {
   equipmentConfiguration?: string | null;
   equipmentRating?: string | null;
   sortOrder?: number;
+  customerEquipmentIds?: string[];
 }
 
 export interface CreateQuotationPayload {

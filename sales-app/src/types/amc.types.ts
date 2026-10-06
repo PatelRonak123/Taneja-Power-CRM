@@ -9,6 +9,8 @@ export interface AmcServiceReportItem {
 
 export interface AmcServiceReportEquipment {
   id: string;
+  equipmentId?: string | null;
+  customerEquipmentId?: string | null;
   equipmentName?: string | null;
   equipmentNameSnapshot?: string | null;
   configuration?: string | null;
@@ -46,7 +48,13 @@ export interface UpdateAmcReportPayload {
   customerName?: string;
   customerRemarks?: string;
   items?: Array<{ id: string; status: string; remarks?: string | null }>;
-  equipment?: Array<{ id: string; conditionStatus: string; observations?: string | null }>;
+  equipment?: Array<{
+    id: string;
+    equipmentId?: string | null;
+    customerEquipmentId?: string | null;
+    conditionStatus: string;
+    observations?: string | null;
+  }>;
 }
 
 export interface CompleteAmcVisitPayload {
@@ -57,5 +65,11 @@ export interface CompleteAmcVisitPayload {
   customerRemarks?: string;
   visitOutcome?: 'SATISFACTORY' | 'REQUIRES_FOLLOWUP' | 'PARTIAL_SERVICE' | 'UNRESOLVED';
   items?: Array<{ id: string; status: string; remarks?: string | null }>;
-  equipment?: Array<{ id: string; conditionStatus: string; observations?: string | null }>;
+  equipment?: Array<{
+    id: string;
+    equipmentId?: string | null;
+    customerEquipmentId?: string | null;
+    conditionStatus: string;
+    observations?: string | null;
+  }>;
 }

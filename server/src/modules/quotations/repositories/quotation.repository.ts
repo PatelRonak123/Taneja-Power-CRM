@@ -23,6 +23,7 @@ import {
 import { customers, customerDestinations } from '../../../database/schema/customers.js';
 import { users } from '../../../database/schema/users.js';
 import { products } from '../../../database/schema/products.js';
+import { customerEquipment, quotationItemEquipment, CustomerEquipmentEntity } from '../../../database/schema/customer-equipment.js';
 import { salesOrders } from '../../../database/schema/sales-orders.js';
 import { amcContracts } from '../../../database/schema/amc-contracts.js';
 
@@ -84,8 +85,14 @@ export interface QuotationListItem {
   } | null;
 }
 
+export type QuotationItemWithEquipment = QuotationItemEntity & {
+  stockQuantity?: number;
+  customerEquipment?: CustomerEquipmentEntity[];
+  customerEquipmentIds?: string[];
+};
+
 export type FullQuotationRevision = QuotationRevisionEntity & {
-  items: QuotationItemEntity[];
+  items: QuotationItemWithEquipment[];
   amcScope?: QuotationAmcScopeItemEntity[];
   amcExclusions?: QuotationAmcExclusionEntity[];
   amcEscalations?: QuotationAmcEscalationEntity[];
@@ -168,10 +175,38 @@ export class QuotationRepository {
       .where(eq(quotationItems.quotationRevisionId, revisionRecord.id))
       .orderBy(quotationItems.sortOrder, quotationItems.createdAt);
 
-    const items = itemRows.map(({ item, stockQuantity }) => ({
-      ...item,
-      stockQuantity: stockQuantity ?? 0,
-    }));
+    const itemIds = itemRows.map((r) => r.item.id);
+
+    // Fetch linked customer equipment for these quotation items
+    const equipmentMap = new Map<string, CustomerEquipmentEntity[]>();
+    if (itemIds.length > 0) {
+      const eqRows = await db
+        .select({
+          quotationItemId: quotationItemEquipment.quotationItemId,
+          equipment: customerEquipment,
+        })
+        .from(quotationItemEquipment)
+        .innerJoin(customerEquipment, eq(quotationItemEquipment.customerEquipmentId, customerEquipment.id))
+        .where(inArray(quotationItemEquipment.quotationItemId, itemIds))
+        .orderBy(customerEquipment.assetNumber);
+
+      for (const row of eqRows) {
+        if (!equipmentMap.has(row.quotationItemId)) {
+          equipmentMap.set(row.quotationItemId, []);
+        }
+        equipmentMap.get(row.quotationItemId)!.push(row.equipment);
+      }
+    }
+
+    const items: QuotationItemWithEquipment[] = itemRows.map(({ item, stockQuantity }) => {
+      const eqList = equipmentMap.get(item.id) || [];
+      return {
+        ...item,
+        stockQuantity: stockQuantity ?? 0,
+        customerEquipment: eqList,
+        customerEquipmentIds: eqList.map((e) => e.id),
+      };
+    });
 
     const amcScope = await db
       .select()

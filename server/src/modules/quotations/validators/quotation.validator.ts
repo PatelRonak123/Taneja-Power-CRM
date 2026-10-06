@@ -31,6 +31,8 @@ export const lineItemSchema = z.object({
   equipmentType: z.string().max(100).optional().nullable(),
   equipmentConfiguration: z.string().max(100).optional().nullable(),
   equipmentRating: z.string().max(100).optional().nullable(),
+  customerEquipmentIds: z.array(z.string().uuid()).optional().default([]),
+  customerEquipmentId: z.string().uuid().optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).optional(),
 });
 

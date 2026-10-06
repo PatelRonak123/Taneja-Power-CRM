@@ -27,6 +27,7 @@ export class DestinationService {
 
     let workType = user.workType;
     let designation = (user.designation || '').toLowerCase();
+    const roleStr = String(user.role || '').toUpperCase();
 
     if (!workType || !designation) {
       try {
@@ -42,6 +43,15 @@ export class DestinationService {
       } catch {
         // Fallback to token values
       }
+    }
+
+    // Sales users (Sales Office, Sales reps, etc.) are strictly scoped to their own customers
+    if (
+      roleStr === 'SALES' ||
+      roleStr === 'SALES_OFFICE' ||
+      designation.includes('sales')
+    ) {
+      return true;
     }
 
     if (workType === APP_CONSTANTS.WORK_TYPES.OFFICE) {
@@ -90,10 +100,7 @@ export class DestinationService {
     if (authUser && (await this.isScopedEmployee(authUser))) {
       const isOwner = customer.createdById === authUser.userId;
       if (!isOwner) {
-        const hasTask = await this.hasAssignedTaskForCustomer(authUser.userId, customerId);
-        if (!hasTask) {
-          throw AppError.forbidden('You do not have permission to access destinations for this customer');
-        }
+        throw AppError.forbidden('You do not have permission to access destinations for this customer');
       }
     }
 

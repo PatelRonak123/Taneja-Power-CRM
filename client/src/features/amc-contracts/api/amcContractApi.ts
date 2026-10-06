@@ -115,7 +115,17 @@ export interface AmcServiceRequest {
   amcServiceVisitId?: string;
   visitStatus?: string;
   serviceReportId?: string;
+  serviceReportNumber?: string | null;
   serviceReportStatus?: string;
+  originServiceVisitId?: string | null;
+  originVisitNumber?: number | null;
+  originReportId?: string | null;
+  originReportNumber?: string | null;
+  originReportStatus?: string | null;
+  fsrId?: string | null;
+  fsrNumber?: string | null;
+  fsrStatus?: string | null;
+  fsrEngineerName?: string | null;
   resolvedAt?: string;
   coverageType?: 'PENDING_REVIEW' | 'AMC_COVERED' | 'CHARGEABLE' | string;
   quotationId?: string | null;

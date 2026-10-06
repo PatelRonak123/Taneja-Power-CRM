@@ -69,7 +69,7 @@ export interface SalesOrder {
   totalAmount: string;
 
   status: SalesOrderStatus;
-  dispatchStatus?: 'NOT_DISPATCHED' | 'PARTIALLY_DISPATCHED' | 'FULLY_DISPATCHED' | string;
+  dispatchStatus?: 'NOT_DISPATCHED' | 'PARTIALLY_DISPATCHED' | 'FULLY_DISPATCHED' | 'NOT_APPLICABLE' | string;
 
   createdBy: string;
   confirmedBy: string | null;

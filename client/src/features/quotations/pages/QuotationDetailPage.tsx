@@ -84,7 +84,7 @@ export const QuotationDetailPage: React.FC = () => {
 
   // Extract ID from /quotations/:id
   const match = currentPath.match(/^\/quotations\/([^/]+)$/);
-  const quotationId = match ? match[1] : null;
+  const quotationId = match && match[1] !== 'new' && match[1] !== 'create' ? match[1] : null;
 
   const [activeTab, setActiveTab] = useState<'revisions' | 'approvals' | 'activity' | 'followups'>('revisions');
   const [approvalModalAction, setApprovalModalAction] = useState<'APPROVE' | 'REJECT' | null>(null);
@@ -398,7 +398,7 @@ export const QuotationDetailPage: React.FC = () => {
             )}
 
             {/* Downstream Sales Order Actions */}
-            {hasLinkedSalesOrder && (
+            {hasLinkedSalesOrder && !isSalesOffice && (
               <Button
                 variant="outline"
                 size="md"
@@ -465,6 +465,22 @@ export const QuotationDetailPage: React.FC = () => {
               >
                 Create AMC Contract
               </Button>
+            )}
+
+            {quotation.quotationType === 'AMC' &&
+              quotation.status === 'ACCEPTED' &&
+              !hasLinkedAmcContract &&
+              !isLinkedSoEligible &&
+              (isServiceOffice || isPrivileged) &&
+              !isSalesOffice &&
+              !isAccountant && (
+                <div
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium"
+                  title="AMC Contract will be available after the Sales Order is confirmed."
+                >
+                  <Clock size={13} className="text-amber-600 shrink-0" />
+                  <span>AMC Contract available after SO is confirmed</span>
+                </div>
             )}
 
             {canCreateRevision && (
@@ -618,9 +634,12 @@ export const QuotationDetailPage: React.FC = () => {
             <div>
               <p className="text-sm font-semibold">Customer Accepted Proposal</p>
               <p className="text-xs text-emerald-800 mt-0.5">
-                {!quotation.linkedSalesOrder && 'Commercially accepted. Ready for Sales Order creation.'}
+                {!quotation.linkedSalesOrder &&
+                  (quotation.quotationType === 'AMC'
+                    ? 'Commercially accepted. AMC Contract will be available after the Sales Order is created and confirmed.'
+                    : 'Commercially accepted. Ready for Sales Order creation.')}
                 {quotation.linkedSalesOrder && !allowedAmcSoStatuses.includes(quotation.linkedSalesOrder.status) &&
-                  `Linked Sales Order ${quotation.linkedSalesOrder.salesOrderNumber} is ${quotation.linkedSalesOrder.status}. Confirm it to proceed to AMC Contract creation.`}
+                  `Linked Sales Order ${quotation.linkedSalesOrder.salesOrderNumber} is ${quotation.linkedSalesOrder.status}. AMC Contract will be available after the Sales Order is confirmed.`}
                 {quotation.linkedSalesOrder && allowedAmcSoStatuses.includes(quotation.linkedSalesOrder.status) && !quotation.linkedAmcContract &&
                   `Sales Order ${quotation.linkedSalesOrder.salesOrderNumber} is ${quotation.linkedSalesOrder.status}. Ready to generate AMC Contract.`}
                 {quotation.linkedAmcContract &&
@@ -629,7 +648,7 @@ export const QuotationDetailPage: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {quotation.linkedSalesOrder && (
+            {quotation.linkedSalesOrder && !isSalesOffice && (
               <Button
                 variant="outline"
                 size="sm"

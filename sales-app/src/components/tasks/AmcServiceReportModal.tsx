@@ -138,13 +138,19 @@ export const AmcServiceReportModal: React.FC<AmcServiceReportModalProps> = ({
         items: items.map((it) => ({ id: it.id, status: it.status, remarks: it.remarks })),
         equipment: equipment.map((eq) => ({
           id: eq.id,
+          equipmentId: eq.equipmentId || eq.id,
+          customerEquipmentId: eq.customerEquipmentId,
           conditionStatus: eq.conditionStatus,
           observations: eq.observations,
         })),
       });
       Alert.alert('Draft Saved', 'AMC service report draft saved successfully.');
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to save draft.';
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to save draft.';
       Alert.alert('Save Failed', msg);
     } finally {
       setSavingDraft(false);
@@ -209,6 +215,8 @@ export const AmcServiceReportModal: React.FC<AmcServiceReportModalProps> = ({
                 items: items.map((it) => ({ id: it.id, status: it.status, remarks: it.remarks })),
                 equipment: equipment.map((eq) => ({
                   id: eq.id,
+                  equipmentId: eq.equipmentId || eq.id,
+                  customerEquipmentId: eq.customerEquipmentId,
                   conditionStatus: eq.conditionStatus,
                   observations: eq.observations,
                 })),
@@ -231,7 +239,10 @@ export const AmcServiceReportModal: React.FC<AmcServiceReportModalProps> = ({
               onClose();
             } catch (err: any) {
               const msg =
-                err?.response?.data?.message || err?.message || 'Failed to submit report.';
+                err?.response?.data?.message ||
+                err?.response?.data?.error ||
+                err?.message ||
+                'Failed to submit report.';
               Alert.alert('Submission Error', msg);
             } finally {
               setSubmitting(false);

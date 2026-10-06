@@ -1,4 +1,4 @@
-import { eq, and, ne, desc, sql, like, or, lte, gte, gt } from 'drizzle-orm';
+import { eq, and, ne, desc, sql, like, or, lte, gte, gt, inArray } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import {
   amcContracts,
@@ -21,6 +21,8 @@ import { tasks } from '../../../database/schema/tasks.js';
 import { users } from '../../../database/schema/users.js';
 import { products } from '../../../database/schema/products.js';
 import { salesOrders } from '../../../database/schema/sales-orders.js';
+import { customerEquipment, quotationItemEquipment } from '../../../database/schema/customer-equipment.js';
+import { fieldServiceReports } from '../../../database/schema/field-service.js';
 import { AmcContractNumberService } from './amc-contract-number.service.js';
 import { AmcServiceReportPdfService, ServiceReportPdfData } from './amc-service-report-pdf.service.js';
 import { StockService } from '../../inventory/services/stock.service.js';
@@ -209,22 +211,69 @@ export class AmcContractService {
 
       // 8. Copy equipment rows
       if (items.length > 0) {
-        await tx.insert(amcContractEquipment).values(
-          items.map((item) => ({
-            amcContractId: contract.id,
-            quotationItemId: item.id,
-            equipmentType: item.equipmentType || 'STABILIZER',
-            equipmentName: item.productName,
-            configuration: item.equipmentConfiguration || item.model,
-            rating: item.equipmentRating,
-            make: item.make,
-            model: item.model,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            lineTotal: item.lineTotal,
-            status: 'ACTIVE',
-          }))
-        );
+        // Query linked customer equipment from junction table
+        const itemIds = items.map((i) => i.id);
+        const itemEquipmentLinks = await tx
+          .select({
+            quotationItemId: quotationItemEquipment.quotationItemId,
+            customerEquipmentId: quotationItemEquipment.customerEquipmentId,
+          })
+          .from(quotationItemEquipment)
+          .where(inArray(quotationItemEquipment.quotationItemId, itemIds));
+
+        const itemToEquipmentMap = new Map<string, string[]>();
+        for (const link of itemEquipmentLinks) {
+          if (!itemToEquipmentMap.has(link.quotationItemId)) {
+            itemToEquipmentMap.set(link.quotationItemId, []);
+          }
+          itemToEquipmentMap.get(link.quotationItemId)!.push(link.customerEquipmentId);
+        }
+
+        const contractEquipmentRows: any[] = [];
+        for (const item of items) {
+          const linkedEqIds = itemToEquipmentMap.get(item.id) || [];
+          if (linkedEqIds.length > 0) {
+            // If multiple physical equipment units are linked to this line, create 1 contract equipment row per physical asset
+            for (const eqId of linkedEqIds) {
+              contractEquipmentRows.push({
+                amcContractId: contract.id,
+                quotationItemId: item.id,
+                customerEquipmentId: eqId,
+                equipmentType: item.equipmentType || 'STABILIZER',
+                equipmentName: item.productName,
+                configuration: item.equipmentConfiguration || item.model,
+                rating: item.equipmentRating,
+                make: item.make,
+                model: item.model,
+                quantity: '1.000',
+                unitPrice: item.unitPrice,
+                lineTotal: item.unitPrice,
+                status: 'ACTIVE',
+              });
+            }
+          } else {
+            // Standard / legacy line without specific customer equipment link
+            contractEquipmentRows.push({
+              amcContractId: contract.id,
+              quotationItemId: item.id,
+              customerEquipmentId: null,
+              equipmentType: item.equipmentType || 'STABILIZER',
+              equipmentName: item.productName,
+              configuration: item.equipmentConfiguration || item.model,
+              rating: item.equipmentRating,
+              make: item.make,
+              model: item.model,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              lineTotal: item.lineTotal,
+              status: 'ACTIVE',
+            });
+          }
+        }
+
+        if (contractEquipmentRows.length > 0) {
+          await tx.insert(amcContractEquipment).values(contractEquipmentRows);
+        }
       }
 
       // 9. Copy scope items
@@ -956,6 +1005,7 @@ export class AmcContractService {
     const allVisitIds = Array.from(new Set([
       ...visits.map((v) => v.id),
       ...requestsRaw.map((r) => r.amcServiceVisitId).filter((id): id is string => Boolean(id)),
+      ...requestsRaw.map((r) => r.originServiceVisitId).filter((id): id is string => Boolean(id)),
     ]));
     const reportsForVisits = allVisitIds.length > 0
       ? await db
@@ -998,14 +1048,33 @@ export class AmcContractService {
       : [];
     const taskMap = new Map(rawTasks.map((t) => [t.id, t]));
 
+    const fsrIds = requestsRaw.map((r) => r.fsrId).filter((id): id is string => Boolean(id));
+    const rawFsrs = fsrIds.length > 0
+      ? await db
+          .select({
+            id: fieldServiceReports.id,
+            fsrNumber: fieldServiceReports.fsrNumber,
+            status: fieldServiceReports.status,
+            callType: fieldServiceReports.callType,
+            fseName: fieldServiceReports.fseName,
+            visitDate: fieldServiceReports.visitDate,
+          })
+          .from(fieldServiceReports)
+          .where(sql`${fieldServiceReports.id} IN ${fsrIds}`)
+      : [];
+    const fsrMap = new Map(rawFsrs.map((f) => [f.id, f]));
+
     const requests = requestsRaw.map((req) => {
       const eqItem = req.equipmentId ? equipment.find((e) => e.id === req.equipmentId) : null;
       const escItem = escalations.find((e) => e.level === req.escalationLevel);
       const visitItem = req.amcServiceVisitId ? visits.find((v) => v.id === req.amcServiceVisitId) : null;
       const repItem = req.amcServiceVisitId ? reportMap.get(req.amcServiceVisitId) : null;
+      const originVisitItem = req.originServiceVisitId ? visits.find((v) => v.id === req.originServiceVisitId) : null;
+      const originRepItem = req.originServiceVisitId ? reportMap.get(req.originServiceVisitId) : null;
       const linkedQuo = req.quotationId ? quotationMap.get(req.quotationId) : null;
       const linkedSo = req.salesOrderId ? soMap.get(req.salesOrderId) : null;
       const linkedTask = req.taskId ? taskMap.get(req.taskId) : null;
+      const linkedFsr = req.fsrId ? fsrMap.get(req.fsrId) : null;
 
       return {
         ...req,
@@ -1017,7 +1086,17 @@ export class AmcContractService {
         escalationEmail: escItem?.email || null,
         visitStatus: visitItem?.status || null,
         serviceReportId: repItem?.id || null,
+        serviceReportNumber: repItem?.reportNumber || null,
         serviceReportStatus: repItem?.status || null,
+        originServiceVisitId: req.originServiceVisitId || null,
+        originVisitNumber: originVisitItem?.visitNumber || null,
+        originReportId: originRepItem?.id || null,
+        originReportNumber: originRepItem?.reportNumber || null,
+        originReportStatus: originRepItem?.status || null,
+        fsrId: req.fsrId || null,
+        fsrNumber: linkedFsr?.fsrNumber || null,
+        fsrStatus: linkedFsr?.status || null,
+        fsrEngineerName: linkedFsr?.fseName || null,
         quotationNumber: linkedQuo?.quotationNumber || null,
         quotationStatus: linkedQuo?.status || null,
         salesOrderNumber: linkedSo?.salesOrderNumber || null,
@@ -1090,6 +1169,7 @@ export class AmcContractService {
     contractId: string,
     data: {
       equipmentId?: string;
+      customerEquipmentId?: string;
       issueDescription: string;
       priority?: string;
       escalationLevel?: string;
@@ -1177,6 +1257,15 @@ export class AmcContractService {
       })
       .returning();
 
+    // Resolve customer equipment ID
+    let resolvedCustomerEquipmentId = data.customerEquipmentId || null;
+    if (data.equipmentId && !resolvedCustomerEquipmentId) {
+      const eqItem = contract.equipment?.find((e) => e.id === data.equipmentId);
+      if (eqItem?.customerEquipmentId) {
+        resolvedCustomerEquipmentId = eqItem.customerEquipmentId;
+      }
+    }
+
     // Create Breakdown Service Request
     const [request] = await db
       .insert(amcServiceRequests)
@@ -1185,6 +1274,7 @@ export class AmcContractService {
         requestNumber,
         serviceType: 'BREAKDOWN',
         equipmentId: data.equipmentId || null,
+        customerEquipmentId: resolvedCustomerEquipmentId,
         issueDescription: data.issueDescription,
         priority: data.priority || 'HIGH',
         escalationLevel,
@@ -1196,6 +1286,17 @@ export class AmcContractService {
         createdById: (userId || contract.createdById)!,
       })
       .returning();
+
+    // Mark customerEquipment as NEEDS_REPAIR
+    if (resolvedCustomerEquipmentId) {
+      await db
+        .update(customerEquipment)
+        .set({
+          conditionStatus: 'NEEDS_REPAIR',
+          updatedAt: new Date(),
+        })
+        .where(eq(customerEquipment.id, resolvedCustomerEquipmentId));
+    }
 
     return request;
   }
@@ -1645,6 +1746,7 @@ export class AmcContractService {
           equipmentSnapshot.map((eqItem) => ({
             serviceReportId: report.id,
             equipmentId: eqItem.id,
+            customerEquipmentId: eqItem.customerEquipmentId || null,
             equipmentName: eqItem.equipmentName,
             configuration: eqItem.configuration,
             rating: eqItem.rating,
@@ -1729,13 +1831,35 @@ export class AmcContractService {
       if (data.equipment && Array.isArray(data.equipment)) {
         for (const eqData of data.equipment) {
           if (eqData.id) {
-            await tx
+            const updated = await tx
               .update(amcServiceReportEquipment)
               .set({
                 conditionStatus: eqData.conditionStatus || 'OPERATIONAL',
                 observations: eqData.observations !== undefined ? eqData.observations : null,
               })
-              .where(eq(amcServiceReportEquipment.id, eqData.id));
+              .where(
+                and(
+                  eq(amcServiceReportEquipment.serviceReportId, reportId),
+                  eq(amcServiceReportEquipment.id, eqData.id)
+                )
+              )
+              .returning();
+
+            if (updated.length === 0 && (eqData.equipmentId || eqData.id)) {
+              const eqId = eqData.equipmentId || eqData.id;
+              await tx
+                .update(amcServiceReportEquipment)
+                .set({
+                  conditionStatus: eqData.conditionStatus || 'OPERATIONAL',
+                  observations: eqData.observations !== undefined ? eqData.observations : null,
+                })
+                .where(
+                  and(
+                    eq(amcServiceReportEquipment.serviceReportId, reportId),
+                    eq(amcServiceReportEquipment.equipmentId, eqId)
+                  )
+                );
+            }
           }
         }
       }
@@ -1940,23 +2064,113 @@ export class AmcContractService {
 
       if (incomingEquipment.length > 0) {
         for (const eqData of incomingEquipment) {
-          const contractEqId = eqData.equipmentId || eqData.id;
           const condition = eqData.conditionStatus || 'OPERATIONAL';
           const isDefective = condition === 'NEEDS_REPAIR' || condition === 'FAULTY';
+
+          let targetReportEqId: string | null = null;
+          let resolvedContractEqId: string | null = eqData.equipmentId || null;
+          let resolvedCustomerEqId: string | null = eqData.customerEquipmentId || null;
+
+          // 1. Check if eqData.id matches amcServiceReportEquipment
+          if (eqData.id) {
+            const [reportEq] = await tx
+              .select({
+                id: amcServiceReportEquipment.id,
+                equipmentId: amcServiceReportEquipment.equipmentId,
+                customerEquipmentId: amcServiceReportEquipment.customerEquipmentId,
+              })
+              .from(amcServiceReportEquipment)
+              .where(
+                and(
+                  eq(amcServiceReportEquipment.id, eqData.id),
+                  report ? eq(amcServiceReportEquipment.serviceReportId, report.id) : sql`true`
+                )
+              )
+              .limit(1);
+
+            if (reportEq) {
+              targetReportEqId = reportEq.id;
+              if (!resolvedContractEqId && reportEq.equipmentId) {
+                resolvedContractEqId = reportEq.equipmentId;
+              }
+              if (!resolvedCustomerEqId && reportEq.customerEquipmentId) {
+                resolvedCustomerEqId = reportEq.customerEquipmentId;
+              }
+            } else {
+              // If not found in amcServiceReportEquipment, eqData.id might be the amcContractEquipment id
+              if (!resolvedContractEqId) {
+                resolvedContractEqId = eqData.id;
+              }
+            }
+          }
+
+          // 2. Update amcServiceReportEquipment row if identified
+          if (targetReportEqId) {
+            await tx
+              .update(amcServiceReportEquipment)
+              .set({
+                conditionStatus: condition,
+                observations: eqData.observations !== undefined ? eqData.observations : null,
+              })
+              .where(eq(amcServiceReportEquipment.id, targetReportEqId));
+          } else if (report && resolvedContractEqId) {
+            await tx
+              .update(amcServiceReportEquipment)
+              .set({
+                conditionStatus: condition,
+                observations: eqData.observations !== undefined ? eqData.observations : null,
+              })
+              .where(
+                and(
+                  eq(amcServiceReportEquipment.serviceReportId, report.id),
+                  eq(amcServiceReportEquipment.equipmentId, resolvedContractEqId)
+                )
+              );
+          }
+
+          // 3. Verify and update amcContractEquipment
+          let validContractEqId: string | null = null;
+          if (resolvedContractEqId) {
+            const [cEq] = await tx
+              .select({
+                id: amcContractEquipment.id,
+                customerEquipmentId: amcContractEquipment.customerEquipmentId,
+              })
+              .from(amcContractEquipment)
+              .where(eq(amcContractEquipment.id, resolvedContractEqId))
+              .limit(1);
+
+            if (cEq) {
+              validContractEqId = cEq.id;
+              if (!resolvedCustomerEqId && cEq.customerEquipmentId) {
+                resolvedCustomerEqId = cEq.customerEquipmentId;
+              }
+              await tx
+                .update(amcContractEquipment)
+                .set({ conditionStatus: condition })
+                .where(eq(amcContractEquipment.id, validContractEqId));
+            }
+          }
+
+          // 4. Update customerEquipment if resolved
+          if (resolvedCustomerEqId) {
+            await tx
+              .update(customerEquipment)
+              .set({
+                conditionStatus: condition,
+                updatedAt: now,
+              })
+              .where(eq(customerEquipment.id, resolvedCustomerEqId));
+          }
 
           if (isDefective) {
             defectiveUnits.push({
               ...eqData,
-              equipmentId: contractEqId,
+              reportEquipmentId: targetReportEqId,
+              equipmentId: validContractEqId,
+              customerEquipmentId: resolvedCustomerEqId,
               observations: eqData.observations || eqData.observation || reportData.defectObservation || reportData.observations,
             });
-          }
-
-          if (contractEqId) {
-            await tx
-              .update(amcContractEquipment)
-              .set({ conditionStatus: condition })
-              .where(eq(amcContractEquipment.id, contractEqId));
           }
         }
       } else if (reportData?.unitCondition) {
@@ -1964,6 +2178,7 @@ export class AmcContractService {
         if (topCond === 'NEEDS_REPAIR' || topCond === 'FAULTY') {
           defectiveUnits.push({
             equipmentId: null,
+            customerEquipmentId: null,
             observations: reportData.defectObservation || reportData.observations,
           });
         }
@@ -1971,6 +2186,20 @@ export class AmcContractService {
           .update(amcContractEquipment)
           .set({ conditionStatus: topCond })
           .where(eq(amcContractEquipment.amcContractId, contract.id));
+
+        // Also update any linked customerEquipment
+        const contractEqs = await tx
+          .select({ customerEquipmentId: amcContractEquipment.customerEquipmentId })
+          .from(amcContractEquipment)
+          .where(eq(amcContractEquipment.amcContractId, contract.id));
+
+        const ceIds = contractEqs.map((e) => e.customerEquipmentId).filter(Boolean) as string[];
+        if (ceIds.length > 0) {
+          await tx
+            .update(customerEquipment)
+            .set({ conditionStatus: topCond, updatedAt: now })
+            .where(inArray(customerEquipment.id, ceIds));
+        }
       }
 
       const outcomeInput = (reportData?.visitOutcome || '').toUpperCase();
@@ -2039,12 +2268,14 @@ export class AmcContractService {
           }
 
           const targetEquipmentId = firstDefective?.equipmentId || null;
+          const targetCustomerEquipmentId = firstDefective?.customerEquipmentId || null;
 
           await tx.insert(amcServiceRequests).values({
             amcContractId: contract.id,
             requestNumber: srNumber,
             serviceType: 'BREAKDOWN',
             equipmentId: targetEquipmentId,
+            customerEquipmentId: targetCustomerEquipmentId,
             issueDescription: defectDesc,
             priority: 'HIGH',
             escalationLevel: 'LEVEL_1',
@@ -2052,8 +2283,9 @@ export class AmcContractService {
             coverageType: 'PENDING_REVIEW',
             requestedAt: now,
             amcServiceVisitId: visit.id,
+            originServiceVisitId: visit.id,
             notes: `Follow-up request automatically generated from PM Visit #${visit.visitNumber} defect detection.`,
-            createdById: userId || contract.createdById,
+            createdById: (userId && userId.trim().length > 0) ? userId : contract.createdById,
           });
         }
       }

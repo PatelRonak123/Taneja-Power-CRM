@@ -12,7 +12,7 @@ import { leads, leadActivityLogs } from '../../../database/schema/leads.js';
 import { customers } from '../../../database/schema/customers.js';
 import { products } from '../../../database/schema/products.js';
 import { sql, eq, and, ne } from 'drizzle-orm';
-import { SO_STATUSES } from '../../../config/constants.js';
+import { SO_STATUSES, SO_DISPATCH_STATUSES } from '../../../config/constants.js';
 import { AppError } from '../../../common/errors/AppError.js';
 
 // Re-export the SO_STATUSES alias used by the tests
@@ -224,6 +224,10 @@ export class SalesOrderService {
         totalAmount: String(totalAmount),
 
         status: SO_STATUSES.DRAFT,
+        dispatchStatus:
+          quotation.quotationType === 'AMC'
+            ? SO_DISPATCH_STATUSES.NOT_APPLICABLE
+            : SO_DISPATCH_STATUSES.NOT_DISPATCHED,
         createdBy: userId,
       };
 

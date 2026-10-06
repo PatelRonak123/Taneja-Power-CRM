@@ -75,6 +75,17 @@ export interface Dispatch {
     invoiceNumber: string;
     status: string;
   };
+  customerEquipment?: Array<{
+    id: string;
+    assetNumber: string;
+    productName: string;
+    sku?: string | null;
+    serialNumber?: string | null;
+    unitIndex: number;
+    conditionStatus: string;
+    assetStatus: string;
+    deliveryDate: string;
+  }>;
 }
 
 export interface CreateDispatchPayload {

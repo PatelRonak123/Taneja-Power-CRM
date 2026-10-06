@@ -457,7 +457,8 @@ export class AmcContractController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message || 'Failed to complete visit.' });
+      const errMsg = error.message || 'Failed to complete visit.';
+      res.status(400).json({ success: false, error: errMsg, message: errMsg });
     }
   };
 

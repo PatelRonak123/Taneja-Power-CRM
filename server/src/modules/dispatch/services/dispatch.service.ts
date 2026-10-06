@@ -9,6 +9,8 @@ import { leads, leadActivityLogs } from '../../../database/schema/leads.js';
 import { customers } from '../../../database/schema/customers.js';
 import { products } from '../../../database/schema/products.js';
 import { dispatches, dispatchItems, DispatchEntity } from '../../../database/schema/dispatch.js';
+import { customerEquipment } from '../../../database/schema/customer-equipment.js';
+import { CustomerEquipmentNumberService } from '../../customer-equipment/services/customer-equipment-number.service.js';
 import {
   DISPATCH_STATUSES,
   SO_STATUSES,
@@ -53,7 +55,8 @@ export class DispatchService {
   constructor(
     private readonly dispatchRepo: DispatchRepository = new DispatchRepository(),
     private readonly numberService: DispatchNumberService = new DispatchNumberService(),
-    private readonly stockService: StockService = new StockService()
+    private readonly stockService: StockService = new StockService(),
+    private readonly equipmentNumberService: CustomerEquipmentNumberService = new CustomerEquipmentNumberService()
   ) {}
 
   /**
@@ -637,6 +640,95 @@ export class DispatchService {
         })
         .where(eq(dispatches.id, id))
         .returning();
+
+      // 7b. Create Customer Equipment records for all physically dispatched units
+      // Invariant: One customer_equipment record per physical unit (qty=5 -> 5 records)
+      // Transactional: Inside the same db.transaction (rolls back stock deduction on failure)
+      let destinationId: string | null = null;
+      if (salesOrder.quotation_id) {
+        const quoRes = await tx.execute(
+          sql`SELECT destination_id FROM quotations WHERE id = ${salesOrder.quotation_id}`
+        );
+        const quoRows = (quoRes.rows || quoRes) as any[];
+        if (quoRows.length > 0 && quoRows[0].destination_id) {
+          destinationId = quoRows[0].destination_id;
+        }
+      }
+
+      for (const item of items) {
+        const qty = Number(item.dispatchQuantity);
+        if (qty <= 0) continue;
+        const count = Math.round(qty);
+
+        // Fetch current maximum unit_index for this SO item to support partial deliveries (e.g. 1..4 then 5..10)
+        const unitIndexRes = await tx.execute(
+          sql`SELECT COALESCE(MAX(unit_index), 0) as max_unit_index FROM customer_equipment WHERE sales_order_item_id = ${item.salesOrderItemId}`
+        );
+        const unitIndexRows = (unitIndexRes.rows || unitIndexRes) as any[];
+        const currentMax = Number(unitIndexRows[0]?.max_unit_index || 0);
+        const startUnitIndex = currentMax + 1;
+
+        // Fetch SO item quantity to ensure we never exceed original ordered quantity
+        const soItemRes = await tx.execute(
+          sql`SELECT quantity FROM sales_order_items WHERE id = ${item.salesOrderItemId}`
+        );
+        const soItemRows = (soItemRes.rows || soItemRes) as any[];
+        const maxAllowed = Number(soItemRows[0]?.quantity || count);
+
+        if (startUnitIndex + count - 1 > maxAllowed) {
+          throw AppError.badRequest(
+            `Cannot create ${count} equipment units. Existing units (${currentMax}) + requested (${count}) exceeds ordered quantity (${maxAllowed}).`,
+            { salesOrderItemId: item.salesOrderItemId, currentMax, requested: count, maxAllowed },
+            'EXCESSIVE_EQUIPMENT_QUANTITY'
+          );
+        }
+
+        // Generate count sequential asset numbers atomically
+        const assetNumbers = await this.equipmentNumberService.generateAssetNumbers(
+          count,
+          updatedDispatch.dispatchedAt || new Date(),
+          tx
+        );
+
+        const equipmentToInsert = [];
+        for (let i = 0; i < count; i++) {
+          equipmentToInsert.push({
+            assetNumber: assetNumbers[i],
+            customerId: dispatch.customer_id,
+            productId: item.productId,
+            salesOrderId: dispatch.sales_order_id,
+            salesOrderItemId: item.salesOrderItemId,
+            salesInvoiceId: dispatch.sales_invoice_id || null,
+            salesInvoiceItemId: item.salesInvoiceItemId || null,
+            deliveryId: dispatch.id,
+            deliveryItemId: item.id,
+            unitIndex: startUnitIndex + i,
+            serialNumber: null,
+            productName: item.productNameSnapshot,
+            sku: item.skuSnapshot || null,
+            model: null,
+            make: null,
+            capacityRating: null,
+            hsnSac: item.hsnSacSnapshot || null,
+            destinationId: destinationId,
+            installationLocation: null,
+            installationNotes: null,
+            installationDate: null,
+            deliveryDate: updatedDispatch.dispatchedAt || new Date(),
+            warrantyStartDate: null,
+            warrantyEndDate: null,
+            warrantyTermsSnapshot: null,
+            conditionStatus: 'OPERATIONAL',
+            assetStatus: 'ACTIVE',
+            createdById: authUser.userId || authUser.id,
+            updatedById: authUser.userId || authUser.id,
+          });
+        }
+
+        if (equipmentToInsert.length > 0) {
+          await tx.insert(customerEquipment).values(equipmentToInsert);
+        }
+      }
 
       // 8. Log audit trail
       await this.dispatchRepo.createActivityLog(

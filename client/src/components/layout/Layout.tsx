@@ -34,6 +34,8 @@ import { ProcurementPage } from "../../features/procurement/pages/ProcurementPag
 import { SalesOrdersPage } from "../../features/sales-orders/pages/SalesOrdersPage";
 import { InvoicesPage } from "../../features/invoices/pages/InvoicesPage";
 import { DispatchesPage } from "../../features/dispatch/pages/DispatchesPage";
+import { CustomerEquipmentListPage } from "../../features/customer-equipment/pages/CustomerEquipmentListPage";
+import { CustomerEquipmentDetailPage } from "../../features/customer-equipment/pages/CustomerEquipmentDetailPage";
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -125,7 +127,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return <QuotationListPage />;
     }
 
-    if (currentPath === "/quotations/new") {
+    if (currentPath === "/quotations/new" || currentPath === "/quotations/create") {
       if (isAccountantOffice) {
         return <QuotationListPage />;
       }
@@ -230,6 +232,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       currentPath === "/admin/sales-orders" ||
       currentPath.startsWith("/sales-orders/")
     ) {
+      if (isSalesOffice) {
+        return <EmployeeDashboardPage />;
+      }
       return <SalesOrdersPage />;
     }
 
@@ -247,6 +252,17 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       currentPath.startsWith("/dispatches/")
     ) {
       return <DispatchesPage />;
+    }
+
+    if (
+      currentPath === "/customer-equipment" ||
+      currentPath === "/admin/customer-equipment"
+    ) {
+      return <CustomerEquipmentListPage />;
+    }
+
+    if (currentPath.startsWith("/customer-equipment/")) {
+      return <CustomerEquipmentDetailPage />;
     }
 
     if (currentPath === "/analytics") {

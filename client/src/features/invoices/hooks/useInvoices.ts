@@ -231,3 +231,26 @@ export const useCancelVendorInvoice = () => {
     onError: (err: any) => toast.error(err?.message || 'Failed to cancel Vendor Invoice'),
   });
 };
+
+// ─── Payment & Receivables Hooks ──────────────────────────────────────────────
+
+export const PAYMENT_KEYS = {
+  all: ['payments'] as const,
+  list: (query: any) => [...PAYMENT_KEYS.all, 'list', query] as const,
+  receivables: () => [...PAYMENT_KEYS.all, 'receivables'] as const,
+};
+
+export const usePayments = (query: any = {}) =>
+  useQuery({
+    queryKey: PAYMENT_KEYS.list(query),
+    queryFn: () => invoiceService.listPayments(query),
+    staleTime: 15_000,
+  });
+
+export const useReceivablesSummary = () =>
+  useQuery({
+    queryKey: PAYMENT_KEYS.receivables(),
+    queryFn: () => invoiceService.getReceivablesSummary(),
+    staleTime: 15_000,
+  });
+

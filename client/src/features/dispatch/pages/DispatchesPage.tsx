@@ -83,15 +83,19 @@ const CreateDispatchModal: React.FC<CreateModalProps> = ({
   // Sales Invoices eligible for delivery challan (Phase 4/5)
   const { data: invRes, isLoading: loadingInvoices } = useSalesInvoices({ limit: 500 });
   const invoices = (invRes?.data || []).filter((inv: any) =>
-    ['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status)
+    ['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status) &&
+    inv.quotationType !== 'AMC' &&
+    inv.salesOrder?.quotation?.quotationType !== 'AMC'
   );
 
-  // Sales Orders eligible for dispatch
+  // Sales Orders eligible for dispatch (AMC service contracts are excluded)
   const { data: soRes, isLoading: loadingSOs } = useSalesOrders();
   const salesOrders = (soRes?.data || []).filter(
     (so: any) =>
       ['CONFIRMED', 'PARTIALLY_INVOICED', 'FULLY_INVOICED'].includes(so.status) &&
-      so.dispatchStatus !== 'FULLY_DISPATCHED'
+      so.dispatchStatus !== 'FULLY_DISPATCHED' &&
+      so.dispatchStatus !== 'NOT_APPLICABLE' &&
+      so.quotation?.quotationType !== 'AMC'
   );
 
   // Auto-sync SO ID when an invoice is chosen or loaded from initial prop
@@ -902,6 +906,46 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
                 Inventory deducted via <code className="font-mono bg-emerald-100 px-1 py-0.5 rounded">StockService.removeStock()</code> on{' '}
                 {dispatch.dispatchedAt ? new Date(dispatch.dispatchedAt).toLocaleString('en-IN') : '—'}.
               </p>
+            </div>
+          )}
+
+          {/* Generated Customer Equipment / Installed Assets */}
+          {isDispatched && dispatch.customerEquipment && dispatch.customerEquipment.length > 0 && (
+            <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-4 text-xs">
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-bold flex items-center gap-1.5 text-blue-900">
+                  <PackageCheck className="w-4 h-4 text-blue-600" />
+                  <span>Generated Customer Equipment ({dispatch.customerEquipment.length} units)</span>
+                </div>
+                <span className="text-[10px] text-blue-600 font-medium">Click asset to view full lifecycle</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {dispatch.customerEquipment.map((eqItem) => (
+                  <button
+                    key={eqItem.id}
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      navigate(`/customer-equipment/${eqItem.id}`);
+                    }}
+                    className="p-2.5 bg-white border border-blue-200 rounded-lg text-left hover:border-blue-400 hover:shadow-sm transition-all group"
+                  >
+                    <div className="font-mono font-bold text-blue-700 group-hover:text-blue-900 flex items-center justify-between">
+                      <span>{eqItem.assetNumber}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 font-sans font-medium">
+                        {eqItem.conditionStatus}
+                      </span>
+                    </div>
+                    <div className="text-[11px] font-medium text-slate-800 truncate mt-0.5">
+                      {eqItem.productName}
+                    </div>
+                    <div className="text-[10px] text-gray-500 flex items-center justify-between mt-1">
+                      <span>Unit #{eqItem.unitIndex}</span>
+                      {eqItem.serialNumber && <span>SN: {eqItem.serialNumber}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>

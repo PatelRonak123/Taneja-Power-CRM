@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import {
   quotations,
@@ -10,6 +10,7 @@ import {
   quotationApprovals,
   quotationActivityLogs,
 } from '../../../database/schema/quotations.js';
+import { customerEquipment, quotationItemEquipment } from '../../../database/schema/customer-equipment.js';
 import { leads, leadActivityLogs } from '../../../database/schema/leads.js';
 import { customers, customerDestinations } from '../../../database/schema/customers.js';
 import { products } from '../../../database/schema/products.js';
@@ -41,6 +42,78 @@ export class QuotationService {
     private readonly calcService: QuotationCalculationService = new QuotationCalculationService(),
     private readonly numberService: QuotationNumberService = new QuotationNumberService()
   ) {}
+
+  /**
+   * Validate that all selected customer equipment items belong to the quotation customer,
+   * are ACTIVE, and are not duplicated across or within quotation items.
+   */
+  private async validateQuotationCustomerEquipment(
+    customerId: string,
+    items: { quantity: number; customerEquipmentIds?: string[]; customerEquipmentId?: string | null }[],
+    txClient: any = db
+  ): Promise<Map<string, string[]>> {
+    const itemEquipmentMap = new Map<number, string[]>();
+    const allEquipmentIds: string[] = [];
+
+    items.forEach((item, idx) => {
+      const ids: string[] = [];
+      if (item.customerEquipmentIds && item.customerEquipmentIds.length > 0) {
+        ids.push(...item.customerEquipmentIds);
+      } else if (item.customerEquipmentId) {
+        ids.push(item.customerEquipmentId);
+      }
+
+      if (ids.length > 0) {
+        // Check for duplicates within this item
+        const uniqueInLine = new Set(ids);
+        if (uniqueInLine.size !== ids.length) {
+          throw AppError.badRequest(`Duplicate customer equipment selected in quotation line #${idx + 1}`);
+        }
+        itemEquipmentMap.set(idx, ids);
+        allEquipmentIds.push(...ids);
+      }
+    });
+
+    if (allEquipmentIds.length === 0) {
+      return new Map();
+    }
+
+    // Check cross-line duplicates
+    const globalSet = new Set<string>();
+    for (const eqId of allEquipmentIds) {
+      if (globalSet.has(eqId)) {
+        throw AppError.badRequest(`Customer equipment ID ${eqId} is selected multiple times across quotation lines`);
+      }
+      globalSet.add(eqId);
+    }
+
+    // Validate ownership and status in database
+    const dbEquipment = await txClient
+      .select()
+      .from(customerEquipment)
+      .where(inArray(customerEquipment.id, allEquipmentIds));
+
+    const foundMap = new Map(dbEquipment.map((e: any) => [e.id, e]));
+
+    for (const eqId of allEquipmentIds) {
+      const eqRecord: any = foundMap.get(eqId);
+      if (!eqRecord) {
+        throw AppError.notFound(`Customer equipment with ID ${eqId} not found`);
+      }
+      if (eqRecord.customerId !== customerId) {
+        throw AppError.badRequest(
+          `Customer equipment ${eqRecord.assetNumber} does not belong to this customer`
+        );
+      }
+      if (eqRecord.assetStatus !== 'ACTIVE') {
+        throw AppError.badRequest(
+          `Customer equipment ${eqRecord.assetNumber} is not ACTIVE (status: ${eqRecord.assetStatus})`
+        );
+      }
+    }
+
+    return itemEquipmentMap as any;
+  }
 
   /**
    * Create a brand new quotation with Revision 1 and line items atomically
@@ -90,6 +163,16 @@ export class QuotationService {
     }
     if (customer.status !== 'ACTIVE') {
       throw AppError.badRequest('Cannot create quotation for an inactive customer');
+    }
+
+    const isAdminOrManager =
+      authUser.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser.role === APP_CONSTANTS.ROLES.MANAGER;
+
+    if (!isAdminOrManager && isSalesOfficeUser(authUser)) {
+      if (customer.createdById && customer.createdById !== authUser.userId) {
+        throw AppError.forbidden('You can only create quotations for your own customers');
+      }
     }
 
     // 2. Authoritative destination validation
@@ -148,6 +231,8 @@ export class QuotationService {
           equipmentType: item.equipmentType || null,
           equipmentConfiguration: item.equipmentConfiguration || null,
           equipmentRating: item.equipmentRating || null,
+          customerEquipmentIds: item.customerEquipmentIds,
+          customerEquipmentId: item.customerEquipmentId,
           sortOrder: item.sortOrder,
           itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
         });
@@ -174,11 +259,16 @@ export class QuotationService {
           equipmentType: item.equipmentType || null,
           equipmentConfiguration: item.equipmentConfiguration || null,
           equipmentRating: item.equipmentRating || null,
+          customerEquipmentIds: item.customerEquipmentIds,
+          customerEquipmentId: item.customerEquipmentId,
           sortOrder: item.sortOrder,
           itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
         });
       }
     }
+
+    // Validate customer equipment provenance, status, and isolation
+    await this.validateQuotationCustomerEquipment(customer.id, input.items);
 
     // 4. Financial Calculations
     const quotationDate = input.quotationDate ? new Date(input.quotationDate) : new Date();
@@ -297,13 +387,38 @@ export class QuotationService {
 
       // C. Insert Line Items
       if (calculation.items.length > 0) {
-        await tx.insert(quotationItems).values(
-          calculation.items.map((item) => ({
-            ...item,
-            quotationRevisionId: newRevision.id,
-            quotationId: newQuotation.id,
-          }))
-        );
+        const insertedItems = await tx.insert(quotationItems).values(
+          calculation.items.map((item) => {
+            const { customerEquipmentIds, customerEquipmentId, ...dbItem } = item;
+            return {
+              ...dbItem,
+              quotationRevisionId: newRevision.id,
+              quotationId: newQuotation.id,
+            };
+          })
+        ).returning();
+
+        // C0. Link Customer Equipment in junction table quotation_item_equipment
+        const equipmentJunctionRows: { quotationItemId: string; customerEquipmentId: string }[] = [];
+        insertedItems.forEach((dbItem, idx) => {
+          const calcItem = calculation.items[idx];
+          const eqIds: string[] = [];
+          if (calcItem.customerEquipmentIds && calcItem.customerEquipmentIds.length > 0) {
+            eqIds.push(...calcItem.customerEquipmentIds);
+          } else if (calcItem.customerEquipmentId) {
+            eqIds.push(calcItem.customerEquipmentId);
+          }
+          for (const eqId of eqIds) {
+            equipmentJunctionRows.push({
+              quotationItemId: dbItem.id,
+              customerEquipmentId: eqId,
+            });
+          }
+        });
+
+        if (equipmentJunctionRows.length > 0) {
+          await tx.insert(quotationItemEquipment).values(equipmentJunctionRows);
+        }
       }
 
       // C1. Insert AMC Scope Items
@@ -377,8 +492,12 @@ export class QuotationService {
       throw AppError.forbidden('Accountant Office is not permitted to update quotations');
     }
 
+    const isAdminOrManager =
+      authUser.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser.role === APP_CONSTANTS.ROLES.MANAGER;
+
     if (
-      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      !isAdminOrManager &&
       quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
     ) {
@@ -484,6 +603,8 @@ export class QuotationService {
             equipmentType: item.equipmentType || null,
             equipmentConfiguration: item.equipmentConfiguration || null,
             equipmentRating: item.equipmentRating || null,
+            customerEquipmentIds: item.customerEquipmentIds,
+            customerEquipmentId: item.customerEquipmentId,
             sortOrder: item.sortOrder,
             itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
           });
@@ -509,11 +630,14 @@ export class QuotationService {
             equipmentType: item.equipmentType || null,
             equipmentConfiguration: item.equipmentConfiguration || null,
             equipmentRating: item.equipmentRating || null,
+            customerEquipmentIds: item.customerEquipmentIds,
+            customerEquipmentId: item.customerEquipmentId,
             sortOrder: item.sortOrder,
             itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
           });
         }
       }
+      await this.validateQuotationCustomerEquipment(quotation.customerId, input.items);
     } else {
       // Retain existing items
       lineItemInputs = currentRevision.items.map((item) => ({
@@ -537,6 +661,8 @@ export class QuotationService {
         equipmentType: item.equipmentType,
         equipmentConfiguration: item.equipmentConfiguration,
         equipmentRating: item.equipmentRating,
+        customerEquipmentIds: (item as any).customerEquipmentIds,
+        customerEquipmentId: (item as any).customerEquipmentId,
         sortOrder: item.sortOrder,
         itemType: item.itemType,
       }));
@@ -682,13 +808,38 @@ export class QuotationService {
       if (input.items && input.items.length > 0) {
         await tx.delete(quotationItems).where(eq(quotationItems.quotationRevisionId, currentRevision.id));
 
-        await tx.insert(quotationItems).values(
-          calculation.items.map((item) => ({
-            ...item,
-            quotationRevisionId: currentRevision.id,
-            quotationId: quotation.id,
-          }))
-        );
+        const insertedItems = await tx.insert(quotationItems).values(
+          calculation.items.map((item) => {
+            const { customerEquipmentIds, customerEquipmentId, ...dbItem } = item;
+            return {
+              ...dbItem,
+              quotationRevisionId: currentRevision.id,
+              quotationId: quotation.id,
+            };
+          })
+        ).returning();
+
+        // Populate quotation_item_equipment junction records
+        const equipmentJunctionRows: { quotationItemId: string; customerEquipmentId: string }[] = [];
+        insertedItems.forEach((dbItem, idx) => {
+          const calcItem = calculation.items[idx];
+          const eqIds: string[] = [];
+          if (calcItem.customerEquipmentIds && calcItem.customerEquipmentIds.length > 0) {
+            eqIds.push(...calcItem.customerEquipmentIds);
+          } else if (calcItem.customerEquipmentId) {
+            eqIds.push(calcItem.customerEquipmentId);
+          }
+          for (const eqId of eqIds) {
+            equipmentJunctionRows.push({
+              quotationItemId: dbItem.id,
+              customerEquipmentId: eqId,
+            });
+          }
+        });
+
+        if (equipmentJunctionRows.length > 0) {
+          await tx.insert(quotationItemEquipment).values(equipmentJunctionRows);
+        }
       }
 
       // Update AMC Scope Items if provided
@@ -769,8 +920,12 @@ export class QuotationService {
       throw AppError.forbidden('Accountant Office is not permitted to create quotation revisions');
     }
 
+    const isAdminOrManager =
+      authUser.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser.role === APP_CONSTANTS.ROLES.MANAGER;
+
     if (
-      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      !isAdminOrManager &&
       quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
     ) {
@@ -820,6 +975,8 @@ export class QuotationService {
             equipmentType: item.equipmentType || null,
             equipmentConfiguration: item.equipmentConfiguration || null,
             equipmentRating: item.equipmentRating || null,
+            customerEquipmentIds: item.customerEquipmentIds,
+            customerEquipmentId: item.customerEquipmentId,
             sortOrder: item.sortOrder,
             itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
           });
@@ -845,11 +1002,14 @@ export class QuotationService {
             equipmentType: item.equipmentType || null,
             equipmentConfiguration: item.equipmentConfiguration || null,
             equipmentRating: item.equipmentRating || null,
+            customerEquipmentIds: item.customerEquipmentIds,
+            customerEquipmentId: item.customerEquipmentId,
             sortOrder: item.sortOrder,
             itemType: item.itemType || APP_CONSTANTS.QUOTATION_ITEM_TYPES.PRODUCT,
           });
         }
       }
+      await this.validateQuotationCustomerEquipment(quotation.customerId, input.items);
     } else {
       lineItemInputs = currentRevision.items.map((item) => ({
         productId: item.productId,
@@ -872,6 +1032,8 @@ export class QuotationService {
         equipmentType: item.equipmentType,
         equipmentConfiguration: item.equipmentConfiguration,
         equipmentRating: item.equipmentRating,
+        customerEquipmentIds: item.customerEquipmentIds,
+        customerEquipmentId: (item as any).customerEquipmentId,
         sortOrder: item.sortOrder,
         itemType: item.itemType,
       }));
@@ -1012,13 +1174,38 @@ export class QuotationService {
 
       // 3. Insert items for new revision
       if (calculation.items.length > 0) {
-        await tx.insert(quotationItems).values(
-          calculation.items.map((item) => ({
-            ...item,
-            quotationRevisionId: newRev.id,
-            quotationId: quotation.id,
-          }))
-        );
+        const insertedItems = await tx.insert(quotationItems).values(
+          calculation.items.map((item) => {
+            const { customerEquipmentIds, customerEquipmentId, ...dbItem } = item;
+            return {
+              ...dbItem,
+              quotationRevisionId: newRev.id,
+              quotationId: quotation.id,
+            };
+          })
+        ).returning();
+
+        // Populate quotation_item_equipment junction records
+        const equipmentJunctionRows: { quotationItemId: string; customerEquipmentId: string }[] = [];
+        insertedItems.forEach((dbItem, idx) => {
+          const calcItem = calculation.items[idx];
+          const eqIds: string[] = [];
+          if (calcItem.customerEquipmentIds && calcItem.customerEquipmentIds.length > 0) {
+            eqIds.push(...calcItem.customerEquipmentIds);
+          } else if (calcItem.customerEquipmentId) {
+            eqIds.push(calcItem.customerEquipmentId);
+          }
+          for (const eqId of eqIds) {
+            equipmentJunctionRows.push({
+              quotationItemId: dbItem.id,
+              customerEquipmentId: eqId,
+            });
+          }
+        });
+
+        if (equipmentJunctionRows.length > 0) {
+          await tx.insert(quotationItemEquipment).values(equipmentJunctionRows);
+        }
       }
 
       // 3a. AMC Scope Items: Copy from input if provided, else copy from prior revision
@@ -1133,8 +1320,12 @@ export class QuotationService {
       throw AppError.forbidden('Accountant Office is not permitted to submit quotations for approval');
     }
 
+    const isAdminOrManager =
+      authUser.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser.role === APP_CONSTANTS.ROLES.MANAGER;
+
     if (
-      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      !isAdminOrManager &&
       quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
     ) {
@@ -1370,10 +1561,12 @@ export class QuotationService {
       throw AppError.forbidden('Accountant Office is not permitted to withdraw quotations');
     }
 
+    const isAdminOrManager =
+      authUser.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser.role === APP_CONSTANTS.ROLES.MANAGER;
+
     if (
-      (authUser.role === APP_CONSTANTS.ROLES.USER ||
-        (authUser.role as string) === 'SERVICE' ||
-        (authUser.role as string) === 'SALES') &&
+      !isAdminOrManager &&
       quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
     ) {
@@ -1442,9 +1635,14 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
+
+    const isAdminOrManager =
+      authUser?.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser?.role === APP_CONSTANTS.ROLES.MANAGER;
+
     if (
       authUser &&
-      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      !isAdminOrManager &&
       authUser.designation !== 'Accountant Office'
     ) {
       if (
@@ -1477,13 +1675,15 @@ export class QuotationService {
    * List quotations with pagination and filters
    */
   async listQuotations(options: QuotationFilterOptions, authUser?: JwtPayload) {
-    // If the authenticated user is an office employee (USER role, except Accountant Office),
+    const isAdminOrManager =
+      authUser?.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser?.role === APP_CONSTANTS.ROLES.MANAGER;
+
+    // If the authenticated user is not Admin/Manager (except Accountant Office),
     // strictly scope to only quotations they created and their allowed categories
     if (
       authUser &&
-      (authUser.role === APP_CONSTANTS.ROLES.USER ||
-        (authUser.role as string) === 'SERVICE' ||
-        (authUser.role as string) === 'SALES') &&
+      !isAdminOrManager &&
       authUser.designation !== 'Accountant Office'
     ) {
       options.createdById = authUser.userId;
@@ -1532,9 +1732,13 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
+    const isAdminOrManager =
+      authUser?.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser?.role === APP_CONSTANTS.ROLES.MANAGER;
+
     if (
       authUser &&
-      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      !isAdminOrManager &&
       authUser.designation !== 'Accountant Office' &&
       quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
@@ -1553,9 +1757,13 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
+    const isAdminOrManager =
+      authUser?.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser?.role === APP_CONSTANTS.ROLES.MANAGER;
+
     if (
       authUser &&
-      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      !isAdminOrManager &&
       authUser.designation !== 'Accountant Office' &&
       quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
@@ -1579,9 +1787,13 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
+    const isAdminOrManager =
+      authUser?.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser?.role === APP_CONSTANTS.ROLES.MANAGER;
+
     if (
       authUser &&
-      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      !isAdminOrManager &&
       authUser.designation !== 'Accountant Office' &&
       quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
@@ -1600,9 +1812,13 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
+    const isAdminOrManager =
+      authUser?.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser?.role === APP_CONSTANTS.ROLES.MANAGER;
+
     if (
       authUser &&
-      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      !isAdminOrManager &&
       authUser.designation !== 'Accountant Office' &&
       quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
@@ -1621,9 +1837,13 @@ export class QuotationService {
     if (!quotation) {
       throw AppError.notFound('Quotation not found');
     }
+    const isAdminOrManager =
+      authUser?.role === APP_CONSTANTS.ROLES.ADMIN ||
+      authUser?.role === APP_CONSTANTS.ROLES.MANAGER;
+
     if (
       authUser &&
-      authUser.role === APP_CONSTANTS.ROLES.USER &&
+      !isAdminOrManager &&
       authUser.designation !== 'Accountant Office' &&
       quotation.createdById !== authUser.userId &&
       quotation.salespersonId !== authUser.userId
