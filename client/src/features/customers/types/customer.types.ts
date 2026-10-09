@@ -45,6 +45,7 @@ export interface CustomerQueryParams {
   status?: string;
   page?: number;
   limit?: number;
+  createdById?: string;
 }
 
 export interface CreateCustomerPayload {

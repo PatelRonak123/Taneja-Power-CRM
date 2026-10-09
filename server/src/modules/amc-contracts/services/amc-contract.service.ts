@@ -1,4 +1,4 @@
-import { eq, and, ne, desc, sql, like, or, lte, gte, gt, inArray } from 'drizzle-orm';
+import { eq, and, ne, desc, sql, like, ilike, or, lte, gte, gt, inArray } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import {
   amcContracts,
@@ -890,13 +890,19 @@ export class AmcContractService {
       conditions.push(eq(amcContracts.amcPlan, query.amcPlan));
     }
 
-    if (query.search) {
-      const searchPattern = `%${query.search}%`;
+    if (query.search && query.search.trim()) {
+      const searchPattern = `%${query.search.trim()}%`;
       conditions.push(
         or(
-          like(amcContracts.contractNumber, searchPattern),
-          like(amcContracts.customerName, searchPattern),
-          like(amcContracts.endUser, searchPattern)
+          ilike(amcContracts.contractNumber, searchPattern),
+          ilike(amcContracts.customerName, searchPattern),
+          ilike(amcContracts.companyName, searchPattern),
+          ilike(amcContracts.endUser, searchPattern),
+          ilike(amcContracts.customerCode, searchPattern),
+          ilike(amcContracts.branch, searchPattern),
+          ilike(amcContracts.zone, searchPattern),
+          ilike(customers.name, searchPattern),
+          ilike(customers.companyName, searchPattern)
         )
       );
     }
@@ -918,6 +924,7 @@ export class AmcContractService {
     const [totalCountResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(amcContracts)
+      .leftJoin(customers, eq(amcContracts.customerId, customers.id))
       .where(whereClause);
 
     const total = Number(totalCountResult?.count || 0);

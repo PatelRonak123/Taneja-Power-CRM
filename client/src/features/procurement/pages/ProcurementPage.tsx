@@ -9,6 +9,7 @@ import {
   Eye,
   X,
   AlertTriangle,
+  Info,
 } from 'lucide-react';
 import { useSearchParams, useNavigationState } from '../../../app/router/navigation';
 import { ProductForm } from '../../products/modules/ProductForm/ProductForm';
@@ -51,6 +52,7 @@ const defaultSupplierForm = {
   paymentTerms: '',
   notes: '',
   status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
+  productIds: [] as string[],
 };
 
 const defaultPoForm = () => ({
@@ -140,6 +142,7 @@ export const ProcurementPage: React.FC = () => {
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [supplierForm, setSupplierForm] = useState(defaultSupplierForm);
+  const [supplierProductSearch, setSupplierProductSearch] = useState('');
 
   const [showPoModal, setShowPoModal] = useState(false);
   const [selectedPo, setSelectedPo] = useState<PurchaseOrder | null>(null);
@@ -217,6 +220,7 @@ export const ProcurementPage: React.FC = () => {
   // ── Handlers: Suppliers ──────────────────────────────────────────────────────
   const handleOpenAddSupplier = async () => {
     setEditingSupplier(null);
+    setSupplierProductSearch('');
     let nextCode = '';
     try {
       const res = await procurementService.getNextSupplierCode();
@@ -239,6 +243,7 @@ export const ProcurementPage: React.FC = () => {
       ...defaultSupplierForm,
       supplierCode: nextCode,
       paymentTerms: 'Net 30 Days',
+      productIds: [],
     });
     setShowSupplierModal(true);
   };
@@ -607,6 +612,7 @@ export const ProcurementPage: React.FC = () => {
                 <tr>
                   <th className="py-3 px-4">Code</th>
                   <th className="py-3 px-4">Supplier Name</th>
+                  <th className="py-3 px-4">Supplied Products</th>
                   <th className="py-3 px-4">Contact Person</th>
                   <th className="py-3 px-4">Phone &amp; Email</th>
                   <th className="py-3 px-4">GSTIN</th>
@@ -617,11 +623,11 @@ export const ProcurementPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {loadingSuppliers ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500">Loading suppliers...</td>
+                    <td colSpan={8} className="py-8 text-center text-slate-500">Loading suppliers...</td>
                   </tr>
                 ) : suppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500">No suppliers found.</td>
+                    <td colSpan={8} className="py-8 text-center text-slate-500">No suppliers found.</td>
                   </tr>
                 ) : (
                   suppliers.map((s) => (
@@ -630,6 +636,31 @@ export const ProcurementPage: React.FC = () => {
                       <td className="py-3 px-4">
                         <div className="font-semibold text-slate-900">{s.name}</div>
                         {s.legalName && <div className="text-xs text-slate-400">{s.legalName}</div>}
+                      </td>
+                      <td className="py-3 px-4 max-w-xs">
+                        {s.products && s.products.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {s.products.slice(0, 2).map((prod) => (
+                              <span
+                                key={prod.id}
+                                className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50/70 text-indigo-800 border border-indigo-200/60 truncate max-w-[130px]"
+                                title={`${prod.name} (${prod.sku})`}
+                              >
+                                {prod.name}
+                              </span>
+                            ))}
+                            {s.products.length > 2 && (
+                              <span
+                                className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 cursor-help"
+                                title={s.products.map((p) => `• ${p.name} (${p.sku})`).join('\n')}
+                              >
+                                +{s.products.length - 2} more
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">None linked</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-slate-600">{s.contactPerson || '—'}</td>
                       <td className="py-3 px-4 text-slate-600">
@@ -647,6 +678,7 @@ export const ProcurementPage: React.FC = () => {
                           <button
                             onClick={() => {
                               setEditingSupplier(s);
+                              setSupplierProductSearch('');
                               setSupplierForm({
                                 supplierCode: s.supplierCode,
                                 name: s.name,
@@ -663,16 +695,17 @@ export const ProcurementPage: React.FC = () => {
                                 paymentTerms: s.paymentTerms || '',
                                 notes: s.notes || '',
                                 status: s.status,
+                                productIds: s.productIds || s.products?.map((p) => p.id) || [],
                               });
                               setShowSupplierModal(true);
                             }}
-                            className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+                            className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => handleToggleSupplierStatus(s)}
-                            className={`px-2.5 py-1 text-xs font-medium rounded-lg border ${s.status === 'ACTIVE' ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100' : 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'}`}
+                            className={`px-2.5 py-1 text-xs font-medium rounded-lg border cursor-pointer ${s.status === 'ACTIVE' ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100' : 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'}`}
                           >
                             {s.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
                           </button>
@@ -945,6 +978,180 @@ export const ProcurementPage: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Section: Authorized / Supplied Products */}
+          <div className="pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Supplied Products / Inventory Catalog
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Select the products from inventory that this vendor can supply.
+                </p>
+              </div>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {supplierForm.productIds.length} Selected
+              </span>
+            </div>
+
+            {/* Search & Quick Controls */}
+            <div className="flex items-center gap-2 mb-3">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search inventory products by name, SKU, or category..."
+                  value={supplierProductSearch}
+                  onChange={(e) => setSupplierProductSearch(e.target.value)}
+                  className="w-full pl-8 pr-7 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                {supplierProductSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setSupplierProductSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const filteredIds = availableProducts
+                    .filter((p) => {
+                      const q = supplierProductSearch.toLowerCase();
+                      return (
+                        !q ||
+                        p.name.toLowerCase().includes(q) ||
+                        p.sku.toLowerCase().includes(q) ||
+                        (p.category && p.category.toLowerCase().includes(q))
+                      );
+                    })
+                    .map((p) => p.id);
+                  const combined = Array.from(new Set([...supplierForm.productIds, ...filteredIds]));
+                  setSupplierForm({ ...supplierForm, productIds: combined });
+                }}
+                className="px-2.5 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-200 transition-colors whitespace-nowrap cursor-pointer"
+              >
+                Select All
+              </button>
+              {supplierForm.productIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSupplierForm({ ...supplierForm, productIds: [] })}
+                  className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl border border-rose-200 transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
+
+            {/* Selected Products Chips */}
+            {supplierForm.productIds.length > 0 && (
+              <div className="mb-3 p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl">
+                <div className="text-[11px] font-semibold text-slate-600 mb-1.5 flex items-center justify-between">
+                  <span>Currently Linked Products ({supplierForm.productIds.length}):</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+                  {supplierForm.productIds.map((pId) => {
+                    const prod = availableProducts.find((p) => p.id === pId);
+                    return (
+                      <span
+                        key={pId}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-white text-slate-800 border border-slate-200 shadow-2xs"
+                      >
+                        <span className="font-semibold text-indigo-600">{prod?.name || 'Product'}</span>
+                        {prod?.sku && <span className="text-[10px] text-slate-400 font-mono">({prod.sku})</span>}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSupplierForm({
+                              ...supplierForm,
+                              productIds: supplierForm.productIds.filter((id) => id !== pId),
+                            })
+                          }
+                          className="text-slate-400 hover:text-rose-600 cursor-pointer ml-0.5"
+                          title="Remove product"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Inventory Products Checklist */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100 bg-white">
+              {availableProducts.length === 0 ? (
+                <div className="p-4 text-center text-xs text-slate-400">No inventory products found</div>
+              ) : (
+                availableProducts
+                  .filter((p) => {
+                    const q = supplierProductSearch.toLowerCase();
+                    return (
+                      !q ||
+                      p.name.toLowerCase().includes(q) ||
+                      p.sku.toLowerCase().includes(q) ||
+                      (p.category && p.category.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((prod) => {
+                    const isSelected = supplierForm.productIds.includes(prod.id);
+                    return (
+                      <label
+                        key={prod.id}
+                        className={`flex items-center justify-between p-2.5 hover:bg-slate-50 cursor-pointer transition-colors ${
+                          isSelected ? 'bg-indigo-50/40' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSupplierForm({
+                                  ...supplierForm,
+                                  productIds: [...supplierForm.productIds, prod.id],
+                                });
+                              } else {
+                                setSupplierForm({
+                                  ...supplierForm,
+                                  productIds: supplierForm.productIds.filter((id) => id !== prod.id),
+                                });
+                              }
+                            }}
+                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                          />
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-slate-900 truncate">
+                              {prod.name}
+                            </div>
+                            <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                              <span className="font-mono text-slate-400">SKU: {prod.sku}</span>
+                              {prod.category && (
+                                <span className="px-1.5 py-0.2 bg-slate-100 rounded text-slate-600 font-medium">
+                                  {prod.category}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <span className="text-xs font-semibold text-slate-700 font-mono">
+                            ₹{Number(prod.price || 0).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })
+              )}
+            </div>
+          </div>
         </form>
       </Drawer>
 
@@ -976,16 +1183,29 @@ export const ProcurementPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Supplier *</label>
-                  <select required value={poForm.supplierId} onChange={(e) => setPoForm({ ...poForm, supplierId: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+                  <select
+                    required
+                    value={poForm.supplierId}
+                    onChange={(e) => setPoForm({ ...poForm, supplierId: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  >
                     <option value="">Select Supplier</option>
                     {suppliers.filter((s) => s.status === 'ACTIVE').map((s) => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.supplierCode})</option>
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.supplierCode})
+                        {s.products && s.products.length > 0 ? ` — ${s.products.length} Products` : ''}
+                      </option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Expected Delivery Date</label>
-                  <input type="date" value={poForm.expectedDeliveryDate} onChange={(e) => setPoForm({ ...poForm, expectedDeliveryDate: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+                  <input
+                    type="date"
+                    value={poForm.expectedDeliveryDate}
+                    onChange={(e) => setPoForm({ ...poForm, expectedDeliveryDate: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  />
                 </div>
               </div>
 
@@ -1004,7 +1224,19 @@ export const ProcurementPage: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-semibold text-slate-700">Line Items *</label>
-                  <button type="button" onClick={() => setPoForm({ ...poForm, items: [...poForm.items, { productId: availableProducts[0]?.id || '', quantity: 1, unitCost: 0, taxRate: 18 }] })} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPoForm({
+                        ...poForm,
+                        items: [
+                          ...poForm.items,
+                          { productId: availableProducts[0]?.id || '', quantity: 1, unitCost: 0, taxRate: 18 },
+                        ],
+                      })
+                    }
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                  >
                     <Plus className="w-3.5 h-3.5" /> <span>Add Item</span>
                   </button>
                 </div>
@@ -1023,7 +1255,7 @@ export const ProcurementPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setShowAddProductModal(true)}
-                        className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors"
+                        className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         Add Product
@@ -1035,11 +1267,11 @@ export const ProcurementPage: React.FC = () => {
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-slate-700 font-semibold text-xs border-b border-slate-200">
                       <tr>
-                        <th className="py-2.5 px-3">Product</th>
-                        <th className="py-2.5 px-3 w-24">Qty</th>
-                        <th className="py-2.5 px-3 w-32">Unit Cost (₹)</th>
-                        <th className="py-2.5 px-3 w-24">Tax (%)</th>
-                        <th className="py-2.5 px-3 w-32 text-right">Line Total (₹)</th>
+                        <th className="py-2.5 px-3 min-w-[280px]">Product &amp; Available Suppliers</th>
+                        <th className="py-2.5 px-3 w-20">Qty</th>
+                        <th className="py-2.5 px-3 w-28">Unit Cost (₹)</th>
+                        <th className="py-2.5 px-3 w-20">Tax (%)</th>
+                        <th className="py-2.5 px-3 w-28 text-right">Line Total (₹)</th>
                         <th className="py-2.5 px-3 w-10"></th>
                       </tr>
                     </thead>
@@ -1048,34 +1280,178 @@ export const ProcurementPage: React.FC = () => {
                         const sub = item.quantity * item.unitCost;
                         const tax = sub * ((item.taxRate || 0) / 100);
                         const total = sub + tax;
+
+                        const matchingSuppliers = suppliers.filter(
+                          (s) =>
+                            s.status === 'ACTIVE' &&
+                            (s.productIds?.includes(item.productId) ||
+                              s.products?.some((p) => p.id === item.productId))
+                        );
+                        const currentSupplier = suppliers.find((s) => s.id === poForm.supplierId);
+                        const isSuppliedByCurrent =
+                          poForm.supplierId &&
+                          matchingSuppliers.some((s) => s.id === poForm.supplierId);
+
                         return (
                           <tr key={idx} className="hover:bg-slate-50/50">
-                            <td className="py-2 px-3">
-                              <select required value={item.productId} onChange={(e) => { const items = [...poForm.items]; items[idx].productId = e.target.value; setPoForm({ ...poForm, items }); }} className="w-full py-1 px-2 text-xs border border-slate-200 rounded-lg">
+                            <td className="py-2.5 px-3">
+                              <select
+                                required
+                                value={item.productId}
+                                onChange={(e) => {
+                                  const items = [...poForm.items];
+                                  items[idx].productId = e.target.value;
+                                  setPoForm({ ...poForm, items });
+                                }}
+                                className="w-full py-1.5 px-2 text-xs font-medium border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500"
+                              >
                                 <option value="">Select Product…</option>
                                 {item.productId && !availableProducts.some((p) => p.id === item.productId) && (
                                   <option value={item.productId}>
-                                    {navState?.shortages?.find((s) => s.productId === item.productId)?.productName || 'Selected Product'} {navState?.shortages?.find((s) => s.productId === item.productId)?.sku ? `(${navState.shortages.find((s) => s.productId === item.productId)?.sku})` : ''}
+                                    {navState?.shortages?.find((s) => s.productId === item.productId)?.productName || 'Selected Product'}{' '}
+                                    {navState?.shortages?.find((s) => s.productId === item.productId)?.sku
+                                      ? `(${navState.shortages.find((s) => s.productId === item.productId)?.sku})`
+                                      : ''}
                                   </option>
                                 )}
-                                {availableProducts.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+                                {availableProducts.map((p) => {
+                                  const isSuppliedBySel =
+                                    poForm.supplierId &&
+                                    suppliers
+                                      .find((s) => s.id === poForm.supplierId)
+                                      ?.products?.some((sp) => sp.id === p.id);
+                                  return (
+                                    <option key={p.id} value={p.id}>
+                                      {p.name} ({p.sku})
+                                      {isSuppliedBySel ? ' ✓ (In Vendor Catalog)' : ''}
+                                    </option>
+                                  );
+                                })}
                               </select>
+
+                              {/* Available Suppliers Companion Selector / Badge */}
+                              {item.productId && (
+                                <div className="mt-1">
+                                  {matchingSuppliers.length === 0 ? (
+                                    <div className="flex items-center gap-1 text-[10px] text-slate-400 italic">
+                                      <Info className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                      <span>No specific suppliers linked (Any active vendor can fulfill)</span>
+                                    </div>
+                                  ) : !poForm.supplierId ? (
+                                    <select
+                                      value=""
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          setPoForm({ ...poForm, supplierId: e.target.value });
+                                        }
+                                      }}
+                                      className="text-[11px] font-semibold py-1 px-2 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900 focus:ring-1 focus:ring-indigo-500 cursor-pointer w-full"
+                                    >
+                                      <option value="">
+                                        Available Suppliers ({matchingSuppliers.length}) — Click to Set PO Vendor...
+                                      </option>
+                                      {matchingSuppliers.map((s) => (
+                                        <option key={s.id} value={s.id}>
+                                          {s.name} ({s.supplierCode})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : isSuppliedByCurrent ? (
+                                    <div className="flex items-center justify-between gap-1 text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                                      <div className="flex items-center gap-1 truncate">
+                                        <CheckCircle className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                                        <span className="truncate">Supplied by {currentSupplier?.name}</span>
+                                      </div>
+                                      {matchingSuppliers.length > 1 && (
+                                        <span className="text-[10px] text-emerald-600 font-normal whitespace-nowrap ml-1">
+                                          ({matchingSuppliers.length} vendors)
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col gap-1 p-1.5 bg-amber-50 border border-amber-200/80 rounded-lg text-[11px]">
+                                      <div className="flex items-center gap-1 text-amber-800 font-medium">
+                                        <AlertTriangle className="w-3 h-3 text-amber-600 flex-shrink-0" />
+                                        <span>Not in {currentSupplier?.name}'s catalog</span>
+                                      </div>
+                                      <select
+                                        value=""
+                                        onChange={(e) => {
+                                          if (e.target.value) {
+                                            setPoForm({ ...poForm, supplierId: e.target.value });
+                                          }
+                                        }}
+                                        className="text-[10px] font-semibold py-1 px-1.5 bg-white border border-amber-300 rounded text-amber-900 focus:ring-1 focus:ring-amber-500 cursor-pointer w-full"
+                                      >
+                                        <option value="">
+                                          Available Suppliers ({matchingSuppliers.length}) — Switch PO Supplier...
+                                        </option>
+                                        {matchingSuppliers.map((s) => (
+                                          <option key={s.id} value={s.id}>
+                                            Switch to: {s.name} ({s.supplierCode})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </td>
-                            <td className="py-2 px-3">
-                              <input type="number" min="1" required value={item.quantity} onChange={(e) => { const items = [...poForm.items]; items[idx].quantity = Math.max(1, parseInt(e.target.value) || 1); setPoForm({ ...poForm, items }); }} className="w-full py-1 px-2 text-xs border border-slate-200 rounded-lg text-center" />
+                            <td className="py-2.5 px-3 align-top">
+                              <input
+                                type="number"
+                                min="1"
+                                required
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const items = [...poForm.items];
+                                  items[idx].quantity = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPoForm({ ...poForm, items });
+                                }}
+                                className="w-full py-1.5 px-2 text-xs border border-slate-200 rounded-lg text-center font-medium"
+                              />
                             </td>
-                            <td className="py-2 px-3">
-                              <input type="number" min="0" step="0.01" required value={item.unitCost} onChange={(e) => { const items = [...poForm.items]; items[idx].unitCost = Math.max(0, parseFloat(e.target.value) || 0); setPoForm({ ...poForm, items }); }} className="w-full py-1 px-2 text-xs border border-slate-200 rounded-lg text-right" />
+                            <td className="py-2.5 px-3 align-top">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                required
+                                value={item.unitCost}
+                                onChange={(e) => {
+                                  const items = [...poForm.items];
+                                  items[idx].unitCost = Math.max(0, parseFloat(e.target.value) || 0);
+                                  setPoForm({ ...poForm, items });
+                                }}
+                                className="w-full py-1.5 px-2 text-xs border border-slate-200 rounded-lg text-right font-mono"
+                              />
                             </td>
-                            <td className="py-2 px-3">
-                              <input type="number" min="0" max="100" value={item.taxRate} onChange={(e) => { const items = [...poForm.items]; items[idx].taxRate = parseFloat(e.target.value) || 0; setPoForm({ ...poForm, items }); }} className="w-full py-1 px-2 text-xs border border-slate-200 rounded-lg text-center" />
+                            <td className="py-2.5 px-3 align-top">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={item.taxRate}
+                                onChange={(e) => {
+                                  const items = [...poForm.items];
+                                  items[idx].taxRate = parseFloat(e.target.value) || 0;
+                                  setPoForm({ ...poForm, items });
+                                }}
+                                className="w-full py-1.5 px-2 text-xs border border-slate-200 rounded-lg text-center font-mono"
+                              />
                             </td>
-                            <td className="py-2 px-3 text-right font-medium text-slate-800">
+                            <td className="py-2.5 px-3 text-right font-medium text-slate-800 align-top pt-3 font-mono">
                               ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
-                            <td className="py-2 px-3 text-center">
+                            <td className="py-2.5 px-3 text-center align-top pt-3">
                               {poForm.items.length > 1 && (
-                                <button type="button" onClick={() => setPoForm({ ...poForm, items: poForm.items.filter((_, i) => i !== idx) })} className="text-slate-400 hover:text-rose-500">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPoForm({ ...poForm, items: poForm.items.filter((_, i) => i !== idx) })
+                                  }
+                                  className="text-slate-400 hover:text-rose-500 cursor-pointer"
+                                >
                                   <X className="w-4 h-4" />
                                 </button>
                               )}

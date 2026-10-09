@@ -81,11 +81,19 @@ export const QuotationListPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
+  const isAdminOrManagerOrAccountant =
+    user?.role === 'ADMIN' ||
+    user?.role === 'MANAGER' ||
+    isAccountantOffice;
+
   // Load customer master list for dropdown filter
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const res = await customerService.getCustomers({ limit: 100 });
+        const res = await customerService.getCustomers({
+          limit: 200,
+          createdById: !isAdminOrManagerOrAccountant && user?.id ? user.id : undefined,
+        });
         if (res.data) {
           setCustomers(res.data);
         }
@@ -94,7 +102,7 @@ export const QuotationListPage: React.FC = () => {
       }
     };
     fetchCustomers();
-  }, []);
+  }, [user?.id, isAdminOrManagerOrAccountant]);
 
   // Handle Date Preset Selection
   const handleDatePresetChange = (preset: DatePreset) => {
@@ -218,12 +226,57 @@ export const QuotationListPage: React.FC = () => {
     }
   };
 
+  // Compute customers filtered strictly for the active user role
+  const filteredCustomerOptions = useMemo(() => {
+    if (isAdminOrManagerOrAccountant) {
+      return customers;
+    }
+
+    const customerMap = new Map<string, Customer>();
+
+    // 1. Customers created by the current user
+    customers.forEach((c) => {
+      if (user?.id && c.createdById === user.id) {
+        customerMap.set(c.id, c);
+      }
+    });
+
+    // 2. Customers present in the user's role-scoped quotations
+    quotations.forEach((q) => {
+      if (q.customer?.id && !customerMap.has(q.customer.id)) {
+        const existingMaster = customers.find((c) => c.id === q.customer?.id);
+        if (existingMaster) {
+          customerMap.set(existingMaster.id, existingMaster);
+        } else {
+          customerMap.set(q.customer.id, {
+            id: q.customer.id,
+            name: q.customer.name,
+            companyName: q.customer.companyName,
+            phone: q.customer.phone,
+            email: q.customer.email,
+            status: 'ACTIVE',
+            createdAt: '',
+            updatedAt: '',
+          });
+        }
+      }
+    });
+
+    return Array.from(customerMap.values()).sort((a, b) => {
+      const nameA = a.companyName || a.name || '';
+      const nameB = b.companyName || b.name || '';
+      return nameA.localeCompare(nameB);
+    });
+  }, [customers, quotations, user?.id, isAdminOrManagerOrAccountant]);
+
   // Compute metrics from current list
   const draftCount = quotations.filter((q) => q.status === 'DRAFT').length;
   const pendingCount = quotations.filter((q) => q.status === 'PENDING_APPROVAL').length;
   const approvedCount = quotations.filter((q) => q.status === 'APPROVED').length;
 
-  const selectedCustomerObj = customers.find((c) => c.id === customerFilter);
+  const selectedCustomerObj =
+    customers.find((c) => c.id === customerFilter) ||
+    filteredCustomerOptions.find((c) => c.id === customerFilter);
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto pb-10">
@@ -453,8 +506,10 @@ export const QuotationListPage: React.FC = () => {
                 }}
                 className="h-9 px-3 text-xs text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
               >
-                <option value="">-- All Registered Customers --</option>
-                {customers.map((c) => (
+                <option value="">
+                  {isAdminOrManagerOrAccountant ? '-- All Registered Customers --' : '-- All My Customers --'}
+                </option>
+                {filteredCustomerOptions.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.companyName ? `${c.companyName} (${c.name})` : c.name}
                   </option>
