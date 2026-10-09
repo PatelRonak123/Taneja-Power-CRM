@@ -34,7 +34,12 @@ export class SalesInvoiceRepository {
     const inv = await tx.query.salesInvoices.findFirst({
       where: eq(salesInvoices.id, id),
       with: {
-        salesOrder: { columns: { id: true, salesOrderNumber: true, status: true } },
+        salesOrder: {
+          columns: { id: true, salesOrderNumber: true, status: true, quotationId: true },
+          with: {
+            quotation: { columns: { id: true, quotationType: true } },
+          },
+        },
         customer: { columns: { id: true, name: true, companyName: true, email: true, phone: true } },
         items: { orderBy: (items: any, { asc }: any) => [asc(items.sortOrder)] },
         createdByUser: { columns: { id: true, fullName: true, email: true } },
@@ -69,7 +74,12 @@ export class SalesInvoiceRepository {
         limit,
         offset,
         with: {
-          salesOrder: { columns: { id: true, salesOrderNumber: true } },
+          salesOrder: {
+            columns: { id: true, salesOrderNumber: true, quotationId: true },
+            with: {
+              quotation: { columns: { id: true, quotationType: true } },
+            },
+          },
           customer: { columns: { id: true, name: true, companyName: true } },
           items: true,
           createdByUser: { columns: { id: true, fullName: true } },

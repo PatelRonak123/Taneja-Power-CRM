@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Check, IndianRupee } from 'lucide-react';
 import { invoiceService } from '../services/invoiceService';
+import { customerService } from '../../customers/services/customerService';
 import { toast } from '../../../utils/toast';
 
 interface RecordPaymentModalProps {
@@ -43,8 +44,23 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const customerId = invoice?.customerId || amcContract?.customerId || customer?.id || initialCustomerId || '';
-  const customerName = invoice?.customerName || (invoice as any)?.customerNameSnapshot || (invoice as any)?.customer?.name || amcContract?.customerName || customer?.name || initialCustomerName || 'Customer';
+  const defaultCustomerId = invoice?.customerId || amcContract?.customerId || customer?.id || initialCustomerId || '';
+  const defaultCustomerName = invoice?.customerName || (invoice as any)?.customerNameSnapshot || (invoice as any)?.customer?.name || amcContract?.customerName || customer?.name || initialCustomerName || '';
+
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(defaultCustomerId);
+  const [customersList, setCustomersList] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!defaultCustomerId) {
+      customerService.getCustomers({ limit: 100 }).then((res: any) => {
+        setCustomersList(res?.data || []);
+      }).catch(console.error);
+    }
+  }, [defaultCustomerId]);
+
+  const customerId = selectedCustomerId || defaultCustomerId;
+  const chosenCustomerObj = customersList.find((c) => c.id === customerId);
+  const customerName = defaultCustomerName || chosenCustomerObj?.name || 'Customer';
 
   // Calculate remaining balance if available
   const defaultAmount = invoice
@@ -138,33 +154,57 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Context Summary Banner */}
-            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-slate-500 font-medium">Customer:</span>
-                <span className="font-bold text-slate-800">{customerName}</span>
+            {/* Customer Picker when opened without context */}
+            {!invoice && !amcContract && !initialCustomerId && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Customer Account <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={selectedCustomerId}
+                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                >
+                  <option value="">-- Select Customer --</option>
+                  {customersList.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.companyName ? `(${c.companyName})` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
-              {invoice && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">Invoice Total:</span>
-                    <span className="font-semibold text-slate-700">₹{Number(invoice.totalAmount).toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">Current Paid / Remaining Due:</span>
-                    <span className="font-bold text-rose-600">
-                      ₹{Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount || 0)).toLocaleString('en-IN')} Due
-                    </span>
-                  </div>
-                </>
-              )}
-              {amcContract && (
+            )}
+
+            {/* Context Summary Banner */}
+            {(invoice || amcContract || initialCustomerId) && (
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
                 <div className="flex justify-between">
-                  <span className="text-slate-500 font-medium">AMC Total Value:</span>
-                  <span className="font-bold text-slate-800">₹{Number(amcContract.totalAmount).toLocaleString('en-IN')}</span>
+                  <span className="text-slate-500 font-medium">Customer:</span>
+                  <span className="font-bold text-slate-800">{customerName}</span>
                 </div>
-              )}
-            </div>
+                {invoice && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Invoice Total:</span>
+                      <span className="font-semibold text-slate-700">₹{Number(invoice.totalAmount).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Current Paid / Remaining Due:</span>
+                      <span className="font-bold text-rose-600">
+                        ₹{Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount || 0)).toLocaleString('en-IN')} Due
+                      </span>
+                    </div>
+                  </>
+                )}
+                {amcContract && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">AMC Total Value:</span>
+                    <span className="font-bold text-slate-800">₹{Number(amcContract.totalAmount).toLocaleString('en-IN')}</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Payment Amount */}
             <div>

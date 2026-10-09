@@ -101,6 +101,8 @@ export const useIssueSalesInvoice = () => {
     onSuccess: (_, id) => {
       qc.invalidateQueries({ queryKey: SALES_INVOICE_KEYS.lists() });
       qc.invalidateQueries({ queryKey: SALES_INVOICE_KEYS.detail(id) });
+      qc.invalidateQueries({ queryKey: ['receivables-summary'] });
+      qc.invalidateQueries({ queryKey: ['payments'] });
       toast.success('Sales Invoice officially issued');
     },
     onError: (err: any) => toast.error(err?.message || 'Failed to issue Sales Invoice'),

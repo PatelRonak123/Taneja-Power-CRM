@@ -53,12 +53,12 @@ import { RecordPaymentModal } from '../components/RecordPaymentModal';
 // ─── Status Badges ────────────────────────────────────────────────────────────
 
 const SALES_STATUS_CONFIG: Record<SalesInvoiceStatus, { label: string; cls: string }> = {
-  DRAFT: { label: 'Draft', cls: 'bg-gray-100 text-gray-700' },
-  PENDING_ISSUE: { label: 'Pending Issue', cls: 'bg-yellow-100 text-yellow-800' },
-  ISSUED: { label: 'Issued', cls: 'bg-emerald-100 text-emerald-800' },
-  PARTIALLY_PAID: { label: 'Partially Paid', cls: 'bg-blue-100 text-blue-800' },
-  PAID: { label: 'Paid', cls: 'bg-green-100 text-green-800' },
-  CANCELLED: { label: 'Cancelled', cls: 'bg-red-100 text-red-800' },
+  DRAFT: { label: 'Draft', cls: 'bg-gray-100 text-gray-700 border border-gray-200' },
+  PENDING_ISSUE: { label: 'Pending Approval', cls: 'bg-amber-100 text-amber-800 border border-amber-300' },
+  ISSUED: { label: 'Approved & Issued', cls: 'bg-emerald-100 text-emerald-800 border border-emerald-300' },
+  PARTIALLY_PAID: { label: 'Partially Paid', cls: 'bg-blue-100 text-blue-800 border border-blue-200' },
+  PAID: { label: 'Paid', cls: 'bg-green-100 text-green-800 border border-green-200' },
+  CANCELLED: { label: 'Cancelled', cls: 'bg-red-100 text-red-800 border border-red-200' },
 };
 
 const VENDOR_STATUS_CONFIG: Record<VendorInvoiceStatus, { label: string; cls: string }> = {
@@ -399,6 +399,8 @@ export const InvoicesPage: React.FC = () => {
     user?.role === 'USER' && designationLower.includes('sales') && !designationLower.includes('service');
   // Payment recording/updating is restricted to Admin, Manager, or Accountant Office only (NOT Service Office)
   const canManagePayments = (isPrivileged || isAccountantOffice) && !isServiceOffice;
+  const canIssueSales = (isPrivileged || isAccountantOffice) && !isServiceOffice;
+  const canSubmitSales = (isPrivileged || isAccountantOffice) && !isServiceOffice;
   const canCreateAmcContract = (isServiceOffice || isPrivileged) && !isAccountantOffice && !isSalesOffice;
   const canViewAmcContract = (isServiceOffice || isPrivileged) && !isAccountantOffice && !isSalesOffice;
 
@@ -664,8 +666,8 @@ export const InvoicesPage: React.FC = () => {
               >
                 <option value="">All Statuses</option>
                 <option value="DRAFT">Draft</option>
-                <option value="PENDING_ISSUE">Pending Issue</option>
-                <option value="ISSUED">Issued</option>
+                <option value="PENDING_ISSUE">Pending Approval</option>
+                <option value="ISSUED">Approved / Issued</option>
                 <option value="PARTIALLY_PAID">Partially Paid</option>
                 <option value="PAID">Paid</option>
                 <option value="CANCELLED">Cancelled</option>
@@ -702,150 +704,196 @@ export const InvoicesPage: React.FC = () => {
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                      Invoice #
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                      Customer
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                      SO Ref
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                      Invoice Date
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                      Taxable
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                      Total Tax
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                      Grand Total
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                      Paid
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                      Balance Due
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {salesInvoices.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-gray-50/70 transition-colors">
-                      <td className="px-4 py-3 font-mono font-bold text-blue-700">
-                        {inv.invoiceNumber}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        {inv.customerNameSnapshot || inv.customer?.name || 'Customer'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">
-                        {inv.salesOrder?.salesOrderNumber || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">
-                        {fmtDate(inv.invoiceDate)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-gray-700">
-                        {fmt(inv.taxableAmount || inv.subtotal)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-gray-600">
-                        {fmt(inv.totalTax)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">
-                        {fmt(inv.totalAmount)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono font-semibold text-emerald-700">
-                        {fmt(inv.paidAmount || '0.00')}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono font-bold">
-                        {Math.max(0, Number(inv.totalAmount) - Number(inv.paidAmount || 0)) <= 0 ? (
-                          <span className="text-emerald-600">₹0.00</span>
-                        ) : (
-                          <span className="text-rose-600">
-                            {fmt(Math.max(0, Number(inv.totalAmount) - Number(inv.paidAmount || 0)))}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <SalesStatusBadge status={inv.status} />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Record Payment Button */}
-                          {canManagePayments && ['ISSUED', 'PARTIALLY_PAID'].includes(inv.status) && (
-                            <button
-                              onClick={() => {
-                                setSelectedPaymentInvoice(inv);
-                                setShowRecordPaymentModal(true);
-                              }}
-                              className="p-1.5 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200"
-                              title="Record Payment Received"
-                            >
-                              <IndianRupee className="w-4 h-4" />
-                            </button>
-                          )}
-                          {/* Dispatch button: only for non-AMC invoices */}
-                          {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status) && (inv as any).quotationType !== 'AMC' && (
-                            <button
-                              onClick={() =>
-                                navigate(
-                                  `/dispatches?create=true&invoiceId=${inv.id}&salesOrderId=${inv.salesOrderId}`,
-                                  {
-                                    state: {
-                                      openCreate: true,
-                                      invoiceId: inv.id,
-                                      salesOrderId: inv.salesOrderId,
-                                      invoiceNumber: inv.invoiceNumber,
-                                    },
-                                  }
-                                )
-                              }
-                              className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Create Delivery Challan / Dispatch"
-                            >
-                              <Truck className="w-4 h-4" />
-                            </button>
-                          )}
-                          {/* AMC Contract icon for AMC invoices */}
-                          {(inv as any).quotationType === 'AMC' && (inv as any).linkedAmcContractId && canViewAmcContract && (
-                            <button
-                              onClick={() => navigate(`/amc-contracts/${(inv as any).linkedAmcContractId}`)}
-                              className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                              title="View AMC Contract"
-                            >
-                              <ShieldCheck className="w-4 h-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setSelectedSalesInvoiceId(inv.id)}
-                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="View Details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setPrintInvoice(inv)}
-                            className="p-1.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                            title="Print / PDF Document"
-                          >
-                            <Printer className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[1250px]">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Invoice #
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Customer
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        SO Ref
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Invoice Date
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Taxable
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Total Tax
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Grand Total
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Paid
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Balance Due
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Status
+                      </th>
+                      <th className="sticky right-0 bg-gray-50/95 backdrop-blur-xs shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)] px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase whitespace-nowrap min-w-[210px] z-10">
+                        Actions
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {salesInvoices.map((inv) => (
+                      <tr key={inv.id} className="hover:bg-gray-50/70 transition-colors group">
+                        <td className="px-4 py-3 font-mono font-bold text-blue-700 whitespace-nowrap">
+                          {inv.invoiceNumber}
+                        </td>
+                        <td
+                          className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap max-w-[200px] truncate"
+                          title={inv.customerNameSnapshot || inv.customer?.name}
+                        >
+                          {inv.customerNameSnapshot || inv.customer?.name || 'Customer'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 font-mono text-xs whitespace-nowrap">
+                          {inv.salesOrder?.salesOrderNumber || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">
+                          {fmtDate(inv.invoiceDate)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-700 whitespace-nowrap">
+                          {fmt(inv.taxableAmount || inv.subtotal)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-600 whitespace-nowrap">
+                          {fmt(inv.totalTax)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
+                          {fmt(inv.totalAmount)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono font-semibold text-emerald-700 whitespace-nowrap">
+                          {fmt(inv.paidAmount || '0.00')}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono font-bold whitespace-nowrap">
+                          {Math.max(0, Number(inv.totalAmount) - Number(inv.paidAmount || 0)) <= 0 ? (
+                            <span className="text-emerald-600">₹0.00</span>
+                          ) : (
+                            <span className="text-rose-600">
+                              {fmt(Math.max(0, Number(inv.totalAmount) - Number(inv.paidAmount || 0)))}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <SalesStatusBadge status={inv.status} />
+                        </td>
+                        <td className="sticky right-0 bg-white/95 group-hover:bg-slate-50/95 backdrop-blur-xs shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)] px-4 py-3 text-right whitespace-nowrap min-w-[210px] z-10">
+                          <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                            {/* Admin Approval Button (for PENDING_ISSUE or DRAFT) */}
+                            {isPrivileged && ['PENDING_ISSUE', 'DRAFT'].includes(inv.status) && (
+                              <button
+                                onClick={() => issueSales.mutate(inv.id)}
+                                disabled={issueSales.isPending}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
+                                title="Approve & Formally Issue Invoice"
+                              >
+                                <CheckCheck className="w-3.5 h-3.5" /> Approve
+                              </button>
+                            )}
+
+                            {/* Accountant Submit Button (for DRAFT) */}
+                            {!isPrivileged && canSubmitSales && inv.status === 'DRAFT' && (
+                              <button
+                                onClick={() => submitSales.mutate(inv.id)}
+                                disabled={submitSales.isPending}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
+                                title="Submit for Admin Approval"
+                              >
+                                <Send className="w-3.5 h-3.5" /> Submit
+                              </button>
+                            )}
+
+                            {/* Non-admin Accountant Issue Button (if permitted) */}
+                            {!isPrivileged && canIssueSales && inv.status === 'PENDING_ISSUE' && (
+                              <button
+                                onClick={() => issueSales.mutate(inv.id)}
+                                disabled={issueSales.isPending}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
+                                title="Formally Issue Invoice"
+                              >
+                                <CheckCheck className="w-3.5 h-3.5" /> Issue
+                              </button>
+                            )}
+
+                            {/* Record Payment Button */}
+                            {canManagePayments && ['ISSUED', 'PARTIALLY_PAID'].includes(inv.status) && (
+                              <button
+                                onClick={() => {
+                                  setSelectedPaymentInvoice(inv);
+                                  setShowRecordPaymentModal(true);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 cursor-pointer"
+                                title="Record Payment Received"
+                              >
+                                <IndianRupee className="w-3.5 h-3.5" /> Pay
+                              </button>
+                            )}
+
+                            {/* Dispatch button: only for non-AMC invoices */}
+                            {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(inv.status) &&
+                              ((inv as any).quotationType || (inv as any).salesOrder?.quotation?.quotationType) !== 'AMC' && (
+                              <button
+                                onClick={() =>
+                                  navigate(
+                                    `/dispatches?create=true&invoiceId=${inv.id}&salesOrderId=${inv.salesOrderId}`,
+                                    {
+                                      state: {
+                                        openCreate: true,
+                                        invoiceId: inv.id,
+                                        salesOrderId: inv.salesOrderId,
+                                        invoiceNumber: inv.invoiceNumber,
+                                      },
+                                    }
+                                  )
+                                }
+                                className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                title="Create Delivery Challan / Dispatch"
+                              >
+                                <Truck className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {/* AMC Contract icon for AMC invoices */}
+                            {(((inv as any).quotationType || (inv as any).salesOrder?.quotation?.quotationType) === 'AMC' || (inv as any).linkedAmcContractId) && canViewAmcContract && (
+                              <button
+                                onClick={() => navigate(`/amc-contracts/${(inv as any).linkedAmcContractId}`)}
+                                className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                                title="View AMC Contract"
+                              >
+                                <ShieldCheck className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => setSelectedSalesInvoiceId(inv.id)}
+                              className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              onClick={() => setPrintInvoice(inv)}
+                              className="p-1.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                              title="Print / PDF Document"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -915,78 +963,83 @@ export const InvoicesPage: React.FC = () => {
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                      Supplier Bill #
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                      Supplier
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                      PO Ref
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                      Bill Date
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                      Taxable
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                      Tax Amount
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                      Total Bill
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {vendorInvoices.map((vInv) => (
-                    <tr key={vInv.id} className="hover:bg-gray-50/70 transition-colors">
-                      <td className="px-4 py-3 font-mono font-bold text-purple-700">
-                        {vInv.vendorInvoiceNumber}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        {vInv.supplier?.supplierName || 'Supplier'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">
-                        {vInv.purchaseOrder?.poNumber || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">
-                        {fmtDate(vInv.invoiceDate)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-gray-700">
-                        {fmt(vInv.subtotal)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-gray-600">
-                        {fmt(vInv.taxAmount)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">
-                        {fmt(vInv.totalAmount)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <VendorStatusBadge status={vInv.status} />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => setSelectedVendorInvoiceId(vInv.id)}
-                          className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                          title="View Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[1050px]">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Supplier Bill #
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Supplier
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        PO Ref
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Bill Date
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Taxable
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Tax Amount
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Total Bill
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">
+                        Status
+                      </th>
+                      <th className="sticky right-0 bg-gray-50/95 backdrop-blur-xs shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)] px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase whitespace-nowrap min-w-[90px] z-10">
+                        Actions
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {vendorInvoices.map((vInv) => (
+                      <tr key={vInv.id} className="hover:bg-gray-50/70 transition-colors group">
+                        <td className="px-4 py-3 font-mono font-bold text-purple-700 whitespace-nowrap">
+                          {vInv.vendorInvoiceNumber}
+                        </td>
+                        <td
+                          className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap max-w-[200px] truncate"
+                          title={vInv.supplier?.supplierName}
+                        >
+                          {vInv.supplier?.supplierName || 'Supplier'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 font-mono text-xs whitespace-nowrap">
+                          {vInv.purchaseOrder?.poNumber || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">
+                          {fmtDate(vInv.invoiceDate)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-700 whitespace-nowrap">
+                          {fmt(vInv.subtotal)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-600 whitespace-nowrap">
+                          {fmt(vInv.taxAmount)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
+                          {fmt(vInv.totalAmount)}
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <VendorStatusBadge status={vInv.status} />
+                        </td>
+                        <td className="sticky right-0 bg-white/95 group-hover:bg-slate-50/95 backdrop-blur-xs shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)] px-4 py-3 text-right whitespace-nowrap min-w-[90px] z-10">
+                          <button
+                            onClick={() => setSelectedVendorInvoiceId(vInv.id)}
+                            className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors cursor-pointer"
+                            title="View Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -1135,98 +1188,100 @@ export const InvoicesPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                          Customer
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                          Contact
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                          Total Invoiced
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                          Amount Received
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                          Outstanding Balance
-                        </th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
-                          Account Status
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                          Action
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {receivablesData.customers
-                        .filter((c: CustomerReceivableSummary) =>
-                          !customerSearch
-                            ? true
-                            : c.customerName.toLowerCase().includes(customerSearch.toLowerCase()) ||
-                              (c.phone && c.phone.includes(customerSearch))
-                        )
-                        .map((c: CustomerReceivableSummary) => {
-                          const outstanding = Number(c.totalOutstanding ?? c.outstandingBalance ?? 0);
-                          return (
-                            <tr key={c.customerId} className="hover:bg-gray-50/70 transition-colors">
-                              <td className="px-4 py-3">
-                                <p className="font-semibold text-gray-900">{c.customerName}</p>
-                              </td>
-                              <td className="px-4 py-3 text-gray-600 text-xs">
-                                {c.phone || c.email || '—'}
-                              </td>
-                              <td className="px-4 py-3 text-right font-mono font-medium text-gray-700">
-                                {fmt(c.totalInvoiced)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-mono font-semibold text-emerald-700">
-                                {fmt(c.totalPaid)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-mono font-bold">
-                                {outstanding > 0 ? (
-                                  <span className="text-rose-600">{fmt(outstanding)}</span>
-                                ) : (
-                                  <span className="text-emerald-600">₹0.00</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                {outstanding > 0 ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/60">
-                                    Pending Payment
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                                    All Settled
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                {canManagePayments ? (
-                                  <button
-                                    onClick={() => {
-                                      setSelectedPaymentCustomer({
-                                        id: c.customerId,
-                                        name: c.customerName,
-                                      });
-                                      setSelectedPaymentInvoice(null);
-                                      setShowRecordPaymentModal(true);
-                                    }}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200 transition-colors cursor-pointer"
-                                  >
-                                    <IndianRupee className="w-3.5 h-3.5" /> Record Payment
-                                  </button>
-                                ) : (
-                                  <span className="text-xs text-gray-400 font-medium">View only</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[950px]">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                            Customer
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                            Contact
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                            Total Invoiced
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                            Amount Received
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                            Outstanding Balance
+                          </th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
+                            Account Status
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {receivablesData.customers
+                          .filter((c: CustomerReceivableSummary) =>
+                            !customerSearch
+                              ? true
+                              : c.customerName.toLowerCase().includes(customerSearch.toLowerCase()) ||
+                                (c.phone && c.phone.includes(customerSearch))
+                          )
+                          .map((c: CustomerReceivableSummary) => {
+                            const outstanding = Number(c.totalOutstanding ?? c.outstandingBalance ?? 0);
+                            return (
+                              <tr key={c.customerId} className="hover:bg-gray-50/70 transition-colors">
+                                <td className="px-4 py-3">
+                                  <p className="font-semibold text-gray-900">{c.customerName}</p>
+                                </td>
+                                <td className="px-4 py-3 text-gray-600 text-xs">
+                                  {c.phone || c.email || '—'}
+                                </td>
+                                <td className="px-4 py-3 text-right font-mono font-medium text-gray-700">
+                                  {fmt(c.totalInvoiced)}
+                                </td>
+                                <td className="px-4 py-3 text-right font-mono font-semibold text-emerald-700">
+                                  {fmt(c.totalPaid)}
+                                </td>
+                                <td className="px-4 py-3 text-right font-mono font-bold">
+                                  {outstanding > 0 ? (
+                                    <span className="text-rose-600">{fmt(outstanding)}</span>
+                                  ) : (
+                                    <span className="text-emerald-600">₹0.00</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  {outstanding > 0 ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/60">
+                                      Pending Payment
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                                      All Settled
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {canManagePayments ? (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedPaymentCustomer({
+                                          id: c.customerId,
+                                          name: c.customerName,
+                                        });
+                                        setSelectedPaymentInvoice(null);
+                                        setShowRecordPaymentModal(true);
+                                      }}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200 transition-colors cursor-pointer"
+                                    >
+                                      <IndianRupee className="w-3.5 h-3.5" /> Record Payment
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs text-gray-400 font-medium">View only</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -1275,78 +1330,80 @@ export const InvoicesPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                          Receipt #
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                          Date
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                          Customer
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                          Mode
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                          Ref / UTR #
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                          Linked Document
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                          Amount Received
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                          Notes
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {paymentsData.data.map((pmt) => (
-                        <tr key={pmt.id} className="hover:bg-gray-50/70 transition-colors">
-                          <td className="px-4 py-3 font-mono font-bold text-emerald-700">
-                            {pmt.receiptNumber}
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 text-xs">
-                            {fmtDate(pmt.paymentDate)}
-                          </td>
-                          <td className="px-4 py-3 font-medium text-gray-900">
-                            {pmt.customer?.name || '—'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/50">
-                              {pmt.paymentMode}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 font-mono text-xs text-gray-600">
-                            {pmt.referenceNumber || '—'}
-                          </td>
-                          <td className="px-4 py-3 text-xs">
-                            {pmt.salesInvoice ? (
-                              <span className="font-mono text-blue-600 font-semibold">
-                                Inv: {pmt.salesInvoice.invoiceNumber}
-                              </span>
-                            ) : pmt.amcContract ? (
-                              <span className="font-mono text-purple-600 font-semibold">
-                                AMC: {pmt.amcContract.contractNumber}
-                              </span>
-                            ) : (
-                              <span className="text-gray-400">Direct / Advance</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">
-                            {fmt(pmt.amount)}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">
-                            {pmt.notes || '—'}
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[1000px]">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                            Receipt #
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                            Date
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                            Customer
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                            Mode
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                            Ref / UTR #
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                            Linked Document
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                            Amount Received
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                            Notes
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {paymentsData.data.map((pmt) => (
+                          <tr key={pmt.id} className="hover:bg-gray-50/70 transition-colors">
+                            <td className="px-4 py-3 font-mono font-bold text-emerald-700">
+                              {pmt.receiptNumber}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 text-xs">
+                              {fmtDate(pmt.paymentDate)}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-gray-900">
+                              {pmt.customer?.name || '—'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/50">
+                                {pmt.paymentMode}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                              {pmt.referenceNumber || '—'}
+                            </td>
+                            <td className="px-4 py-3 text-xs">
+                              {pmt.salesInvoice ? (
+                                <span className="font-mono text-blue-600 font-semibold">
+                                  Inv: {pmt.salesInvoice.invoiceNumber}
+                                </span>
+                              ) : pmt.amcContract ? (
+                                <span className="font-mono text-purple-600 font-semibold">
+                                  AMC: {pmt.amcContract.contractNumber}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">Direct / Advance</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">
+                              {fmt(pmt.amount)}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">
+                              {pmt.notes || '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -1584,32 +1641,62 @@ export const InvoicesPage: React.FC = () => {
                       <Printer className="w-4 h-4" /> Print / View PDF Document
                     </button>
 
-                    {salesDetail.status === 'DRAFT' && (
+                    {/* Pending Approval notification banner in Drawer */}
+                    {salesDetail.status === 'PENDING_ISSUE' && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold">Pending Management Approval</p>
+                          <p className="text-amber-700 mt-0.5">
+                            This invoice was submitted by the Accountant and is awaiting Admin approval to be officially issued.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {canSubmitSales && salesDetail.status === 'DRAFT' && !isPrivileged && (
                       <button
                         onClick={async () => {
                           await submitSales.mutateAsync(salesDetail.id);
                         }}
                         disabled={submitSales.isPending}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                       >
-                        <Send className="w-4 h-4" /> Submit for Issue
+                        <Send className="w-4 h-4" /> Submit for Admin Approval
                       </button>
                     )}
 
-                    {salesDetail.status === 'PENDING_ISSUE' && canIssueOrPost && (
-                      <button
-                        onClick={async () => {
-                          await issueSales.mutateAsync(salesDetail.id);
-                        }}
-                        disabled={issueSales.isPending}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors"
-                      >
-                        <CheckCheck className="w-4 h-4" /> Formally Issue Invoice
-                      </button>
+                    {canIssueSales && ['DRAFT', 'PENDING_ISSUE'].includes(salesDetail.status) && (
+                      <div className="space-y-2">
+                        <button
+                          onClick={async () => {
+                            await issueSales.mutateAsync(salesDetail.id);
+                          }}
+                          disabled={issueSales.isPending}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
+                        >
+                          <CheckCheck className="w-4 h-4" />{' '}
+                          {isPrivileged
+                            ? 'Approve & Issue Invoice'
+                            : salesDetail.status === 'PENDING_ISSUE'
+                            ? 'Formally Issue Invoice'
+                            : 'Approve & Issue Invoice'}
+                        </button>
+
+                        {isPrivileged && (
+                          <button
+                            onClick={() => setCancelModalData({ type: 'sales', id: salesDetail.id })}
+                            className="w-full flex items-center justify-center gap-2 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold transition-colors border border-rose-200 cursor-pointer"
+                          >
+                            <XCircle className="w-4 h-4" /> Reject / Cancel Invoice
+                          </button>
+                        )}
+                      </div>
                     )}
 
                     {/* Dispatch button: only for non-AMC invoices */}
-                    {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(salesDetail.status) && (salesDetail as any).quotationType !== 'AMC' && (
+                    {['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(salesDetail.status) &&
+                      ((salesDetail as any).quotationType || (salesDetail as any).salesOrder?.quotation?.quotationType) !== 'AMC' && (
                       <button
                         onClick={() =>
                           navigate(
@@ -1624,14 +1711,15 @@ export const InvoicesPage: React.FC = () => {
                             }
                           )
                         }
-                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
                       >
                         <Truck className="w-4 h-4" /> Create Delivery Challan / Dispatch
                       </button>
                     )}
 
                     {/* AMC Contract button: only for AMC invoices */}
-                    {(salesDetail as any).quotationType === 'AMC' && ['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(salesDetail.status) && (
+                    {(((salesDetail as any).quotationType || (salesDetail as any).salesOrder?.quotation?.quotationType) === 'AMC' || (salesDetail as any).linkedAmcContractId) &&
+                      ['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(salesDetail.status) && (
                       (salesDetail as any).linkedAmcContractId ? (
                         canViewAmcContract && (
                           <button
