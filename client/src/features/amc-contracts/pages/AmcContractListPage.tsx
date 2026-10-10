@@ -321,7 +321,10 @@ export const AmcContractListPage: React.FC = () => {
         <SearchInput
           placeholder="Search by Contract Number (e.g. AMC/2026-27/0001) or Customer Name..."
           value={search}
-          onChange={setSearch}
+          onChange={(val) => {
+            setSearch(val);
+            setPage(1);
+          }}
           onResetPage={() => setPage(1)}
           wrapperClassName="flex-1 w-full"
           inputClassName="bg-slate-50 border-slate-200 rounded-xl"

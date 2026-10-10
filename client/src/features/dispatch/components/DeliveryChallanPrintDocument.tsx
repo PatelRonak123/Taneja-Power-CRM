@@ -214,7 +214,7 @@ export const DeliveryChallanPrintDocument: React.FC<Props> = ({ dispatch }) => {
           </div>
           <div className="pt-2 border-t border-dashed border-slate-300 mt-12">
             <p className="text-slate-700 font-semibold text-xs">Authorized Dispatch Signatory</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Physical Stock OUT Released</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Goods Dispatched & Verified</p>
           </div>
         </div>
       </div>

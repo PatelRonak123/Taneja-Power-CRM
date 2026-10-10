@@ -207,7 +207,10 @@ export class QuotationService {
           throw AppError.notFound(`Product with ID ${item.productId} not found`);
         }
         if (prod.status === 'INACTIVE') {
-          throw AppError.badRequest(`Product "${prod.name}" is currently inactive`);
+          throw AppError.badRequest(`Product "${prod.name}" is currently inactive and cannot be quoted`);
+        }
+        if (prod.priceOnRequest && (item.unitPrice === undefined || item.unitPrice <= 0)) {
+          throw AppError.badRequest(`Product "${prod.name}" has price on request. A valid negotiated unit price is required`);
         }
 
         lineItemInputs.push({
@@ -215,16 +218,16 @@ export class QuotationService {
           productName: prod.name,
           productSku: prod.sku,
           description: item.description ?? prod.description,
-          make: item.make ?? null,
-          model: item.model ?? null,
-          technicalSpecifications: item.technicalSpecifications ?? null,
-          hsnSac: item.hsnSac ?? null,
-          unit: item.unit ?? 'NOS',
+          make: item.make ?? prod.brand ?? null,
+          model: item.model ?? prod.model ?? null,
+          technicalSpecifications: item.technicalSpecifications ?? prod.technicalSpecifications ?? null,
+          hsnSac: item.hsnSac ?? prod.hsnSac ?? null,
+          unit: item.unit ?? prod.unit ?? 'NOS',
           quantity: item.quantity,
           unitPrice: item.unitPrice !== undefined ? item.unitPrice : parseFloat(prod.price),
           discountPercent: item.discountPercent,
           discountAmount: item.discountAmount,
-          gstRate: item.gstRate,
+          gstRate: item.gstRate !== undefined ? item.gstRate : (prod.gstRate ? parseFloat(prod.gstRate) : 18),
           serviceDurationMonths: item.serviceDurationMonths,
           serviceVisitsIncluded: item.serviceVisitsIncluded,
           serviceScope: item.serviceScope,
@@ -578,8 +581,11 @@ export class QuotationService {
             .where(eq(products.id, item.productId))
             .limit(1);
 
-          if (!prod) {
-            throw AppError.notFound(`Product with ID ${item.productId} not found`);
+          if (prod.status === 'INACTIVE') {
+            throw AppError.badRequest(`Product "${prod.name}" is currently inactive and cannot be quoted`);
+          }
+          if (prod.priceOnRequest && (item.unitPrice === undefined || item.unitPrice <= 0)) {
+            throw AppError.badRequest(`Product "${prod.name}" has price on request. A valid negotiated unit price is required`);
           }
 
           lineItemInputs.push({
@@ -587,16 +593,16 @@ export class QuotationService {
             productName: prod.name,
             productSku: prod.sku,
             description: item.description ?? prod.description,
-            make: item.make ?? null,
-            model: item.model ?? null,
-            technicalSpecifications: item.technicalSpecifications ?? null,
-            hsnSac: item.hsnSac ?? null,
-            unit: item.unit ?? 'NOS',
+            make: item.make ?? prod.brand ?? null,
+            model: item.model ?? prod.model ?? null,
+            technicalSpecifications: item.technicalSpecifications ?? prod.technicalSpecifications ?? null,
+            hsnSac: item.hsnSac ?? prod.hsnSac ?? null,
+            unit: item.unit ?? prod.unit ?? 'NOS',
             quantity: item.quantity,
             unitPrice: item.unitPrice !== undefined ? item.unitPrice : parseFloat(prod.price),
             discountPercent: item.discountPercent,
             discountAmount: item.discountAmount,
-            gstRate: item.gstRate,
+            gstRate: item.gstRate !== undefined ? item.gstRate : (prod.gstRate ? parseFloat(prod.gstRate) : 18),
             serviceDurationMonths: item.serviceDurationMonths,
             serviceVisitsIncluded: item.serviceVisitsIncluded,
             serviceScope: item.serviceScope,
@@ -950,8 +956,11 @@ export class QuotationService {
             .where(eq(products.id, item.productId))
             .limit(1);
 
-          if (!prod) {
-            throw AppError.notFound(`Product with ID ${item.productId} not found`);
+          if (prod.status === 'INACTIVE') {
+            throw AppError.badRequest(`Product "${prod.name}" is currently inactive and cannot be quoted`);
+          }
+          if (prod.priceOnRequest && (item.unitPrice === undefined || item.unitPrice <= 0)) {
+            throw AppError.badRequest(`Product "${prod.name}" has price on request. A valid negotiated unit price is required`);
           }
 
           lineItemInputs.push({
@@ -959,16 +968,16 @@ export class QuotationService {
             productName: prod.name,
             productSku: prod.sku,
             description: item.description ?? prod.description,
-            make: item.make ?? null,
-            model: item.model ?? null,
-            technicalSpecifications: item.technicalSpecifications ?? null,
-            hsnSac: item.hsnSac ?? null,
-            unit: item.unit ?? 'NOS',
+            make: item.make ?? prod.brand ?? null,
+            model: item.model ?? prod.model ?? null,
+            technicalSpecifications: item.technicalSpecifications ?? prod.technicalSpecifications ?? null,
+            hsnSac: item.hsnSac ?? prod.hsnSac ?? null,
+            unit: item.unit ?? prod.unit ?? 'NOS',
             quantity: item.quantity,
             unitPrice: item.unitPrice !== undefined ? item.unitPrice : parseFloat(prod.price),
             discountPercent: item.discountPercent,
             discountAmount: item.discountAmount,
-            gstRate: item.gstRate,
+            gstRate: item.gstRate !== undefined ? item.gstRate : (prod.gstRate ? parseFloat(prod.gstRate) : 18),
             serviceDurationMonths: item.serviceDurationMonths,
             serviceVisitsIncluded: item.serviceVisitsIncluded,
             serviceScope: item.serviceScope,

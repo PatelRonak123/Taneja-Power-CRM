@@ -1,6 +1,10 @@
 import { sql } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
-import { SupplierRepository, ListSuppliersQuery } from '../repositories/supplier.repository.js';
+import {
+  SupplierRepository,
+  ListSuppliersQuery,
+  SupplierWithProducts,
+} from '../repositories/supplier.repository.js';
 import { ProcurementNumberService } from './procurement-number.service.js';
 import { SupplierEntity, NewSupplierEntity } from '../../../database/schema/procurement.js';
 import { AppError } from '../../../common/errors/AppError.js';
@@ -32,7 +36,8 @@ export class SupplierService {
     paymentTerms?: string | null;
     notes?: string | null;
     status?: string;
-  }): Promise<SupplierEntity> {
+    productIds?: string[];
+  }): Promise<SupplierWithProducts> {
     let code = data.supplierCode?.trim();
     if (!code) {
       code = await this.numberService.generateNumber('SUP');
@@ -79,10 +84,10 @@ export class SupplierService {
       status: data.status || SUPPLIER_STATUSES.ACTIVE,
     };
 
-    return this.supplierRepo.create(newSupplier);
+    return this.supplierRepo.create(newSupplier, data.productIds);
   }
 
-  async getSupplierById(id: string): Promise<SupplierEntity> {
+  async getSupplierById(id: string): Promise<SupplierWithProducts> {
     const supplier = await this.supplierRepo.findById(id);
     if (!supplier) {
       throw AppError.notFound(`Supplier with ID "${id}" was not found`, 'SUPPLIER_NOT_FOUND');
@@ -90,11 +95,14 @@ export class SupplierService {
     return supplier;
   }
 
-  async listSuppliers(query: ListSuppliersQuery): Promise<{ data: SupplierEntity[]; total: number }> {
+  async listSuppliers(query: ListSuppliersQuery): Promise<{ data: SupplierWithProducts[]; total: number }> {
     return this.supplierRepo.find(query);
   }
 
-  async updateSupplier(id: string, data: Partial<NewSupplierEntity>): Promise<SupplierEntity> {
+  async updateSupplier(
+    id: string,
+    data: Partial<NewSupplierEntity> & { productIds?: string[] }
+  ): Promise<SupplierWithProducts> {
     const existing = await this.getSupplierById(id);
 
     if (data.supplierCode && data.supplierCode !== existing.supplierCode) {
@@ -104,7 +112,8 @@ export class SupplierService {
       }
     }
 
-    return this.supplierRepo.update(id, data);
+    const { productIds, ...supplierData } = data;
+    return this.supplierRepo.update(id, supplierData, productIds);
   }
 
   async deleteSupplier(id: string): Promise<void> {

@@ -34,6 +34,7 @@ export const createSupplierSchema = z.object({
       .or(z.literal('')),
     paymentTerms: z.string().trim().optional().nullable(),
     notes: z.string().trim().optional().nullable(),
+    productIds: z.array(z.string().uuid('Invalid product ID')).optional(),
     status: z
       .enum([SUPPLIER_STATUSES.ACTIVE, SUPPLIER_STATUSES.INACTIVE], {
         errorMap: () => ({ message: 'Status must be ACTIVE or INACTIVE' }),
@@ -75,6 +76,7 @@ export const updateSupplierSchema = z.object({
       .or(z.literal('')),
     paymentTerms: z.string().trim().optional().nullable(),
     notes: z.string().trim().optional().nullable(),
+    productIds: z.array(z.string().uuid('Invalid product ID')).optional(),
     status: z
       .enum([SUPPLIER_STATUSES.ACTIVE, SUPPLIER_STATUSES.INACTIVE], {
         errorMap: () => ({ message: 'Status must be ACTIVE or INACTIVE' }),
@@ -87,6 +89,7 @@ export const listSuppliersSchema = z.object({
   query: z.object({
     search: z.string().optional(),
     status: z.string().optional(),
+    productId: z.string().uuid('Invalid product ID').optional(),
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().default(10),
   }),

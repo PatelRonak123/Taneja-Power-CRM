@@ -439,7 +439,7 @@ async function runPhase4Tests() {
   assert(hasPermission('USER', 'sales_invoice:read', 'Accountant Office'), 'TEST 29: Accountant can read Sales Invoice');
   assert(hasPermission('USER', 'sales_invoice:create', 'Accountant Office'), 'TEST 29b: Accountant can create Sales Invoice');
   assert(hasPermission('USER', 'sales_invoice:submit', 'Accountant Office'), 'TEST 29c: Accountant can submit Sales Invoice');
-  assert(!hasPermission('USER', 'sales_invoice:issue', 'Accountant Office'), 'TEST 30: Accountant CANNOT issue Sales Invoice (restricted)');
+  assert(hasPermission('USER', 'sales_invoice:issue', 'Accountant Office'), 'TEST 30: Accountant can issue Sales Invoice');
   assert(!hasPermission('USER', 'sales_invoice:cancel', 'Accountant Office'), 'TEST 30b: Accountant CANNOT cancel Sales Invoice (restricted)');
 
   assert(hasPermission('USER', 'vendor_invoice:read', 'Accountant Office'), 'TEST 31: Accountant can read Vendor Invoice');

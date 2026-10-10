@@ -41,6 +41,25 @@ export const suppliers = pgTable(
   ]
 );
 
+export const supplierProducts = pgTable(
+  'supplier_products',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    supplierId: uuid('supplier_id')
+      .references(() => suppliers.id, { onDelete: 'cascade' })
+      .notNull(),
+    productId: uuid('product_id')
+      .references(() => products.id, { onDelete: 'cascade' })
+      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('supplier_products_supplier_product_idx').on(table.supplierId, table.productId),
+    index('supplier_products_supplier_id_idx').on(table.supplierId),
+    index('supplier_products_product_id_idx').on(table.productId),
+  ]
+);
+
 export const purchaseOrders = pgTable(
   'purchase_orders',
   {
@@ -169,6 +188,9 @@ export const procurementSequences = pgTable(
 
 export type SupplierEntity = typeof suppliers.$inferSelect;
 export type NewSupplierEntity = typeof suppliers.$inferInsert;
+
+export type SupplierProductEntity = typeof supplierProducts.$inferSelect;
+export type NewSupplierProductEntity = typeof supplierProducts.$inferInsert;
 
 export type PurchaseOrderEntity = typeof purchaseOrders.$inferSelect;
 export type NewPurchaseOrderEntity = typeof purchaseOrders.$inferInsert;

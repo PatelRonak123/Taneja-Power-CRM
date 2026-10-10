@@ -190,12 +190,26 @@ export const invoiceService = {
   getReceivablesSummary: async (): Promise<any> => {
     const res: any = await apiClient.get('/payments/receivables-summary');
     const data = res.data ?? {};
-    const customerReceivables = (data.customerReceivables ?? []).map((c: any) => ({
-      ...c,
-      totalOutstanding: c.outstandingBalance ?? c.totalOutstanding ?? Math.max(0, Number(c.totalInvoiced) - Number(c.totalPaid)),
-    }));
+    const summary = data.summary ?? {};
+    const totalCollected = Number(summary.totalReceived ?? summary.totalPaid ?? 0);
+    const totalInvoiced = Number(summary.totalInvoiced ?? 0);
+    const totalOutstanding = Number(summary.totalOutstanding ?? Math.max(0, totalInvoiced - totalCollected));
+    const customerReceivables = (data.customerReceivables ?? []).map((c: any) => {
+      const outstanding = Number(c.outstandingBalance ?? c.totalOutstanding ?? Math.max(0, Number(c.totalInvoiced || 0) - Number(c.totalPaid || 0)));
+      return {
+        ...c,
+        totalOutstanding: outstanding,
+        outstandingBalance: outstanding,
+      };
+    });
     return {
-      summary: data.summary ?? { totalInvoiced: 0, totalReceived: 0, totalOutstanding: 0, customersCount: 0 },
+      summary: {
+        totalInvoiced,
+        totalReceived: totalCollected,
+        totalPaid: totalCollected,
+        totalOutstanding,
+        customersCount: Number(summary.customersCount ?? customerReceivables.length),
+      },
       customerReceivables,
       customers: customerReceivables,
     };

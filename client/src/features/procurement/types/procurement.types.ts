@@ -1,3 +1,11 @@
+export interface SupplierProduct {
+  id: string;
+  name: string;
+  sku: string;
+  category?: string;
+  price?: string;
+}
+
 export interface Supplier {
   id: string;
   supplierCode: string;
@@ -15,6 +23,8 @@ export interface Supplier {
   paymentTerms?: string | null;
   notes?: string | null;
   status: 'ACTIVE' | 'INACTIVE';
+  productIds?: string[];
+  products?: SupplierProduct[];
   createdAt: string;
   updatedAt: string;
 }
