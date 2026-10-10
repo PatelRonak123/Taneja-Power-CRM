@@ -13,10 +13,10 @@ import {
 import { customerService } from '../../customers/services/customerService';
 import { customerEquipmentService } from '../../customer-equipment/services/customerEquipmentService';
 import type { CustomerEquipment } from '../../customer-equipment/types/customer-equipment.types';
-import { productService } from '../../products/services/productService';
 import { Customer, CustomerDestination, CustomerStatus } from '../../customers/types/customer.types';
 import { CustomerModal } from '../../customers/components/CustomerModal';
 import { Product } from '../../products/types/product.types';
+import { CatalogueProductSelector } from './CatalogueProductSelector';
 import { Button } from '../../../components/ui/Button';
 import { toast } from '../../../utils/toast';
 import {
@@ -56,7 +56,6 @@ export const QuotationForm: React.FC<Props> = ({
   // Master lists
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [destinations, setDestinations] = useState<CustomerDestination[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // Selected entities
@@ -450,13 +449,8 @@ export const QuotationForm: React.FC<Props> = ({
     const loadPrerequisites = async () => {
       try {
         setLoadingData(true);
-        const [custRes, prodRes] = await Promise.all([
-          customerService.getCustomers({ limit: 100 }),
-          productService.getProducts({ limit: 100 }),
-        ]);
-
+        const custRes = await customerService.getCustomers({ limit: 100 });
         let loadedCustomers = custRes.data || [];
-        if (prodRes.data) setProducts(prodRes.data);
 
         // Auto-select client if URL search parameters provide customer info (e.g. from Leads pipeline)
         const params = new URLSearchParams(window.location.search);
@@ -600,18 +594,7 @@ export const QuotationForm: React.FC<Props> = ({
       const updated = [...prev];
       const item = { ...updated[index], [field]: value };
 
-      // If product selection changed
-      if (field === 'productId') {
-        const prod = products.find((p) => p.id === value);
-        if (prod) {
-          item.productName = prod.name;
-          item.productSku = prod.sku;
-          if (quotationType !== 'AMC') {
-            item.unitPrice = Number(prod.price) || 0;
-          }
-          item.description = prod.description || '';
-        }
-      }
+
 
       // If discount percent changed, recalculate discount amount
       if (field === 'discountPercent') {
@@ -624,6 +607,45 @@ export const QuotationForm: React.FC<Props> = ({
         const gross = item.quantity * item.unitPrice;
         item.discountPercent = gross > 0 ? Math.round((Number(value) / gross) * 10000) / 100 : 0;
       }
+
+      updated[index] = item;
+      return updated;
+    });
+  };
+
+  const handleProductSelect = (index: number, prod: Product | null) => {
+    setItems((prev) => {
+      const updated = [...prev];
+      const item = { ...updated[index] };
+      if (!prod) {
+        item.productId = null;
+        updated[index] = item;
+        return updated;
+      }
+
+      if (prod.status === 'INACTIVE') {
+        toast.error('Inactive Equipment', `"${prod.name}" is marked INACTIVE and cannot be selected for new quotations.`);
+        return prev;
+      }
+
+      item.productId = prod.id;
+      item.productName = prod.name;
+      item.productSku = prod.sku;
+      if (prod.brand) item.make = prod.brand;
+      if (prod.model) item.model = prod.model;
+      if (prod.hsnSac) item.hsnSac = prod.hsnSac;
+      if (prod.gstRate !== null && prod.gstRate !== undefined) item.gstRate = Number(prod.gstRate);
+      if (prod.unit) item.unit = prod.unit;
+
+      if (quotationType !== 'AMC') {
+        if (prod.priceOnRequest) {
+          item.unitPrice = 0;
+          toast.info('Price on Request', `"${prod.name}" requires negotiated price entry.`);
+        } else if (!item.unitPrice || item.unitPrice === 0) {
+          item.unitPrice = Number(prod.price) || 0;
+        }
+      }
+      item.description = prod.description || prod.technicalSpecifications || '';
 
       updated[index] = item;
       return updated;
@@ -1479,18 +1501,10 @@ export const QuotationForm: React.FC<Props> = ({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1">
                     <label className="text-[11px] font-bold text-slate-600">Select Catalog Equipment</label>
-                    <select
-                      value={item.productId || ''}
-                      onChange={(e) => handleItemChange(index, 'productId', e.target.value || null)}
-                      className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
-                    >
-                      <option value="">-- Custom / Manual Entry --</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.sku}) - ₹{Number(p.price).toLocaleString('en-IN')}
-                        </option>
-                      ))}
-                    </select>
+                    <CatalogueProductSelector
+                      selectedProductId={item.productId || null}
+                      onSelectProduct={(selectedProd) => handleProductSelect(index, selectedProd)}
+                    />
                   </div>
 
                   <div className="md:col-span-2 flex flex-col gap-1">

@@ -8,7 +8,7 @@ export class ProductController {
 
   list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.productService.listProducts(req.query as any);
+      const result = await this.productService.listProducts(req.query as any, req.user);
       sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, result.items, 'Products retrieved successfully', result.meta);
     } catch (error) {
       next(error);
@@ -17,7 +17,7 @@ export class ProductController {
 
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.productService.getProductById(req.params.id);
+      const result = await this.productService.getProductById(req.params.id, req.user);
       sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, result, 'Product retrieved successfully');
     } catch (error) {
       next(error);
