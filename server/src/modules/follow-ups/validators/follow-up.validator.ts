@@ -27,6 +27,9 @@ export const createFollowUpSchema = z.object({
       dealId: z.string().min(1).max(255).optional().nullable(),
       quotationId: z.string().uuid('Invalid quotation ID format').optional().nullable(),
       amcContractId: z.string().uuid('Invalid AMC contract ID format').optional().nullable(),
+      customerEquipmentId: z.string().uuid('Invalid customer equipment ID format').optional().nullable(),
+      warrantyCycle: z.string().max(50).optional().nullable(),
+      contactMethod: z.enum(['PHONE', 'EMAIL', 'WHATSAPP', 'IN_PERSON', 'SITE_VISIT']).optional().nullable(),
     })
     .refine(
       (data) =>
@@ -35,10 +38,11 @@ export const createFollowUpSchema = z.object({
           data.leadId ||
           data.dealId ||
           data.quotationId ||
-          data.amcContractId
+          data.amcContractId ||
+          data.customerEquipmentId
         ),
       {
-        message: 'A follow-up must be associated with at least one CRM record (Customer, Lead, Deal, Quotation, or AMC Contract).',
+        message: 'A follow-up must be associated with at least one CRM record (Customer, Lead, Deal, Quotation, AMC Contract, or Customer Equipment).',
         path: ['customerId'],
       }
     ),
@@ -138,6 +142,7 @@ export const listFollowUpsSchema = z.object({
     dealId: z.string().optional(),
     quotationId: z.string().optional(),
     amcContractId: z.string().optional(),
+    customerEquipmentId: z.string().uuid().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
   }),

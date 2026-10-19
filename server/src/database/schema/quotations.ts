@@ -9,10 +9,13 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { customers, customerDestinations } from './customers.js';
 import { users } from './users.js';
 import { products } from './products.js';
+import { customerEquipment } from './customer-equipment.js';
+import { followUps } from './follow-ups.js';
 
 /**
  * Quotations Master Table
@@ -39,6 +42,13 @@ export const quotations = pgTable(
     updatedById: uuid('updated_by_id')
       .references(() => users.id, { onDelete: 'set null' }),
     currentRevisionNumber: integer('current_revision_number').default(1).notNull(),
+
+    // Traceability to source equipment and follow-up (Warranty-to-AMC conversion)
+    sourceEquipmentId: uuid('source_equipment_id')
+      .references((): AnyPgColumn => customerEquipment.id, { onDelete: 'set null' }),
+    sourceFollowUpId: uuid('source_follow_up_id')
+      .references((): AnyPgColumn => followUps.id, { onDelete: 'set null' }),
+
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -50,6 +60,8 @@ export const quotations = pgTable(
     index('quotations_created_by_id_idx').on(table.createdById),
     index('quotations_status_idx').on(table.status),
     index('quotations_quotation_type_idx').on(table.quotationType),
+    index('quotations_source_equipment_id_idx').on(table.sourceEquipmentId),
+    index('quotations_source_follow_up_id_idx').on(table.sourceFollowUpId),
     index('quotations_created_at_idx').on(table.createdAt),
   ]
 );

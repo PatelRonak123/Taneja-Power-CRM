@@ -80,6 +80,12 @@ export const FollowUpTypeBadge: React.FC<FollowUpTypeBadgeProps> = ({
           icon: Building2,
           styles: 'bg-cyan-50 text-cyan-700 border-cyan-200/80',
         };
+      case 'WARRANTY_EXPIRY':
+        return {
+          label: 'Warranty Expiry',
+          icon: ShieldCheck,
+          styles: 'bg-amber-50 text-amber-700 border-amber-200/80',
+        };
       case 'OTHER':
       default:
         return {

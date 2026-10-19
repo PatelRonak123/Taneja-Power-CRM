@@ -68,17 +68,17 @@ export const Drawer: React.FC<DrawerProps> = ({
         } max-w-full flex z-100`}
       >
         <div
-          className={`w-screen ${maxWidthClasses[maxWidth]} bg-white shadow-2xl flex flex-col ${
+          className={`w-screen ${maxWidthClasses[maxWidth]} bg-white shadow-2xl flex flex-col h-full ${
             isRight ? 'border-l rounded-l-2xl' : 'border-r rounded-r-2xl'
           } border-slate-200 ${
             isRight ? 'animate-slide-in-right' : ''
-          } overflow-y-auto ${className}`}
+          } overflow-hidden ${className}`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           {title && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0 z-10">
-              <h3 className="text-base font-bold text-slate-900 leading-snug">{title}</h3>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white/95 backdrop-blur-md shrink-0 sticky top-0 z-10">
+              <div className="text-base font-bold text-slate-900 leading-snug">{title}</div>
               <button
                 type="button"
                 className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer border border-slate-200 focus-visible:outline-2 focus-visible:outline-blue-600"
@@ -95,7 +95,7 @@ export const Drawer: React.FC<DrawerProps> = ({
 
           {/* Footer */}
           {footer && (
-            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-200 flex items-center justify-end gap-3 sticky bottom-0 z-10">
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0 sticky bottom-0 z-10">
               {footer}
             </div>
           )}

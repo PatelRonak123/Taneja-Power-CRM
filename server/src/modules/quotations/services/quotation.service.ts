@@ -1,4 +1,4 @@
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import {
   quotations,
@@ -11,6 +11,7 @@ import {
   quotationActivityLogs,
 } from '../../../database/schema/quotations.js';
 import { customerEquipment, quotationItemEquipment } from '../../../database/schema/customer-equipment.js';
+import { followUps } from '../../../database/schema/follow-ups.js';
 import { leads, leadActivityLogs } from '../../../database/schema/leads.js';
 import { customers, customerDestinations } from '../../../database/schema/customers.js';
 import { products } from '../../../database/schema/products.js';
@@ -289,6 +290,67 @@ export class QuotationService {
 
     // 5. Atomic Multi-Table Transaction
     const quotationId = await db.transaction(async (tx) => {
+      // Validate source follow-up and source equipment linkage if provided
+      let validatedSourceEquipmentId: string | null = null;
+      let validatedSourceFollowUpId: string | null = null;
+
+      if (input.sourceFollowUpId) {
+        const [fu] = await tx
+          .select()
+          .from(followUps)
+          .where(eq(followUps.id, input.sourceFollowUpId))
+          .limit(1);
+
+        if (!fu) {
+          throw AppError.notFound('Source follow-up not found');
+        }
+        if (fu.type !== 'WARRANTY_EXPIRY') {
+          throw AppError.badRequest('Source follow-up must be of type WARRANTY_EXPIRY');
+        }
+        if (fu.quotationId) {
+          throw AppError.conflict('Source follow-up has already been converted to a quotation');
+        }
+        if (fu.customerId !== customer.id) {
+          throw AppError.badRequest('Source follow-up does not belong to the selected customer');
+        }
+        if (!fu.customerEquipmentId) {
+          throw AppError.badRequest('Source follow-up is not linked to any customer equipment');
+        }
+        if (input.sourceEquipmentId && fu.customerEquipmentId !== input.sourceEquipmentId) {
+          throw AppError.badRequest('Source equipment ID does not match the equipment on the follow-up');
+        }
+
+        const [eqRecord] = await tx
+          .select()
+          .from(customerEquipment)
+          .where(eq(customerEquipment.id, fu.customerEquipmentId))
+          .limit(1);
+
+        if (!eqRecord) {
+          throw AppError.notFound('Source equipment not found');
+        }
+        if (eqRecord.customerId !== customer.id) {
+          throw AppError.badRequest('Source equipment does not belong to the selected customer');
+        }
+
+        validatedSourceFollowUpId = fu.id;
+        validatedSourceEquipmentId = eqRecord.id;
+      } else if (input.sourceEquipmentId) {
+        const [eqRecord] = await tx
+          .select()
+          .from(customerEquipment)
+          .where(eq(customerEquipment.id, input.sourceEquipmentId))
+          .limit(1);
+
+        if (!eqRecord) {
+          throw AppError.notFound('Source equipment not found');
+        }
+        if (eqRecord.customerId !== customer.id) {
+          throw AppError.badRequest('Source equipment does not belong to the selected customer');
+        }
+        validatedSourceEquipmentId = eqRecord.id;
+      }
+
       // Generate unique concurrency-safe quotation number
       const quotationNumber = await this.numberService.generateQuotationNumber('QT', quotationDate, tx);
 
@@ -304,8 +366,31 @@ export class QuotationService {
           salespersonId: authUser.userId,
           createdById: authUser.userId,
           currentRevisionNumber: 1,
+          sourceEquipmentId: validatedSourceEquipmentId,
+          sourceFollowUpId: validatedSourceFollowUpId,
         })
         .returning();
+
+      // A1. Atomically link originating follow-up if converting
+      if (validatedSourceFollowUpId) {
+        const updatedFu = await tx
+          .update(followUps)
+          .set({
+            quotationId: newQuotation.id,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(followUps.id, validatedSourceFollowUpId),
+              isNull(followUps.quotationId)
+            )
+          )
+          .returning({ id: followUps.id });
+
+        if (updatedFu.length === 0) {
+          throw AppError.conflict('Source follow-up was concurrently converted to a quotation by another request');
+        }
+      }
 
       // B. Insert Quotation Revision 1
       const [newRevision] = await tx
