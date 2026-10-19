@@ -75,9 +75,13 @@ ALTER TABLE "amc_contract_equipment"
 CREATE INDEX IF NOT EXISTS "amc_contract_equipment_customer_equipment_id_idx" ON "amc_contract_equipment" ("customer_equipment_id");
 
 ALTER TABLE "amc_service_requests"
-  ADD COLUMN IF NOT EXISTS "customer_equipment_id" uuid REFERENCES "customer_equipment"("id") ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS "customer_equipment_id" uuid REFERENCES "customer_equipment"("id") ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS "origin_service_visit_id" uuid REFERENCES "amc_service_visits"("id") ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS "fsr_id" uuid REFERENCES "field_service_reports"("id") ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS "amc_service_requests_customer_equipment_id_idx" ON "amc_service_requests" ("customer_equipment_id");
+CREATE INDEX IF NOT EXISTS "amc_service_requests_fsr_id_idx" ON "amc_service_requests" ("fsr_id");
 
 ALTER TABLE "amc_service_report_equipment"
   ADD COLUMN IF NOT EXISTS "customer_equipment_id" uuid REFERENCES "customer_equipment"("id") ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS "amc_service_report_equipment_customer_equipment_id_idx" ON "amc_service_report_equipment" ("customer_equipment_id");
+
