@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { amcContractApi, AmcContract, AmcServiceRequest, AmcServiceVisit } from '../api/amcContractApi';
 import { calculatePreventiveVisits } from '../../../utils/amcCalculations';
 import { navigate, useCurrentPath } from '../../../app/router/navigation';
@@ -9,6 +10,11 @@ import { FsrReportModal } from '../../field-service/components/FsrReportModal';
 import { toast } from '../../../utils/toast';
 import { FollowUpEntitySection } from '../../follow-ups/components/FollowUpEntitySection';
 import { UpdateAmcPaymentModal } from '../components/UpdateAmcPaymentModal';
+import { ActivateAmcContractModal } from '../components/ActivateAmcContractModal';
+import {
+  checkAmcActivationEligibility,
+  AMC_ACTIVATION_QUERY_KEYS,
+} from '../utils/amc-activation-eligibility.util';
 import { taskService } from '../../tasks/services/taskService';
 import { Employee } from '../../admin/types/employee.types';
 import {
@@ -73,6 +79,14 @@ export const AmcContractDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const isActivatingRef = useRef(false);
+  const queryClient = useQueryClient();
+  const [isActivateModalOpen, setIsActivateModalOpen] = useState(false);
+
+  // Evaluate activation eligibility based on business rules & API response fields
+  const activationEligibility = useMemo(() => {
+    return checkAmcActivationEligibility(contract);
+  }, [contract]);
 
   // Edit Contract Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -356,14 +370,37 @@ export const AmcContractDetailPage: React.FC = () => {
 
   const handleActivate = async () => {
     if (!contract) return;
+    if (isActivatingRef.current) return;
+
+    // Validate eligibility on client before sending request
+    const eligibility = checkAmcActivationEligibility(contract);
+    if (!eligibility.isEligible) {
+      toast.warning('Activation Ineligible', eligibility.blockingReason);
+      return;
+    }
+
+    isActivatingRef.current = true;
     try {
       setActionLoading(true);
       await amcContractApi.activateContract(contract.id);
-      toast.success('AMC Contract activated successfully');
+      setIsActivateModalOpen(false);
+      toast.success(
+        'AMC Contract Activated',
+        'Contract is now ACTIVE. Preventive service schedule generated, equipment updated to AMC_COVERED, and follow-up completed.'
+      );
+
+      // Invalidate relevant TanStack Query keys to update lists, equipment, follow-ups & dashboards
+      AMC_ACTIVATION_QUERY_KEYS.forEach((queryKey) => {
+        queryClient.invalidateQueries({ queryKey });
+      });
+
+      // Refetch current contract details and renewal chain
       await fetchContractDetail();
+      await fetchRenewalChain();
     } catch (err: any) {
-      toast.error('Failed to activate contract', err?.message);
+      toast.error('Failed to activate contract', err?.message || 'Server error occurred during activation.');
     } finally {
+      isActivatingRef.current = false;
       setActionLoading(false);
     }
   };
@@ -617,12 +654,17 @@ export const AmcContractDetailPage: React.FC = () => {
           {canManageContract && contract.status === 'PENDING_ACTIVATION' && (
             <button
               type="button"
-              disabled={actionLoading}
-              onClick={handleActivate}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
+              disabled={!activationEligibility.isEligible || actionLoading}
+              title={!activationEligibility.isEligible ? activationEligibility.blockingReason : 'Activate AMC Contract & Generate Preventive Service Schedule'}
+              onClick={() => setIsActivateModalOpen(true)}
+              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activationEligibility.isEligible
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer'
+                  : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-80'
+              }`}
             >
               <CheckCircle2 size={14} />
-              Activate Contract &amp; Generate Schedule
+              {activationEligibility.isEligible ? 'Activate Contract & Generate Schedule' : `Activation Ineligible (${activationEligibility.blockingCode})`}
             </button>
           )}
 
@@ -664,6 +706,30 @@ export const AmcContractDetailPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Ineligible Activation Notice Banner */}
+      {canManageContract && contract.status === 'PENDING_ACTIVATION' && !activationEligibility.isEligible && (
+        <div className="p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0">
+              <AlertTriangle size={18} />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-amber-900">Activation Action Ineligible</span>
+              <span className="text-xs text-amber-800 mt-0.5">{activationEligibility.blockingReason}</span>
+            </div>
+          </div>
+          {(activationEligibility.blockingCode === 'PAYMENT_PENDING' || activationEligibility.blockingCode === 'PAYMENT_OVERDUE' || activationEligibility.blockingCode === 'INVALID_PAYMENT') && canUpdatePayment && (
+            <button
+              type="button"
+              onClick={() => setIsUpdatePaymentModalOpen(true)}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-2xs cursor-pointer shrink-0 transition-colors whitespace-nowrap"
+            >
+              Update Payment Status
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex flex-col gap-2">
@@ -676,7 +742,7 @@ export const AmcContractDetailPage: React.FC = () => {
               contract.status === 'EXPIRING_SOON' ? 'bg-amber-50 text-amber-700 border-amber-200' :
               contract.status === 'PENDING_ACTIVATION' ? 'bg-blue-50 text-blue-700 border-blue-200' :
               contract.status === 'EXPIRED' ? 'bg-slate-100 text-slate-600 border-slate-300' :
-              contract.status === 'TERMINATED' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+              (contract.status === 'TERMINATED' || contract.status === 'CANCELLED') ? 'bg-rose-50 text-rose-700 border-rose-200' :
               'bg-slate-100 text-slate-700 border-slate-300'
             }`}>
               {contract.status}
@@ -811,7 +877,27 @@ export const AmcContractDetailPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {(contract.equipment || []).map((eqItem) => (
                 <tr key={eqItem.id} className="hover:bg-slate-50/60">
-                  <td className="px-4 py-3 font-bold text-slate-900">{eqItem.equipmentName}</td>
+                  <td className="px-4 py-3 font-bold text-slate-900">
+                    <div className="flex flex-col gap-0.5">
+                      {eqItem.customerEquipmentId ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/customer-equipment/${eqItem.customerEquipmentId}`)}
+                          className="hover:underline text-blue-600 font-bold text-left cursor-pointer flex items-center gap-1"
+                          title="View Customer Equipment Details"
+                        >
+                          {eqItem.equipmentName}
+                        </button>
+                      ) : (
+                        <span>{eqItem.equipmentName}</span>
+                      )}
+                      {contract.status === 'ACTIVE' && (
+                        <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                          <ShieldCheck size={11} className="text-emerald-600" /> AMC Covered
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">
                       {eqItem.equipmentType || 'STABILIZER'}
@@ -2777,6 +2863,17 @@ export const AmcContractDetailPage: React.FC = () => {
           fsrId={activeFsrId}
           isOpen={Boolean(activeFsrId)}
           onClose={() => setActiveFsrId(null)}
+        />
+      )}
+
+      {/* Activate AMC Contract Confirmation Modal */}
+      {contract && isActivateModalOpen && (
+        <ActivateAmcContractModal
+          isOpen={isActivateModalOpen}
+          contract={contract}
+          isLoading={actionLoading}
+          onClose={() => setIsActivateModalOpen(false)}
+          onConfirm={handleActivate}
         />
       )}
 

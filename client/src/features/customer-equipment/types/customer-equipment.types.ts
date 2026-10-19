@@ -1,5 +1,12 @@
 export type CustomerEquipmentCondition = 'OPERATIONAL' | 'NEEDS_REPAIR' | 'FAULTY' | 'REPAIRED';
 export type CustomerEquipmentAssetStatus = 'ACTIVE' | 'INACTIVE';
+export type CustomerEquipmentWarrantyStatus =
+  | 'PENDING_ACTIVATION'
+  | 'ACTIVE'
+  | 'EXPIRING_SOON'
+  | 'EXPIRED'
+  | 'AMC_COVERED';
+export type CustomerEquipmentWarrantyDurationUnit = 'MONTHS' | 'YEARS';
 
 export interface CustomerEquipment {
   id: string;
@@ -28,6 +35,12 @@ export interface CustomerEquipment {
   warrantyStartDate: string | null;
   warrantyEndDate: string | null;
   warrantyTermsSnapshot: string | null;
+  warrantyStatus?: CustomerEquipmentWarrantyStatus;
+  warrantyDurationValue?: number | null;
+  warrantyDurationUnit?: CustomerEquipmentWarrantyDurationUnit | null;
+  commissioningNotes?: string | null;
+  commissionedById?: string | null;
+  commissionedAt?: string | null;
   conditionStatus: CustomerEquipmentCondition;
   assetStatus: CustomerEquipmentAssetStatus;
   createdById: string | null;
@@ -191,4 +204,29 @@ export interface CreateManualCustomerEquipmentPayload {
   warrantyTermsSnapshot?: string | null;
   conditionStatus?: CustomerEquipmentCondition;
   assetStatus?: CustomerEquipmentAssetStatus;
+}
+
+export interface CommissionCustomerEquipmentPayload {
+  installationDate: string;
+  warrantyDurationValue: number;
+  warrantyDurationUnit: CustomerEquipmentWarrantyDurationUnit;
+  commissioningNotes?: string | null;
+}
+
+export interface CommissioningWarrantyData {
+  status: CustomerEquipmentWarrantyStatus;
+  installationDate: string;
+  warrantyStartDate: string;
+  warrantyEndDate: string;
+  proposedAmcStartDate: string;
+  warrantyDurationValue: number;
+  warrantyDurationUnit: CustomerEquipmentWarrantyDurationUnit;
+  warrantyCycle: string;
+  commissionedById: string;
+  commissionedAt: string | null;
+}
+
+export interface CommissioningResult {
+  equipment: CustomerEquipment;
+  warranty: CommissioningWarrantyData;
 }

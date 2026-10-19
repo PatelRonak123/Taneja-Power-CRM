@@ -1,30 +1,14 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { env } from '../config/env';
 
-export interface ApiEnvelope<T = unknown> {
-  success: boolean;
-  data: T;
-  message?: string;
-  meta?: {
-    page?: number;
-    limit?: number;
-    total?: number;
-    totalPages?: number;
-    [key: string]: unknown;
-  };
-  error?: {
-    code: string;
-    message: string;
-    details?: unknown;
-  };
-}
+import {
+  ApiEnvelope,
+  NormalizedError,
+  normalizeApiError,
+} from './apiErrorNormalizer';
 
-export interface NormalizedError {
-  message: string;
-  code: string;
-  statusCode?: number;
-  details?: unknown;
-}
+export type { ApiEnvelope, NormalizedError };
+export { normalizeApiError };
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: env.API_BASE_URL,
@@ -64,18 +48,7 @@ apiClient.interceptors.response.use(
   async (error: AxiosError<ApiEnvelope>) => {
     const originalRequest = error.config as CustomAxiosRequestConfig | undefined;
     const status = error.response?.status;
-    const responseData = error.response?.data;
-
-    const normalizedError: NormalizedError = {
-      message:
-        responseData?.message ||
-        responseData?.error?.message ||
-        error.message ||
-        'An unexpected error occurred',
-      code: responseData?.error?.code || (status ? `HTTP_${status}` : 'NETWORK_ERROR'),
-      statusCode: status,
-      details: responseData?.error?.details,
-    };
+    const normalizedError: NormalizedError = normalizeApiError(error);
 
     const isAuthEndpoint =
       originalRequest?.url?.includes('/auth/login') ||

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { AmcContractService } from '../services/amc-contract.service.js';
+import { AppError } from '../../../common/errors/AppError.js';
 
 export class AmcContractController {
   private service = new AmcContractService();
@@ -29,6 +30,15 @@ export class AmcContractController {
         data: contract,
       });
     } catch (error: any) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          code: error.errorCode,
+          details: error.details,
+        });
+        return;
+      }
       res.status(400).json({ success: false, error: error.message || 'Failed to create AMC Contract.' });
     }
   };
@@ -91,6 +101,15 @@ export class AmcContractController {
         data: contract,
       });
     } catch (error: any) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          code: error.errorCode,
+          details: error.details,
+        });
+        return;
+      }
       res.status(400).json({ success: false, error: error.message || 'Failed to activate AMC Contract.' });
     }
   };
