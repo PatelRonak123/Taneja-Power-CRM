@@ -33,6 +33,7 @@ import { FollowUpManagementPage } from "../../features/follow-ups/pages/FollowUp
 import { ProcurementPage } from "../../features/procurement/pages/ProcurementPage";
 import { SalesOrdersPage } from "../../features/sales-orders/pages/SalesOrdersPage";
 import { InvoicesPage } from "../../features/invoices/pages/InvoicesPage";
+import { ProformaInvoicesPage } from "../../features/proforma-invoices/pages/ProformaInvoicesPage";
 import { DispatchesPage } from "../../features/dispatch/pages/DispatchesPage";
 import { CustomerEquipmentListPage } from "../../features/customer-equipment/pages/CustomerEquipmentListPage";
 import { CustomerEquipmentDetailPage } from "../../features/customer-equipment/pages/CustomerEquipmentDetailPage";
@@ -244,6 +245,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       currentPath.startsWith("/invoices/")
     ) {
       return <InvoicesPage />;
+    }
+
+    if (
+      currentPath === "/proforma-invoices" ||
+      currentPath === "/admin/proforma-invoices" ||
+      currentPath.startsWith("/proforma-invoices/")
+    ) {
+      return <ProformaInvoicesPage />;
     }
 
     if (

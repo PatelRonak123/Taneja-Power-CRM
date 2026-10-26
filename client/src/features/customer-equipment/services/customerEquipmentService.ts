@@ -4,8 +4,6 @@ import type {
   ListCustomerEquipmentQuery,
   UpdateCustomerEquipmentPayload,
   CreateManualCustomerEquipmentPayload,
-  CommissionCustomerEquipmentPayload,
-  CommissioningResult,
 } from '../types/customer-equipment.types';
 
 const BASE_URL = '/customer-equipment';
@@ -61,14 +59,6 @@ export const customerEquipmentService = {
     payload: CreateManualCustomerEquipmentPayload
   ): Promise<CustomerEquipment> => {
     const res: any = await apiClient.post(`${BASE_URL}/manual`, payload);
-    return res.data;
-  },
-
-  commissionEquipment: async (
-    id: string,
-    payload: CommissionCustomerEquipmentPayload
-  ): Promise<CommissioningResult> => {
-    const res: any = await apiClient.post(`${BASE_URL}/${id}/commission`, payload);
     return res.data;
   },
 };

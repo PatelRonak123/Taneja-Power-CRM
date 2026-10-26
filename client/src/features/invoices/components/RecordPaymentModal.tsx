@@ -1,18 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { X, Check, IndianRupee, AlertCircle, Building2, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Check, IndianRupee } from 'lucide-react';
 import { invoiceService } from '../services/invoiceService';
 import { customerService } from '../../customers/services/customerService';
 import { toast } from '../../../utils/toast';
-
-export interface PaymentCustomerContext {
-  id: string;
-  name: string;
-  phone?: string;
-  email?: string;
-  totalInvoiced?: string | number;
-  totalPaid?: string | number;
-  totalOutstanding?: string | number;
-}
 
 interface RecordPaymentModalProps {
   isOpen?: boolean;
@@ -27,6 +17,16 @@ interface RecordPaymentModalProps {
     totalAmount: string | number;
     paidAmount?: string | number;
   } | null;
+  proformaInvoice?: {
+    id: string;
+    proformaInvoiceNumber: string;
+    customerId?: string;
+    customerName?: string;
+    totalAmount: string | number;
+    paidAmount?: string | number;
+    advanceAmountRequested?: string | number;
+    salesOrderId?: string;
+  } | null;
   amcContract?: {
     id: string;
     contractNumber: string;
@@ -34,7 +34,10 @@ interface RecordPaymentModalProps {
     customerName?: string;
     totalAmount: string | number;
   } | null;
-  customer?: PaymentCustomerContext | null;
+  customer?: {
+    id: string;
+    name: string;
+  } | null;
   customerId?: string;
   customerName?: string;
 }
@@ -44,6 +47,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   onClose,
   onSuccess,
   invoice,
+  proformaInvoice,
   amcContract,
   customer,
   customerId: initialCustomerId,
@@ -51,153 +55,46 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  // Determine if a customer is already known/selected
-  const defaultCustomerId =
-    invoice?.customerId ||
-    amcContract?.customerId ||
-    customer?.id ||
-    initialCustomerId ||
-    '';
+  const defaultCustomerId = proformaInvoice?.customerId || invoice?.customerId || amcContract?.customerId || customer?.id || initialCustomerId || '';
+  const defaultCustomerName = proformaInvoice?.customerName || invoice?.customerName || (invoice as any)?.customerNameSnapshot || (invoice as any)?.customer?.name || amcContract?.customerName || customer?.name || initialCustomerName || '';
 
-  const defaultCustomerName =
-    invoice?.customerName ||
-    (invoice as any)?.customerNameSnapshot ||
-    (invoice as any)?.customer?.name ||
-    amcContract?.customerName ||
-    customer?.name ||
-    initialCustomerName ||
-    '';
-
-  const isCustomerPreselected = Boolean(defaultCustomerId);
-
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(defaultCustomerId);  
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(defaultCustomerId);
   const [customersList, setCustomersList] = useState<any[]>([]);
-  const [loadingCustomers, setLoadingCustomers] = useState<boolean>(false);
 
-  // Customer's open/unpaid invoices list
-  const [openInvoices, setOpenInvoices] = useState<any[]>([]);
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>(invoice?.id || '');
-
-  // Active Customer ID and Name
-  const effectiveCustomerId = isCustomerPreselected ? defaultCustomerId : selectedCustomerId;
-  const chosenCustomerObj = customersList.find((c) => c.id === effectiveCustomerId);
-  const effectiveCustomerName =
-    defaultCustomerName ||
-    chosenCustomerObj?.name ||
-    (chosenCustomerObj?.companyName ? `${chosenCustomerObj.name} (${chosenCustomerObj.companyName})` : 'Customer');
-
-  // Load customer list only when no customer was preselected
   useEffect(() => {
-    if (!isCustomerPreselected) {
-      setLoadingCustomers(true);
-      customerService
-        .getCustomers({ limit: 200 })
-        .then((res: any) => {
-          setCustomersList(res?.data || []);
-        })
-        .catch(console.error)
-        .finally(() => setLoadingCustomers(false));
+    if (!defaultCustomerId) {
+      customerService.getCustomers({ limit: 100 }).then((res: any) => {
+        setCustomersList(res?.data || []);
+      }).catch(console.error);
     }
-  }, [isCustomerPreselected]);
+  }, [defaultCustomerId]);
 
-  // Load open issued/partially-paid invoices for this customer if not already tied to a specific invoice
-  useEffect(() => {
-    if (effectiveCustomerId && !invoice) {
-      invoiceService
-        .listSalesInvoices({ customerId: effectiveCustomerId, limit: 50 })
-        .then((res) => {
-          const unpaid = (res.data || []).filter((inv: any) =>
-            ['ISSUED', 'PARTIALLY_PAID'].includes(inv.status)
-          );
-          setOpenInvoices(unpaid);
-        })
-        .catch(console.error);
-    } else {
-      setOpenInvoices([]);
-    }
-  }, [effectiveCustomerId, invoice]);
+  const customerId = selectedCustomerId || defaultCustomerId;
+  const chosenCustomerObj = customersList.find((c) => c.id === customerId);
+  const customerName = defaultCustomerName || chosenCustomerObj?.name || 'Customer';
 
-  // Calculate Due Amount
-  const calculatedDueAmount = useMemo(() => {
-    if (invoice) {
-      return Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount || 0));
-    }
-    if (amcContract) {
-      return Number(amcContract.totalAmount || 0);
-    }
-    // If a specific open invoice was picked from dropdown
-    if (selectedInvoiceId) {
-      const inv = openInvoices.find((i) => i.id === selectedInvoiceId);
-      if (inv) {
-        return Math.max(0, Number(inv.totalAmount) - Number(inv.paidAmount || 0));
-      }
-    }
-    // If customer has totalOutstanding provided from receivables table
-    if (customer?.totalOutstanding !== undefined && Number(customer.totalOutstanding) > 0) {
-      return Number(customer.totalOutstanding);
-    }
-    // Sum from loaded open invoices if available
-    if (openInvoices.length > 0) {
-      return openInvoices.reduce((sum, inv) => {
-        const invDue = Math.max(0, Number(inv.totalAmount) - Number(inv.paidAmount || 0));
-        return sum + invDue;
-      }, 0);
-    }
-    return 0;
-  }, [invoice, amcContract, selectedInvoiceId, openInvoices, customer]);
+  // Calculate remaining balance if available
+  const defaultAmount = proformaInvoice
+    ? Math.max(0, Number(proformaInvoice.advanceAmountRequested || proformaInvoice.totalAmount) - Number(proformaInvoice.paidAmount || 0))
+    : invoice
+    ? Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount || 0))
+    : amcContract
+    ? Number(amcContract.totalAmount)
+    : '';
 
-  // Payment form states
-  const [amount, setAmount] = useState<string>(
-    calculatedDueAmount > 0 ? String(calculatedDueAmount) : ''
-  );
+  const [amount, setAmount] = useState<string>(defaultAmount ? String(defaultAmount) : '');
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [paymentMode, setPaymentMode] = useState<
-    'BANK_TRANSFER' | 'NEFT_RTGS' | 'UPI' | 'CHEQUE' | 'CASH' | 'OTHER'
-  >('NEFT_RTGS');
+  const [paymentMode, setPaymentMode] = useState<'BANK_TRANSFER' | 'NEFT_RTGS' | 'UPI' | 'CHEQUE' | 'CASH' | 'OTHER'>('NEFT_RTGS');
   const [referenceNumber, setReferenceNumber] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Automatically sync amount when calculatedDueAmount becomes available if amount is still blank or initial
-  useEffect(() => {
-    if (calculatedDueAmount > 0 && (!amount || amount === '0')) {
-      setAmount(String(calculatedDueAmount));
-    }
-  }, [calculatedDueAmount]);
-
-  // Handle invoice dropdown change
-  const handleInvoiceSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const invId = e.target.value;
-    setSelectedInvoiceId(invId);
-    if (invId) {
-      const inv = openInvoices.find((i) => i.id === invId);
-      if (inv) {
-        const invDue = Math.max(0, Number(inv.totalAmount) - Number(inv.paidAmount || 0));
-        setAmount(invDue > 0 ? String(invDue) : '');
-      }
-    } else {
-      // Revert to overall customer due
-      if (customer?.totalOutstanding !== undefined && Number(customer.totalOutstanding) > 0) {
-        setAmount(String(customer.totalOutstanding));
-      } else if (openInvoices.length > 0) {
-        const totalOpen = openInvoices.reduce(
-          (sum, i) => sum + Math.max(0, Number(i.totalAmount) - Number(i.paidAmount || 0)),
-          0
-        );
-        setAmount(totalOpen > 0 ? String(totalOpen) : '');
-      }
-    }
-  };
-
-  const parsedAmount = parseFloat(amount) || 0;
+  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!effectiveCustomerId) {
-      toast.error('Customer Required', 'Please select a customer to record payment for.');
-      return;
-    }
-    if (parsedAmount <= 0) {
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
       toast.error('Invalid Amount', 'Please enter a valid payment amount greater than zero.');
       return;
     }
@@ -205,9 +102,11 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     try {
       setIsSubmitting(true);
       await invoiceService.recordPayment({
-        customerId: effectiveCustomerId,
-        salesInvoiceId: invoice?.id || selectedInvoiceId || undefined,
-        amcContractId: amcContract?.id || undefined,
+        customerId,
+        salesInvoiceId: proformaInvoice ? undefined : invoice?.id,
+        proformaInvoiceId: proformaInvoice?.id,
+        salesOrderId: proformaInvoice?.salesOrderId,
+        amcContractId: amcContract?.id,
         amount: parsedAmount,
         paymentDate,
         paymentMode,
@@ -216,8 +115,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       });
 
       toast.success(
-        'Payment Recorded Successfully',
-        `₹${parsedAmount.toLocaleString('en-IN')} received from ${effectiveCustomerName} via ${paymentMode.replace('_', ' ')}.`
+        'Payment Recorded',
+        `₹${parsedAmount.toLocaleString('en-IN')} received successfully via ${paymentMode.replace('_', ' ')}.`
       );
       onSuccess();
       onClose();
@@ -251,18 +150,20 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               <div>
                 <h3 className="text-base font-bold text-slate-900">Record Payment Received</h3>
                 <p className="text-xs text-slate-500">
-                  {invoice
+                  {proformaInvoice
+                    ? `Advance against PI: ${proformaInvoice.proformaInvoiceNumber}`
+                    : invoice
                     ? `Against Invoice: ${invoice.invoiceNumber}`
                     : amcContract
                     ? `Against AMC Contract: ${amcContract.contractNumber}`
-                    : `Customer Account: ${effectiveCustomerName}`}
+                    : `Customer Account: ${customerName}`}
                 </p>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors border border-slate-200 cursor-pointer"
+              className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors border border-slate-200"
             >
               <X size={16} />
             </button>
@@ -270,131 +171,83 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Customer Picker: ONLY shown when opened without a pre-selected customer */}
-            {!isCustomerPreselected ? (
+            {/* Customer Picker when opened without context */}
+            {!invoice && !proformaInvoice && !amcContract && !initialCustomerId && (
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Select Customer <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedCustomerId}
-                    onChange={(e) => {
-                      setSelectedCustomerId(e.target.value);
-                      setSelectedInvoiceId('');
-                    }}
-                    required
-                    disabled={loadingCustomers}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                  >
-                    <option value="">-- Choose Customer Account --</option>
-                    {customersList.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.companyName ? `(${c.companyName})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Selected Customer & Due Amount Banner */}
-            {effectiveCustomerId && (
-              <div className="bg-gradient-to-br from-emerald-50/90 via-slate-50 to-teal-50/50 p-4 rounded-xl border border-emerald-200/70 shadow-xs space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-emerald-600" />
-                    <span className="text-xs font-bold text-slate-800">{effectiveCustomerName}</span>
-                  </div>
-                  {customer?.phone && (
-                    <span className="text-[11px] text-slate-500 font-mono">{customer.phone}</span>
-                  )}
-                </div>
-
-                {/* Prominent Due Amount Indicator */}
-                <div className="flex items-baseline justify-between pt-2 border-t border-emerald-200/50">
-                  <div>
-                    <span className="text-xs font-bold text-slate-700">Due Amount to be Paid:</span>
-                    <span className="block text-[11px] text-slate-500">
-                      {invoice
-                        ? `Invoice #${invoice.invoiceNumber}`
-                        : selectedInvoiceId
-                        ? 'Selected Invoice'
-                        : 'Outstanding Customer Balance'}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xl font-extrabold font-mono text-rose-600">
-                      ₹{calculatedDueAmount.toLocaleString('en-IN', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </span>
-                    {calculatedDueAmount > 0 && parsedAmount !== calculatedDueAmount && (
-                      <button
-                        type="button"
-                        onClick={() => setAmount(String(calculatedDueAmount))}
-                        className="block text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 underline mt-0.5 cursor-pointer ml-auto"
-                      >
-                        Auto-fill full due
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Invoiced vs Paid breakdown if available */}
-                {customer?.totalInvoiced !== undefined && !invoice && (
-                  <div className="flex justify-between text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60 font-mono">
-                    <span>Total Invoiced: ₹{Number(customer.totalInvoiced).toLocaleString('en-IN')}</span>
-                    <span className="text-emerald-700 font-semibold">
-                      Received: ₹{Number(customer.totalPaid || 0).toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Optional Specific Invoice Allocation (when not opened directly for an invoice) */}
-            {!invoice && !amcContract && openInvoices.length > 0 && (
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-                  <span>Allocate Against Specific Invoice (Optional)</span>
-                  <span className="text-[10px] text-slate-400 font-normal">
-                    {openInvoices.length} open invoice(s)
-                  </span>
+                  Customer Account <span className="text-rose-500">*</span>
                 </label>
                 <select
-                  value={selectedInvoiceId}
-                  onChange={handleInvoiceSelectChange}
+                  value={selectedCustomerId}
+                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  required
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 >
-                  <option value="">
-                    General Customer Account (Apply to Outstanding Balance)
-                  </option>
-                  {openInvoices.map((inv) => {
-                    const due = Math.max(0, Number(inv.totalAmount) - Number(inv.paidAmount || 0));
-                    return (
-                      <option key={inv.id} value={inv.id}>
-                        {inv.invoiceNumber} — Total ₹{Number(inv.totalAmount).toLocaleString('en-IN')} (Due: ₹{due.toLocaleString('en-IN')})
-                      </option>
-                    );
-                  })}
+                  <option value="">-- Select Customer --</option>
+                  {customersList.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.companyName ? `(${c.companyName})` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
             )}
 
-            {/* Payment Amount Input */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-slate-700">
-                  Amount Received (₹) <span className="text-rose-500">*</span>
-                </label>
-                {calculatedDueAmount > 0 && (
-                  <span className="text-[11px] font-semibold text-slate-500">
-                    Expected Due: ₹{calculatedDueAmount.toLocaleString('en-IN')}
-                  </span>
+            {/* Context Summary Banner */}
+            {(invoice || proformaInvoice || amcContract || initialCustomerId) && (
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-medium">Customer:</span>
+                  <span className="font-bold text-slate-800">{customerName}</span>
+                </div>
+                {proformaInvoice && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Pro Forma Invoice:</span>
+                      <span className="font-mono font-bold text-indigo-700">{proformaInvoice.proformaInvoiceNumber}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Advance Requested:</span>
+                      <span className="font-semibold text-amber-700 font-mono">
+                        ₹{Number(proformaInvoice.advanceAmountRequested || proformaInvoice.totalAmount).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Advance Balance Due:</span>
+                      <span className="font-bold text-rose-600 font-mono">
+                        ₹{Math.max(0, Number(proformaInvoice.advanceAmountRequested || proformaInvoice.totalAmount) - Number(proformaInvoice.paidAmount || 0)).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {invoice && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Invoice Total:</span>
+                      <span className="font-semibold text-slate-700">₹{Number(invoice.totalAmount).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Current Paid / Remaining Due:</span>
+                      <span className="font-bold text-rose-600">
+                        ₹{Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount || 0)).toLocaleString('en-IN')} Due
+                      </span>
+                    </div>
+                  </>
+                )}
+                {amcContract && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">AMC Total Value:</span>
+                    <span className="font-bold text-slate-800">₹{Number(amcContract.totalAmount).toLocaleString('en-IN')}</span>
+                  </div>
                 )}
               </div>
+            )}
+
+            {/* Payment Amount */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Amount Received (₹) <span className="text-rose-500">*</span>
+              </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold">
                   ₹
@@ -410,45 +263,26 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                   className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 />
               </div>
-
-              {/* Dynamic Payment State Helper */}
-              {parsedAmount > 0 && calculatedDueAmount > 0 && (
-                <div className="mt-1.5 text-[11px] flex items-center gap-1.5">
-                  {parsedAmount < calculatedDueAmount ? (
-                    <span className="text-amber-700 font-medium flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
-                      Partial payment: ₹{(calculatedDueAmount - parsedAmount).toLocaleString('en-IN')} will remain due.
-                    </span>
-                  ) : parsedAmount === calculatedDueAmount ? (
-                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      Full settlement: Outstanding due will be completely settled.
-                    </span>
-                  ) : (
-                    <span className="text-blue-700 font-medium flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
-                      Payment exceeds due by ₹{(parsedAmount - calculatedDueAmount).toLocaleString('en-IN')} (advance credit).
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
 
-            {/* Date & Payment Mode */}
             <div className="grid grid-cols-2 gap-3">
+              {/* Payment Date */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Payment Date <span className="text-rose-500">*</span>
                 </label>
-                <input
-                  type="date"
-                  required
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                />
+                <div className="relative">
+                  <input
+                    type="date"
+                    required
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  />
+                </div>
               </div>
 
+              {/* Payment Mode */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Payment Mode <span className="text-rose-500">*</span>
@@ -468,7 +302,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               </div>
             </div>
 
-            {/* Reference Number */}
+            {/* Reference / UTR Number */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
                 Reference / UTR / Cheque No.
@@ -482,7 +316,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               />
             </div>
 
-            {/* Remarks */}
+            {/* Notes / Remarks */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
                 Internal Remarks / Notes
@@ -491,7 +325,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional notes (e.g. received in HDFC Bank A/c, verified with statement)..."
+                placeholder="Optional payment notes (e.g. received via HDFC Current A/c)..."
                 className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none"
               />
             </div>
@@ -508,7 +342,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || !effectiveCustomerId}
+                disabled={isSubmitting}
                 className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Check size={14} />

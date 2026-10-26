@@ -1266,6 +1266,19 @@ const DetailDrawer: React.FC<DetailDrawerProps> = ({
               <CheckCircle className="w-4 h-4" /> Confirm Order
             </button>
           )}
+          {(so.status === 'CONFIRMED' || so.status === 'PARTIALLY_INVOICED') && (
+            <button
+              id="so-detail-create-proforma-invoice"
+              onClick={() => {
+                onClose();
+                navigate(`/proforma-invoices?generateFromSo=${so.id}`);
+              }}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              title="Generate Pro Forma Invoice for advance payment"
+            >
+              <FileText className="w-4 h-4" /> Pro Forma Invoice
+            </button>
+          )}
           {(so.status === 'CONFIRMED' || so.status === 'PARTIALLY_INVOICED' || so.status === 'FULLY_INVOICED') && (
             <button
               id="so-detail-create-invoice"
@@ -1530,6 +1543,16 @@ export const SalesOrdersPage: React.FC = () => {
                         >
                           <Eye className="w-4 h-4 text-indigo-600" />
                         </button>
+                        {(so.status === 'CONFIRMED' || so.status === 'PARTIALLY_INVOICED') && (
+                          <button
+                            id={`so-generate-pi-${so.id}`}
+                            onClick={() => navigate(`/proforma-invoices?generateFromSo=${so.id}`)}
+                            className="p-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+                            title="Generate Pro Forma Invoice"
+                          >
+                            <FileText className="w-4 h-4 text-blue-600" />
+                          </button>
+                        )}
                         {so.status === 'DRAFT' && (
                           <button
                             id={`so-submit-${so.id}`}

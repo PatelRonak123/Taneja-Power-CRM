@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { ProductController } from '../controllers/product.controller.js';
 import { validateRequest } from '../../../common/middleware/validate.middleware.js';
-import { authenticate, optionalAuthenticate, requireRoles, requireAccountantOrAdminOrManager } from '../../../common/middleware/auth.middleware.js';
+import { authenticate, requireRoles, requireAccountantOrAdminOrManager } from '../../../common/middleware/auth.middleware.js';
 import {
   createProductSchema,
   updateProductSchema,
@@ -13,9 +13,9 @@ import { APP_CONSTANTS } from '../../../config/constants.js';
 const router = Router();
 const controller = new ProductController();
 
-// Public read routes with optional authenticated role elevation
-router.get('/', optionalAuthenticate, validateRequest(listProductsSchema), controller.list);
-router.get('/:id', optionalAuthenticate, validateRequest(getProductByIdSchema), controller.getById);
+// Public routes
+router.get('/', validateRequest(listProductsSchema), controller.list);
+router.get('/:id', validateRequest(getProductByIdSchema), controller.getById);
 
 // Protected routes (Admin, Manager & Accountant Office)
 router.post(

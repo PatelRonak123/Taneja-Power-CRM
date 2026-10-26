@@ -7,9 +7,7 @@ import {
   timestamp,
   index,
   uniqueIndex,
-  check,
 } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 import { customers, customerDestinations } from './customers.js';
 import { users } from './users.js';
 import { products } from './products.js';
@@ -80,19 +78,10 @@ export const customerEquipment = pgTable(
     // Delivery Timestamp
     deliveryDate: timestamp('delivery_date', { withTimezone: true }).notNull(),
 
-    // Warranty Fields & Lifecycle Tracking
+    // Warranty Fields
     warrantyStartDate: timestamp('warranty_start_date', { withTimezone: true }),
     warrantyEndDate: timestamp('warranty_end_date', { withTimezone: true }),
     warrantyTermsSnapshot: text('warranty_terms_snapshot'),
-    warrantyDurationValue: integer('warranty_duration_value'),
-    warrantyDurationUnit: varchar('warranty_duration_unit', { length: 20 }), // MONTHS, YEARS
-    warrantyStatus: varchar('warranty_status', { length: 50 }).default('PENDING_ACTIVATION').notNull(), // PENDING_ACTIVATION, ACTIVE, EXPIRING_SOON, EXPIRED, AMC_COVERED
-
-    // Commissioning / Activation Audit
-    commissioningNotes: text('commissioning_notes'),
-    commissionedById: uuid('commissioned_by_id')
-      .references(() => users.id, { onDelete: 'set null' }),
-    commissionedAt: timestamp('commissioned_at', { withTimezone: true }),
 
     // Condition Status: OPERATIONAL, NEEDS_REPAIR, FAULTY, REPAIRED
     conditionStatus: varchar('condition_status', { length: 50 }).default('OPERATIONAL').notNull(),
@@ -121,17 +110,6 @@ export const customerEquipment = pgTable(
     index('customer_equipment_condition_status_idx').on(table.conditionStatus),
     index('customer_equipment_asset_status_idx').on(table.assetStatus),
     index('customer_equipment_serial_number_idx').on(table.serialNumber),
-    // Warranty Expiry & Lifecycle Indexes
-    index('customer_equipment_warranty_end_date_idx').on(table.warrantyEndDate),
-    index('customer_equipment_warranty_status_idx').on(table.warrantyStatus),
-    index('customer_equipment_installation_date_idx').on(table.installationDate),
-    index('customer_equipment_commissioned_by_id_idx').on(table.commissionedById),
-    // Database Check Constraints
-    check(
-      'customer_equipment_warranty_duration_check',
-      sql`(${table.warrantyDurationValue} IS NULL AND ${table.warrantyDurationUnit} IS NULL) OR (${table.warrantyDurationValue} > 0 AND ${table.warrantyDurationUnit} IN ('MONTHS', 'YEARS'))`
-    ),
-    check('customer_equipment_warranty_status_check', sql`${table.warrantyStatus} IN ('PENDING_ACTIVATION', 'ACTIVE', 'EXPIRING_SOON', 'EXPIRED', 'AMC_COVERED')`),
   ]
 );
 

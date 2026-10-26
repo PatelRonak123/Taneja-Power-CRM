@@ -74,5 +74,9 @@ export class LeadService {
     await this.getLeadById(leadId, user);
     return this.repository.deleteDestination(leadId, destinationId);
   }
+
+  async convertToCustomer(id: string, user?: JwtPayload) {
+    return this.repository.convertToCustomer(id, user);
+  }
 }
 

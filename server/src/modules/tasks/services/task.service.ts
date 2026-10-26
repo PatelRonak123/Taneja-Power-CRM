@@ -23,6 +23,7 @@ import {
   amcServiceReports,
   amcServiceReportEquipment,
 } from '../../../database/schema/amc-contracts.js';
+import { leads, leadDestinations } from '../../../database/schema/leads.js';
 import { AmcContractNumberService } from '../../amc-contracts/services/amc-contract-number.service.js';
 import { customerEquipment } from '../../../database/schema/customer-equipment.js';
 import { fieldServiceReports } from '../../../database/schema/field-service.js';
@@ -97,25 +98,70 @@ export class TaskService {
   }
 
   async createTask(input: CreateTaskInput, createdById: string): Promise<TaskEntity> {
-    // 1. Validate Customer
-    const customer = await this.customerRepo.findById(input.customerId);
-    if (!customer) {
-      throw AppError.notFound('Customer not found');
-    }
-    if (customer.status !== 'ACTIVE') {
-      throw AppError.badRequest('Cannot create task for an inactive customer');
+    const isLeadTask = !!input.leadId;
+
+    if (!isLeadTask && !input.customerId) {
+      throw AppError.badRequest('Either Customer or Lead must be selected');
     }
 
-    // 2. Validate Destination
-    const destination = await this.destinationRepo.findById(input.destinationId);
-    if (!destination) {
-      throw AppError.notFound('Destination not found');
-    }
-    if (destination.customerId !== input.customerId) {
-      throw AppError.badRequest('Destination does not belong to the selected customer');
-    }
-    if (destination.status !== 'ACTIVE') {
-      throw AppError.badRequest('Cannot create task for an inactive destination');
+    let customerId: string | null = null;
+    let destinationId: string | null = null;
+    let leadId: string | null = null;
+    let leadDestinationId: string | null = null;
+
+    if (isLeadTask) {
+      leadId = input.leadId!;
+      // 1. Validate Lead
+      const [lead] = await db.select().from(leads).where(eq(leads.id, leadId));
+      if (!lead) {
+        throw AppError.notFound('Lead not found');
+      }
+
+      // 2. Validate Lead Destination
+      const targetLeadDestId = input.leadDestinationId || input.destinationId;
+      if (!targetLeadDestId) {
+        throw AppError.badRequest('Destination site is required for lead task');
+      }
+      const [leadDest] = await db
+        .select()
+        .from(leadDestinations)
+        .where(eq(leadDestinations.id, targetLeadDestId));
+      if (!leadDest) {
+        throw AppError.notFound('Lead destination site not found');
+      }
+      if (leadDest.leadId !== leadId) {
+        throw AppError.badRequest('Destination site does not belong to the selected lead');
+      }
+      if (leadDest.status !== 'ACTIVE') {
+        throw AppError.badRequest('Cannot create task for an inactive destination site');
+      }
+      leadDestinationId = leadDest.id;
+    } else {
+      customerId = input.customerId!;
+      // 1. Validate Customer
+      const customer = await this.customerRepo.findById(customerId);
+      if (!customer) {
+        throw AppError.notFound('Customer not found');
+      }
+      if (customer.status !== 'ACTIVE') {
+        throw AppError.badRequest('Cannot create task for an inactive customer');
+      }
+
+      // 2. Validate Customer Destination
+      if (!input.destinationId) {
+        throw AppError.badRequest('Destination site is required');
+      }
+      const destination = await this.destinationRepo.findById(input.destinationId);
+      if (!destination) {
+        throw AppError.notFound('Destination not found');
+      }
+      if (destination.customerId !== customerId) {
+        throw AppError.badRequest('Destination does not belong to the selected customer');
+      }
+      if (destination.status !== 'ACTIVE') {
+        throw AppError.badRequest('Cannot create task for an inactive destination');
+      }
+      destinationId = destination.id;
     }
 
     // 3. Validate Assigned Employee if provided
@@ -128,6 +174,17 @@ export class TaskService {
       if (employee.status !== 'ACTIVE') {
         throw AppError.badRequest('Cannot assign task to an inactive employee');
       }
+
+      // If this is a Lead task, employee MUST be a sales employee
+      if (isLeadTask) {
+        const des = (employee.designation || '').toLowerCase();
+        const role = (employee.role || '').toUpperCase();
+        const isSales = des.includes('sales') || role === 'SALES' || role === 'SALES_OFFICE';
+        if (!isSales) {
+          throw AppError.badRequest('Lead tasks can only be assigned to sales employees');
+        }
+      }
+
       initialStatus = TASK_STATUS.ASSIGNED;
     }
 
@@ -140,8 +197,10 @@ export class TaskService {
     const newTask = await this.taskRepo.create({
       title: input.title,
       description: input.description || null,
-      customerId: input.customerId,
-      destinationId: input.destinationId,
+      customerId,
+      destinationId,
+      leadId,
+      leadDestinationId,
       assignedTo: input.assignedTo || null,
       priority: input.priority || TASK_PRIORITY.MEDIUM,
       status: initialStatus,
@@ -183,6 +242,7 @@ export class TaskService {
       throw AppError.badRequest('Cancelled tasks cannot be modified');
     }
 
+    const isLeadTask = (input.leadId !== undefined ? !!input.leadId : !!existing.leadId) && !input.customerId;
     const targetCustomerId = input.customerId || existing.customerId;
     const targetDestinationId = input.destinationId || existing.destinationId;
 
@@ -198,7 +258,7 @@ export class TaskService {
     }
 
     // Validate destination if customer or destination changed
-    if (input.destinationId || input.customerId) {
+    if (!isLeadTask && (input.destinationId || input.customerId) && targetCustomerId && targetDestinationId) {
       const destination = await this.destinationRepo.findById(targetDestinationId);
       if (!destination) {
         throw AppError.notFound('Destination not found');
@@ -208,6 +268,27 @@ export class TaskService {
       }
       if (destination.status !== 'ACTIVE') {
         throw AppError.badRequest('Cannot assign task to an inactive destination');
+      }
+    }
+
+    // Validate lead and lead destination if lead task
+    if (isLeadTask) {
+      const targetLeadId = input.leadId || existing.leadId;
+      if (targetLeadId) {
+        const [lead] = await db.select().from(leads).where(eq(leads.id, targetLeadId));
+        if (!lead) {
+          throw AppError.notFound('Lead not found');
+        }
+      }
+      const targetLeadDestId = input.leadDestinationId || (input.leadId ? input.destinationId : undefined) || existing.leadDestinationId;
+      if (targetLeadDestId) {
+        const [leadDest] = await db.select().from(leadDestinations).where(eq(leadDestinations.id, targetLeadDestId));
+        if (!leadDest) {
+          throw AppError.notFound('Lead destination site not found');
+        }
+        if (targetLeadId && leadDest.leadId !== targetLeadId) {
+          throw AppError.badRequest('Destination site does not belong to the selected lead');
+        }
       }
     }
 
@@ -221,6 +302,14 @@ export class TaskService {
         if (employee.status !== 'ACTIVE') {
           throw AppError.badRequest('Cannot assign task to an inactive employee');
         }
+        if (isLeadTask) {
+          const des = (employee.designation || '').toLowerCase();
+          const role = (employee.role || '').toUpperCase();
+          const isSales = des.includes('sales') || role === 'SALES' || role === 'SALES_OFFICE';
+          if (!isSales) {
+            throw AppError.badRequest('Lead tasks can only be assigned to sales employees');
+          }
+        }
       }
     }
 
@@ -229,6 +318,8 @@ export class TaskService {
     if (input.description !== undefined) updateData.description = input.description || null;
     if (input.customerId !== undefined) updateData.customerId = input.customerId;
     if (input.destinationId !== undefined) updateData.destinationId = input.destinationId;
+    if (input.leadId !== undefined) updateData.leadId = input.leadId;
+    if (input.leadDestinationId !== undefined) updateData.leadDestinationId = input.leadDestinationId;
     if (input.assignedTo !== undefined) {
       updateData.assignedTo = input.assignedTo || null;
       // Auto-update status if it was CREATED and now has an assignee

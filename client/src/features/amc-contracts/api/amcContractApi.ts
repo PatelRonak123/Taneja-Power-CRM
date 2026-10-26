@@ -37,7 +37,6 @@ export interface AmcContract {
   salesOrderStatus?: string;
   equipment?: Array<{
     id: string;
-    customerEquipmentId?: string;
     equipmentType?: string;
     equipmentName: string;
     configuration?: string;

@@ -1,11 +1,9 @@
-import { pgTable, uuid, varchar, text, timestamp, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
+import { pgTable, uuid, varchar, text, timestamp, index } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 import { customers } from './customers.js';
 import { leads } from './leads.js';
 import { quotations } from './quotations.js';
 import { amcContracts } from './amc-contracts.js';
-import { customerEquipment } from './customer-equipment.js';
 
 export const followUps = pgTable(
   'follow_ups',
@@ -14,7 +12,7 @@ export const followUps = pgTable(
     followUpNumber: varchar('follow_up_number', { length: 50 }).notNull().unique(),
     title: varchar('title', { length: 255 }).notNull(),
     description: text('description'),
-    type: varchar('type', { length: 50 }).notNull(), // CALL, MEETING, EMAIL, SITE_VISIT, QUOTATION_FOLLOW_UP, PAYMENT_FOLLOW_UP, AMC_RENEWAL, AMC_EXPIRY, CUSTOMER_VISIT, WARRANTY_EXPIRY, OTHER
+    type: varchar('type', { length: 50 }).notNull(), // CALL, MEETING, EMAIL, SITE_VISIT, QUOTATION_FOLLOW_UP, PAYMENT_FOLLOW_UP, AMC_RENEWAL, AMC_EXPIRY, CUSTOMER_VISIT, OTHER
     status: varchar('status', { length: 50 }).default('PENDING').notNull(), // PENDING, COMPLETED, CANCELLED
     priority: varchar('priority', { length: 50 }).default('MEDIUM').notNull(), // LOW, MEDIUM, HIGH
 
@@ -32,9 +30,6 @@ export const followUps = pgTable(
     dealId: varchar('deal_id', { length: 255 }).references(() => leads.id, { onDelete: 'cascade' }),
     quotationId: uuid('quotation_id').references(() => quotations.id, { onDelete: 'cascade' }),
     amcContractId: uuid('amc_contract_id').references(() => amcContracts.id, { onDelete: 'cascade' }),
-    customerEquipmentId: uuid('customer_equipment_id').references(() => customerEquipment.id, { onDelete: 'set null' }),
-    warrantyCycle: varchar('warranty_cycle', { length: 50 }),
-    contactMethod: varchar('contact_method', { length: 50 }), // PHONE, EMAIL, WHATSAPP, IN_PERSON, SITE_VISIT
 
     // Completion fields
     completedAt: timestamp('completed_at', { withTimezone: true }),
@@ -68,12 +63,6 @@ export const followUps = pgTable(
     index('follow_ups_quotation_id_idx').on(table.quotationId),
     index('follow_ups_amc_contract_id_idx').on(table.amcContractId),
     index('follow_ups_created_at_idx').on(table.createdAt),
-    // Equipment & Warranty Lifecycle Indexes
-    index('follow_ups_customer_equipment_id_idx').on(table.customerEquipmentId),
-    uniqueIndex('follow_ups_equipment_warranty_cycle_unique_idx')
-      .on(table.customerEquipmentId, table.warrantyCycle, table.type)
-      .where(sql`${table.customerEquipmentId} IS NOT NULL AND ${table.warrantyCycle} IS NOT NULL`),
-    check('follow_ups_contact_method_check', sql`${table.contactMethod} IS NULL OR ${table.contactMethod} IN ('PHONE', 'EMAIL', 'WHATSAPP', 'IN_PERSON', 'SITE_VISIT')`),
   ]
 );
 

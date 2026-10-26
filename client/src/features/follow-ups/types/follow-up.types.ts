@@ -7,7 +7,6 @@ export type FollowUpType =
   | 'PAYMENT_FOLLOW_UP'
   | 'AMC_RENEWAL'
   | 'AMC_EXPIRY'
-  | 'WARRANTY_EXPIRY'
   | 'CUSTOMER_VISIT'
   | 'OTHER';
 
@@ -32,8 +31,6 @@ export interface FollowUpItem {
   dealId: string | null;
   quotationId: string | null;
   amcContractId: string | null;
-  customerEquipmentId?: string | null;
-  warrantyCycle?: string | null;
   completedAt: string | null;
   completedBy: string | null;
   outcome: string | null;
@@ -99,17 +96,6 @@ export interface FollowUpItem {
     status: string;
     amcPlan: string;
   } | null;
-  equipment?: {
-    id: string;
-    assetNumber: string;
-    productName: string;
-    model: string | null;
-    make: string | null;
-    capacityRating: string | null;
-    serialNumber: string | null;
-    warrantyEndDate: string | null;
-    warrantyStatus: string | null;
-  } | null;
 }
 
 export interface FollowUpMetrics {
@@ -137,7 +123,6 @@ export interface FollowUpQueryParams {
   dealId?: string;
   quotationId?: string;
   amcContractId?: string;
-  customerEquipmentId?: string;
   startDate?: string;
   endDate?: string;
 }

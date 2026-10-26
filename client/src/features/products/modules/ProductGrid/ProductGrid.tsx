@@ -5,14 +5,13 @@ import { ProductPrice } from '../../components/ProductPrice';
 import { formatDate } from '../../utils/productFormatters';
 import { getCategoryIcon } from '../../utils/categoryIcons';
 import { EmptyState } from '@/components/feedback/EmptyState';
-import { Pencil, Trash2, Calendar, Package, Eye, GitFork, HelpCircle } from 'lucide-react';
+import { Pencil, Trash2, Calendar, Package } from 'lucide-react';
 import { confirmModal } from '@/utils/confirmModal';
 
 interface ProductGridProps {
   products: Product[];
   onEdit: (product: Product) => void;
   onDelete: (id: string) => void;
-  onViewDetails?: (product: Product) => void;
   onDeployFirst?: () => void;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -22,7 +21,6 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   products,
   onEdit,
   onDelete,
-  onViewDetails,
   onDeployFirst,
   canEdit = true,
   canDelete = true,
@@ -62,26 +60,11 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
               </div>
 
               {/* Asset Title & SKU */}
-              <button
-                type="button"
-                onClick={() => onViewDetails && onViewDetails(product)}
-                className="text-base font-bold text-slate-900 hover:text-blue-600 tracking-tight text-left cursor-pointer transition-colors line-clamp-2"
-              >
-                {product.name}
-              </button>
-
-              <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-500 flex-wrap">
-                <span>SKU: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-700">{product.sku}</code></span>
-                {product.brand && <span>• <strong>{product.brand}</strong></span>}
-                {product.model && <span className="truncate max-w-[140px]">• {product.model}</span>}
+              <h3 className="text-base font-bold text-slate-900 tracking-tight">{product.name}</h3>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-xs text-slate-400">SKU:</span>
+                <code className="text-xs font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{product.sku}</code>
               </div>
-
-              {product.parentProduct && (
-                <div className="inline-flex items-center gap-1.5 mt-2 px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  <GitFork size={12} />
-                  <span>Parent UPS: {product.parentProduct.name}</span>
-                </div>
-              )}
 
               {product.description && (
                 <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed" title={product.description}>
@@ -92,23 +75,9 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
               {/* Specs Grid */}
               <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl my-4 border border-slate-100">
                 <div>
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Commercial Value</span>
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Unit Value</span>
                   <div className="mt-0.5">
-                    {product.priceOnRequest ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700">
-                        <HelpCircle size={12} />
-                        <span>On Request</span>
-                      </span>
-                    ) : product.minPrice && product.maxPrice ? (
-                      <div>
-                        <ProductPrice price={product.price} />
-                        <span className="text-[10px] text-slate-500 block font-mono">
-                          ₹{Number(product.minPrice).toLocaleString('en-IN')} - ₹{Number(product.maxPrice).toLocaleString('en-IN')}
-                        </span>
-                      </div>
-                    ) : (
-                      <ProductPrice price={product.price} />
-                    )}
+                    <ProductPrice price={product.price} />
                   </div>
                 </div>
                 <div>
@@ -148,17 +117,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                 <span>{formatDate(product.createdAt)}</span>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                {onViewDetails && (
-                  <button
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                    onClick={() => onViewDetails(product)}
-                    title="View Details"
-                  >
-                    <Eye size={12} />
-                    <span>View</span>
-                  </button>
-                )}
+              <div className="flex items-center gap-2">
                 {canEdit && (
                   <button
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"

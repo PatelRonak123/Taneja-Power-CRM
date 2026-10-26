@@ -102,12 +102,6 @@ export class CustomerEquipmentRepository {
         deliveryDate: customerEquipment.deliveryDate,
         warrantyStartDate: customerEquipment.warrantyStartDate,
         warrantyEndDate: customerEquipment.warrantyEndDate,
-        warrantyDurationValue: customerEquipment.warrantyDurationValue,
-        warrantyDurationUnit: customerEquipment.warrantyDurationUnit,
-        warrantyStatus: customerEquipment.warrantyStatus,
-        commissioningNotes: customerEquipment.commissioningNotes,
-        commissionedById: customerEquipment.commissionedById,
-        commissionedAt: customerEquipment.commissionedAt,
         conditionStatus: customerEquipment.conditionStatus,
         assetStatus: customerEquipment.assetStatus,
         createdAt: customerEquipment.createdAt,
@@ -214,12 +208,6 @@ export class CustomerEquipmentRepository {
         warrantyStartDate: customerEquipment.warrantyStartDate,
         warrantyEndDate: customerEquipment.warrantyEndDate,
         warrantyTermsSnapshot: customerEquipment.warrantyTermsSnapshot,
-        warrantyDurationValue: customerEquipment.warrantyDurationValue,
-        warrantyDurationUnit: customerEquipment.warrantyDurationUnit,
-        warrantyStatus: customerEquipment.warrantyStatus,
-        commissioningNotes: customerEquipment.commissioningNotes,
-        commissionedById: customerEquipment.commissionedById,
-        commissionedAt: customerEquipment.commissionedAt,
         conditionStatus: customerEquipment.conditionStatus,
         assetStatus: customerEquipment.assetStatus,
         createdAt: customerEquipment.createdAt,
@@ -484,37 +472,5 @@ export class CustomerEquipmentRepository {
       .values(data)
       .returning();
     return created;
-  }
-
-  async commissionEquipment(
-    id: string,
-    data: {
-      installationDate: Date;
-      warrantyStartDate: Date;
-      warrantyEndDate: Date;
-      warrantyDurationValue: number;
-      warrantyDurationUnit: 'MONTHS' | 'YEARS';
-      warrantyStatus: 'ACTIVE';
-      commissioningNotes?: string | null;
-      commissionedById: string;
-      commissionedAt: Date;
-    },
-    txClient: any = db
-  ): Promise<CustomerEquipmentEntity | undefined> {
-    const [updated] = await txClient
-      .update(customerEquipment)
-      .set({
-        ...data,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(customerEquipment.id, id),
-          eq(customerEquipment.warrantyStatus, 'PENDING_ACTIVATION')
-        )
-      )
-      .returning();
-
-    return updated;
   }
 }

@@ -1,22 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { customerEquipmentService } from '../services/customerEquipmentService';
 import type {
   CustomerEquipment,
   CustomerEquipmentCondition,
   CustomerEquipmentAssetStatus,
   UpdateCustomerEquipmentPayload,
-  CommissioningResult,
 } from '../types/customer-equipment.types';
 import { useCurrentPath, navigate } from '../../../app/router/navigation';
-import { useAuthStore } from '../../../stores/authStore';
 import { toast } from '../../../utils/toast';
-import { WarrantyStatusBadge } from '../components/WarrantyStatusBadge';
-import { CommissionEquipmentModal } from '../components/CommissionEquipmentModal';
-import {
-  parseCalendarDate,
-  addDaysToCalendarDate,
-  formatCalendarDate,
-} from '../utils/warranty-date.util';
 import {
   Cpu,
   ArrowLeft,
@@ -36,23 +27,18 @@ import {
   Loader2,
   X,
   History,
+  Tag,
   User,
   Clock,
   Sparkles,
   ArrowRight,
   ExternalLink,
   Check,
-  Info,
 } from 'lucide-react';
 
 export const CustomerEquipmentDetailPage: React.FC = () => {
   const currentPath = useCurrentPath();
   const id = currentPath.split('/')[2];
-
-  const { user } = useAuthStore();
-  const isAdmin = user?.role === 'ADMIN';
-  const isManager = user?.role === 'MANAGER';
-  const canCommission = isAdmin || isManager;
 
   const [equipment, setEquipment] = useState<CustomerEquipment | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,27 +55,6 @@ export const CustomerEquipmentDetailPage: React.FC = () => {
     assetStatus: 'ACTIVE',
     serialNumber: '',
   });
-
-  // Commission Modal State
-  const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
-
-  // Derived check for locked installation date
-  const isInstallationDateLocked =
-    equipment?.warrantyStatus === 'ACTIVE' || equipment?.warrantyStatus === 'EXPIRING_SOON';
-
-  // Derived proposed AMC start date (the calendar day after warranty expiry)
-  const derivedAmcStartDate = useMemo(() => {
-    if (equipment?.warrantyEndDate) {
-      try {
-        const { year, month, day } = parseCalendarDate(equipment.warrantyEndDate);
-        const nextDay = addDaysToCalendarDate(year, month, day, 1);
-        return formatCalendarDate(nextDay.year, nextDay.month, nextDay.day);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }, [equipment?.warrantyEndDate]);
 
   const fetchEquipmentDetails = useCallback(async () => {
     if (!id) return;
@@ -139,23 +104,10 @@ export const CustomerEquipmentDetailPage: React.FC = () => {
     if (!id) return;
     try {
       setSubmittingEdit(true);
-
-      // Build payload cleanly without including installationDate if locked by active warranty
-      const payload: UpdateCustomerEquipmentPayload = {
-        serialNumber: editForm.serialNumber,
-        installationLocation: editForm.installationLocation,
-        installationNotes: editForm.installationNotes,
-        conditionStatus: editForm.conditionStatus,
-        assetStatus: editForm.assetStatus,
-      };
-
-      if (!isInstallationDateLocked) {
-        payload.installationDate = editForm.installationDate
-          ? new Date(editForm.installationDate).toISOString()
-          : null;
-      }
-
-      const updated = await customerEquipmentService.updateEquipment(id, payload);
+      const updated = await customerEquipmentService.updateEquipment(id, {
+        ...editForm,
+        installationDate: editForm.installationDate ? new Date(editForm.installationDate).toISOString() : null,
+      });
       setEquipment(updated);
       setIsEditModalOpen(false);
       toast.success('Asset updated', 'Operational details updated successfully');
@@ -164,25 +116,6 @@ export const CustomerEquipmentDetailPage: React.FC = () => {
     } finally {
       setSubmittingEdit(false);
     }
-  };
-
-  const handleCommissionSuccess = (result: CommissioningResult) => {
-    setEquipment((prev) => {
-      if (!prev) return result.equipment;
-      return {
-        ...prev,
-        ...result.equipment,
-        warrantyStatus: result.warranty?.status || 'ACTIVE',
-        warrantyStartDate: result.warranty?.warrantyStartDate || prev.warrantyStartDate,
-        warrantyEndDate: result.warranty?.warrantyEndDate || prev.warrantyEndDate,
-        installationDate: result.warranty?.installationDate || prev.installationDate,
-        warrantyDurationValue: result.warranty?.warrantyDurationValue ?? prev.warrantyDurationValue,
-        warrantyDurationUnit: result.warranty?.warrantyDurationUnit ?? prev.warrantyDurationUnit,
-        commissionedById: result.warranty?.commissionedById ?? prev.commissionedById,
-        commissionedAt: result.warranty?.commissionedAt ? String(result.warranty.commissionedAt) : prev.commissionedAt,
-      };
-    });
-    fetchEquipmentDetails();
   };
 
   const getConditionBadge = (condition: CustomerEquipmentCondition) => {
@@ -328,25 +261,13 @@ export const CustomerEquipmentDetailPage: React.FC = () => {
           <ArrowLeft size={14} /> Back to Customer Assets
         </button>
 
-        <div className="flex items-center gap-2">
-          {equipment.warrantyStatus === 'PENDING_ACTIVATION' && canCommission && (
-            <button
-              onClick={() => setIsCommissionModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-            >
-              <ShieldCheck size={14} />
-              Commission & Activate Warranty
-            </button>
-          )}
-
-          <button
-            onClick={() => setIsEditModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <Edit3 size={13} />
-            Edit Operational Info
-          </button>
-        </div>
+        <button
+          onClick={() => setIsEditModalOpen(true)}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+        >
+          <Edit3 size={13} />
+          Edit Operational Info
+        </button>
       </div>
 
       {/* Asset Header Card */}
@@ -362,10 +283,6 @@ export const CustomerEquipmentDetailPage: React.FC = () => {
                   {equipment.assetNumber}
                 </h1>
                 {getConditionBadge(equipment.conditionStatus)}
-                <WarrantyStatusBadge
-                  status={equipment.warrantyStatus}
-                  expiryDate={equipment.warrantyEndDate}
-                />
                 <span
                   className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
                     equipment.assetStatus === 'ACTIVE'
@@ -1045,170 +962,28 @@ export const CustomerEquipmentDetailPage: React.FC = () => {
             )}
           </div>
 
-          {/* Warranty Lifecycle Coverage Card */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2 text-gray-900 font-bold text-sm">
-                <ShieldCheck size={16} className="text-blue-600" />
-                <h3>Warranty Lifecycle Coverage</h3>
-              </div>
-              <WarrantyStatusBadge
-                status={equipment.warrantyStatus}
-                expiryDate={equipment.warrantyEndDate}
-              />
+          {/* Warranty Snapshot */}
+          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-3">
+            <div className="flex items-center gap-2 text-gray-900 font-bold text-sm border-b border-gray-100 pb-3">
+              <Tag size={16} className="text-purple-600" />
+              <h3>Warranty Details</h3>
             </div>
 
-            {/* If pending activation, show callout to commission */}
-            {equipment.warrantyStatus === 'PENDING_ACTIVATION' && (
-              <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 text-amber-900 space-y-2">
-                <div className="flex items-start gap-2 text-xs">
-                  <Clock size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold block text-amber-950">Awaiting Commissioning</span>
-                    <p className="text-[11px] text-amber-800 mt-0.5">
-                      Warranty coverage activates upon official commissioning. Expiry date and proposed AMC start date will be established deterministically.
-                    </p>
-                  </div>
-                </div>
-                {canCommission && (
-                  <button
-                    onClick={() => setIsCommissionModalOpen(true)}
-                    className="w-full py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                  >
-                    <ShieldCheck size={13} />
-                    Commission Equipment Now
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <span className="text-gray-500 block text-[10px] uppercase font-semibold tracking-wider mb-0.5">
-                    Installation Date
-                  </span>
-                  <span className="text-gray-900 font-semibold font-mono">
-                    {equipment.installationDate
-                      ? new Date(equipment.installationDate).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })
-                      : 'Not installed'}
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <span className="text-gray-500 block text-[10px] uppercase font-semibold tracking-wider mb-0.5">
-                    Warranty Duration
-                  </span>
-                  <span className="text-gray-900 font-semibold">
-                    {equipment.warrantyDurationValue
-                      ? `${equipment.warrantyDurationValue} ${equipment.warrantyDurationUnit || 'MONTHS'}`
-                      : '—'}
-                  </span>
-                </div>
+            <div className="space-y-2.5 text-xs">
+              <div>
+                <span className="text-gray-500 block text-[11px] font-medium mb-0.5">Warranty Period</span>
+                <span className="text-gray-900 font-semibold">
+                  {equipment.warrantyStartDate && equipment.warrantyEndDate
+                    ? `${new Date(equipment.warrantyStartDate).toLocaleDateString()} — ${new Date(
+                        equipment.warrantyEndDate
+                      ).toLocaleDateString()}`
+                    : 'Standard Manufacturer Terms'}
+                </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <span className="text-gray-500 block text-[10px] uppercase font-semibold tracking-wider mb-0.5">
-                    Warranty Start Date
-                  </span>
-                  <span className="text-gray-900 font-semibold font-mono">
-                    {equipment.warrantyStartDate
-                      ? new Date(equipment.warrantyStartDate).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })
-                      : '—'}
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <span className="text-gray-500 block text-[10px] uppercase font-semibold tracking-wider mb-0.5">
-                    Warranty Expiry Date
-                  </span>
-                  <span className="text-emerald-700 font-semibold font-mono">
-                    {equipment.warrantyEndDate
-                      ? new Date(equipment.warrantyEndDate).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })
-                      : '—'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Proposed AMC Start Date */}
-              {derivedAmcStartDate && (
-                <div className="p-2.5 rounded-xl bg-blue-50/60 border border-blue-200/80 flex items-center justify-between">
-                  <div>
-                    <span className="text-gray-700 font-semibold text-[11px] block">
-                      Proposed AMC Start Date
-                    </span>
-                    <span className="text-[10px] text-gray-500 block">
-                      Projected post-warranty transition date (Not active AMC)
-                    </span>
-                  </div>
-                  <span className="font-bold text-blue-800 font-mono text-xs">
-                    {new Date(derivedAmcStartDate).toLocaleDateString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </span>
-                </div>
-              )}
-
-              {/* Commissioning Metadata (when available) */}
-              {(equipment.commissionedAt || equipment.commissionedById) && (
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-[11px]">
-                  <span className="text-gray-500 block text-[10px] uppercase font-semibold tracking-wider">
-                    Commissioning Metadata
-                  </span>
-                  {equipment.commissionedAt && (
-                    <div className="text-gray-700 flex items-center justify-between">
-                      <span className="text-gray-500">Commissioned At:</span>
-                      <span className="font-medium text-gray-900">
-                        {new Date(equipment.commissionedAt).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                  )}
-                  {equipment.commissionedById && (
-                    <div className="text-gray-700 flex items-center justify-between">
-                      <span className="text-gray-500">Commissioned By ID:</span>
-                      <span className="font-mono text-gray-900 text-[10px]" title={equipment.commissionedById}>
-                        {equipment.commissionedById}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Commissioning Notes (when present) */}
-              {equipment.commissioningNotes && (
-                <div>
-                  <span className="text-gray-500 block text-[11px] font-medium mb-1">Commissioning Notes</span>
-                  <p className="text-gray-700 text-xs bg-slate-50 p-2.5 rounded-lg border border-gray-200 whitespace-pre-wrap">
-                    {equipment.commissioningNotes}
-                  </p>
-                </div>
-              )}
-
-              {/* Warranty Terms Snapshot */}
               {equipment.warrantyTermsSnapshot && (
                 <div>
-                  <span className="text-gray-500 block text-[11px] font-medium mb-1">Warranty Terms Snapshot</span>
+                  <span className="text-gray-500 block text-[11px] font-medium mb-0.5">Warranty Terms</span>
                   <p className="text-gray-700 text-xs bg-slate-50 p-2.5 rounded-lg border border-gray-200">
                     {equipment.warrantyTermsSnapshot}
                   </p>
@@ -1269,26 +1044,10 @@ export const CustomerEquipmentDetailPage: React.FC = () => {
                 </label>
                 <input
                   type="date"
-                  disabled={isInstallationDateLocked}
                   value={editForm.installationDate || ''}
                   onChange={(e) => setEditForm({ ...editForm, installationDate: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-blue-500 ${
-                    isInstallationDateLocked
-                      ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed'
-                      : 'border-gray-300 bg-white text-gray-900'
-                  }`}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                 />
-                {isInstallationDateLocked ? (
-                  <p className="text-[11px] text-amber-700 mt-1 flex items-center gap-1">
-                    <Info size={12} className="shrink-0" />
-                    Installation date cannot be modified because warranty is already{' '}
-                    {equipment.warrantyStatus === 'ACTIVE' ? 'active' : 'expiring soon'}.
-                  </p>
-                ) : (
-                  <p className="text-[11px] text-gray-500 mt-1">
-                    Date this unit was installed on customer site.
-                  </p>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1362,17 +1121,6 @@ export const CustomerEquipmentDetailPage: React.FC = () => {
             </form>
           </div>
         </div>
-      )}
-
-      {/* Commissioning Modal */}
-      {isCommissionModalOpen && equipment && (
-        <CommissionEquipmentModal
-          isOpen={isCommissionModalOpen}
-          onClose={() => setIsCommissionModalOpen(false)}
-          equipment={equipment}
-          onSuccess={handleCommissionSuccess}
-          onConflict={fetchEquipmentDetails}
-        />
       )}
     </div>
   );

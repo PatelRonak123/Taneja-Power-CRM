@@ -43,23 +43,6 @@ export const manualCreateCustomerEquipmentSchema = z.object({
   legacyReason: z.string().min(5, 'Reason for manual legacy asset creation is required'),
 });
 
-export const commissionCustomerEquipmentSchema = z.object({
-  installationDate: z.string({ required_error: 'Installation date is required' }).min(1, 'Installation date cannot be empty'),
-  warrantyDurationValue: z.coerce.number().int({ message: 'Warranty duration must be an integer' }).min(1, 'Warranty duration must be at least 1'),
-  warrantyDurationUnit: z.enum(['MONTHS', 'YEARS'], {
-    errorMap: () => ({ message: 'Warranty duration unit must be MONTHS or YEARS' }),
-  }),
-  commissioningNotes: z.string().max(2000).optional().nullable(),
-});
-
-export const processWarrantyRemindersSchema = z.object({
-  batchSize: z.coerce.number().int().min(1).max(500).optional(),
-  limit: z.coerce.number().int().min(1).optional(),
-  referenceDate: z.string().trim().optional(),
-});
-
 export type ListCustomerEquipmentQuery = z.infer<typeof listCustomerEquipmentQuerySchema>;
 export type UpdateCustomerEquipmentInput = z.infer<typeof updateCustomerEquipmentSchema>;
 export type ManualCreateCustomerEquipmentInput = z.infer<typeof manualCreateCustomerEquipmentSchema>;
-export type CommissionCustomerEquipmentInput = z.infer<typeof commissionCustomerEquipmentSchema>;
-export type ProcessWarrantyRemindersInput = z.infer<typeof processWarrantyRemindersSchema>;

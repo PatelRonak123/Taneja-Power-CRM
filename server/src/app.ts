@@ -30,6 +30,7 @@ import vendorInvoiceRoutes from './modules/invoices/routes/vendor-invoice.routes
 import dispatchRoutes from './modules/dispatch/routes/dispatch.routes.js';
 import customerEquipmentRoutes from './modules/customer-equipment/routes/customer-equipment.routes.js';
 import paymentRoutes from './modules/payments/routes/payment.routes.js';
+import proformaInvoiceRoutes from './modules/proforma-invoices/routes/proforma-invoice.routes.js';
 import path from 'path';
 import { sendResponse } from './common/utils/responseEnvelope.js';
 
@@ -114,6 +115,7 @@ export const createApp = (): Application => {
   app.use(`${APP_CONSTANTS.API_PREFIX}/dispatches`, dispatchRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/customer-equipment`, customerEquipmentRoutes);
   app.use(`${APP_CONSTANTS.API_PREFIX}/payments`, paymentRoutes);
+  app.use(`${APP_CONSTANTS.API_PREFIX}/proforma-invoices`, proformaInvoiceRoutes);
 
   // 404 Handler
   app.use(notFoundMiddleware);

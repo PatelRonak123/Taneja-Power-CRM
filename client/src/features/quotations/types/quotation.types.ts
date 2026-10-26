@@ -260,8 +260,6 @@ export interface QuotationDetailedView {
   createdById: string;
   updatedById?: string | null;
   currentRevisionNumber: number;
-  sourceEquipmentId?: string | null;
-  sourceFollowUpId?: string | null;
   createdAt: string;
   updatedAt: string;
   customer?: {
@@ -374,8 +372,6 @@ export interface CreateQuotationPayload {
   zone?: string | null;
   specialClauses?: string | null;
   amcPaymentTerms?: string | null;
-  sourceEquipmentId?: string | null;
-  sourceFollowUpId?: string | null;
   items: LineItemFormInput[];
   amcScope?: QuotationAmcScopeItem[];
   amcExclusions?: QuotationAmcExclusion[];

@@ -13,8 +13,10 @@ export const createTaskSchema = z.object({
   body: z.object({
     title: z.string().min(2, 'Task title must be at least 2 characters long').max(255),
     description: z.string().optional().nullable(),
-    customerId: z.string().uuid('Invalid customer ID format'),
-    destinationId: z.string().uuid('Invalid destination ID format'),
+    customerId: z.string().uuid('Invalid customer ID format').optional().nullable(),
+    destinationId: z.string().uuid('Invalid destination ID format').optional().nullable(),
+    leadId: z.string().max(255).optional().nullable(),
+    leadDestinationId: z.string().uuid('Invalid lead destination ID format').optional().nullable(),
     assignedTo: z.string().uuid('Invalid employee ID format').optional().nullable(),
     priority: z
       .enum([
@@ -47,8 +49,10 @@ export const updateTaskSchema = z.object({
   body: z.object({
     title: z.string().min(2, 'Task title must be at least 2 characters long').max(255).optional(),
     description: z.string().optional().nullable(),
-    customerId: z.string().uuid('Invalid customer ID format').optional(),
-    destinationId: z.string().uuid('Invalid destination ID format').optional(),
+    customerId: z.string().uuid('Invalid customer ID format').optional().nullable(),
+    destinationId: z.string().uuid('Invalid destination ID format').optional().nullable(),
+    leadId: z.string().max(255).optional().nullable(),
+    leadDestinationId: z.string().uuid('Invalid lead destination ID format').optional().nullable(),
     assignedTo: z.string().uuid('Invalid employee ID format').optional().nullable(),
     priority: z
       .enum([

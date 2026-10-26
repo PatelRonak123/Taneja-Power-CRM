@@ -126,5 +126,15 @@ export class LeadController {
       next(error);
     }
   };
+
+  convertToCustomer = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const result = await this.service.convertToCustomer(id, req.user);
+      sendResponse(res, 201, result, 'Lead converted to customer successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 

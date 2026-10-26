@@ -38,28 +38,12 @@ router.get(
   controller.getAmcHistory
 );
 
-// POST /api/customer-equipment/reminders/process - Scan and trigger warranty expiry follow-ups (Admin/Manager only)
-router.post(
-  '/reminders/process',
-  authenticate,
-  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
-  controller.processReminders
-);
-
 // GET /api/customer-equipment/:id - Get equipment detail
 router.get(
   '/:id',
   authenticate,
   requirePermission('customers:read'),
   controller.getById
-);
-
-// POST /api/customer-equipment/:id/commission - Commission equipment and activate warranty
-router.post(
-  '/:id/commission',
-  authenticate,
-  requirePermission('customers:edit'),
-  controller.commission
 );
 
 // PATCH /api/customer-equipment/:id - Update operational fields

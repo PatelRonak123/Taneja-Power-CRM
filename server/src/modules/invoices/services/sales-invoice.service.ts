@@ -249,15 +249,34 @@ export class SalesInvoiceService {
       const totalTaxNum = this.round(cgstTotalNum + sgstTotalNum + igstTotalNum);
       const totalAmountNum = this.round(subtotalNum + totalTaxNum);
 
+      // Check if an active Pro Forma Invoice exists for this Sales Order
+      const piRows = await tx.execute(sql`
+        SELECT id, proforma_invoice_number, paid_amount 
+        FROM proforma_invoices 
+        WHERE sales_order_id = ${salesOrderId} AND status NOT IN ('CANCELLED')
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `);
+      const linkedPi: any = (piRows.rows || piRows)[0];
+
+      // Reconcile advance payments recorded against this Sales Order (or its PI)
+      const advanceRes = await tx.execute(sql`
+        SELECT coalesce(sum(amount), 0) as total_advance
+        FROM payments
+        WHERE sales_order_id = ${salesOrderId} AND sales_invoice_id IS NULL
+      `);
+      const advancePaid = Number((advanceRes.rows || advanceRes)[0]?.total_advance || 0);
+
       // 8. Insert Invoice Master Record
       const newInvoice = await this.repo.insertInvoice(
         {
           invoiceNumber,
           salesOrderId,
+          proformaInvoiceId: linkedPi ? linkedPi.id : null,
           customerId: so.customer_id,
           invoiceDate,
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
-          status: SALES_INVOICE_STATUSES.DRAFT,
+          status: advancePaid >= totalAmountNum ? SALES_INVOICE_STATUSES.PAID : advancePaid > 0 ? SALES_INVOICE_STATUSES.PARTIALLY_PAID : SALES_INVOICE_STATUSES.DRAFT,
           currency: 'INR',
 
           // Customer snapshot
@@ -295,11 +314,30 @@ export class SalesInvoiceService {
           totalTax: this.fmt(totalTaxNum),
           roundOff: '0.00',
           totalAmount: this.fmt(totalAmountNum),
+          paidAmount: this.fmt(advancePaid),
 
           createdBy: userId,
         },
         tx
       );
+
+      // If linked PI exists, associate this tax invoice
+      if (linkedPi) {
+        await tx.execute(sql`
+          UPDATE proforma_invoices
+          SET related_tax_invoice_id = ${newInvoice.id}, updated_at = now()
+          WHERE id = ${linkedPi.id}
+        `);
+      }
+
+      // Reconcile/link any existing advance payment records to this final Tax Invoice
+      if (advancePaid > 0) {
+        await tx.execute(sql`
+          UPDATE payments
+          SET sales_invoice_id = ${newInvoice.id}, updated_at = now()
+          WHERE sales_order_id = ${salesOrderId} AND sales_invoice_id IS NULL
+        `);
+      }
 
       // 9. Insert Invoice Line Items
       const itemsToInsert = builtItems.map((item) => ({
