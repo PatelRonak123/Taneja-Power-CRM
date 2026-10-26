@@ -86,4 +86,45 @@ export class LeadController {
       next(error);
     }
   };
+
+  listDestinations = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { leadId } = req.params;
+      const destinations = await this.service.listDestinations(leadId, req.user);
+      sendResponse(res, 200, destinations, 'Destinations retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createDestination = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { leadId } = req.params;
+      const destination = await this.service.createDestination(leadId, req.body, req.user);
+      sendResponse(res, 201, destination, 'Destination registered successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateDestination = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { leadId, destinationId } = req.params;
+      const destination = await this.service.updateDestination(leadId, destinationId, req.body, req.user);
+      sendResponse(res, 200, destination, 'Destination updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deleteDestination = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { leadId, destinationId } = req.params;
+      await this.service.deleteDestination(leadId, destinationId, req.user);
+      sendResponse(res, 200, { success: true }, 'Destination deleted successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
 }
+

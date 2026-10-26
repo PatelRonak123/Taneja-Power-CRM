@@ -1,3 +1,5 @@
+import { CustomerDestination } from '../../customers/types/customer.types';
+
 export type LeadPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 
 export type LeadStatus =
@@ -54,5 +56,8 @@ export interface Lead {
   status: LeadStatus;
   source: LeadSource;
   linkedClientId?: string;
+  destinationCount?: number;
+  destinations?: CustomerDestination[];
   activityLogs: LeadActivity[];
 }
+

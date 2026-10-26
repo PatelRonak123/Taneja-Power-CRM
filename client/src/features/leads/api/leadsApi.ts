@@ -1,5 +1,6 @@
 import { apiClient } from '../../../app/api/apiClient';
 import { Lead } from '../types/lead';
+import { CustomerDestination, CreateDestinationPayload } from '../../customers/types/customer.types';
 
 export const leadsApi = {
   getLeads: async (params?: {
@@ -55,4 +56,34 @@ export const leadsApi = {
       return null;
     }
   },
+
+  getLeadDestinations: async (leadId: string): Promise<CustomerDestination[]> => {
+    try {
+      const response = await apiClient.get<any, any>(`/leads/${leadId}/destinations`);
+      return Array.isArray(response) ? response : (response?.data || []);
+    } catch (error) {
+      console.warn('Backend lead destinations API error:', error);
+      return [];
+    }
+  },
+
+  createLeadDestination: async (leadId: string, payload: CreateDestinationPayload): Promise<CustomerDestination> => {
+    const response = await apiClient.post<any, any>(`/leads/${leadId}/destinations`, payload);
+    return response?.data || response;
+  },
+
+  updateLeadDestination: async (
+    leadId: string,
+    destinationId: string,
+    payload: Partial<CreateDestinationPayload>
+  ): Promise<CustomerDestination> => {
+    const response = await apiClient.put<any, any>(`/leads/${leadId}/destinations/${destinationId}`, payload);
+    return response?.data || response;
+  },
+
+  deleteLeadDestination: async (leadId: string, destinationId: string): Promise<boolean> => {
+    const response = await apiClient.delete<any, any>(`/leads/${leadId}/destinations/${destinationId}`);
+    return response?.success ?? true;
+  },
 };
+

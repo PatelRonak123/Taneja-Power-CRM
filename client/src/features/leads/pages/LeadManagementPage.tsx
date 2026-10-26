@@ -13,10 +13,14 @@ import {
   CheckCircle2,
   AlertCircle,
   UserCheck,
+  MapPin,
 } from 'lucide-react';
 import { Lead } from '../types/lead';
 import { LeadDrawer } from '../components/LeadDrawer';
 import { leadsApi } from '../api/leadsApi';
+import { DestinationsDrawer } from '../../customers/components/DestinationsDrawer';
+import { DestinationModal } from '../../customers/components/DestinationModal';
+import { CustomerDestination, DestinationStatus } from '../../customers/types/customer.types';
 import { useAuthStore } from '../../../stores/authStore';
 import { employeeService } from '../../admin/services/employeeService';
 import { Employee } from '../../admin/types/employee.types';
@@ -45,6 +49,222 @@ export const LeadManagementPage: React.FC = () => {
   const [selectedPriority, setSelectedPriority] = useState<string>('ALL');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('ALL');
   const [viewScope, setViewScope] = useState<'ALL' | 'MY'>('ALL');
+
+  // Lead Destinations state
+  const [selectedLeadForDestinations, setSelectedLeadForDestinations] = useState<Lead | null>(null);
+  const [destinations, setDestinations] = useState<CustomerDestination[]>([]);
+  const [loadingDestinations, setLoadingDestinations] = useState(false);
+  const [destinationModalMode, setDestinationModalMode] = useState<'create' | 'edit' | null>(null);
+  const [editingDestinationId, setEditingDestinationId] = useState<string | null>(null);
+  const [deletingDestinationId, setDeletingDestinationId] = useState<string | null>(null);
+  const [destinationFormSubmitting, setDestinationFormSubmitting] = useState(false);
+  const [destinationFormError, setDestinationFormError] = useState<string | null>(null);
+  const [destinationFormData, setDestinationFormData] = useState<{
+    name: string;
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+    latitude: string;
+    longitude: string;
+    placeId?: string;
+    contactPerson: string;
+    contactPhone: string;
+    notes: string;
+    status: DestinationStatus;
+  }>({
+    name: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: '',
+    latitude: '',
+    longitude: '',
+    placeId: '',
+    contactPerson: '',
+    contactPhone: '',
+    notes: '',
+    status: 'ACTIVE',
+  });
+
+  const fetchDestinations = async (leadId: string) => {
+    setLoadingDestinations(true);
+    try {
+      const data = await leadsApi.getLeadDestinations(leadId);
+      setDestinations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('Failed to load lead destinations:', err);
+      setDestinations([]);
+    } finally {
+      setLoadingDestinations(false);
+    }
+  };
+
+  const handleOpenDestinations = (lead: Lead) => {
+    setSelectedLeadForDestinations(lead);
+    fetchDestinations(lead.id);
+  };
+
+  const handleOpenCreateDestination = () => {
+    if (!selectedLeadForDestinations) return;
+    setDestinationFormData({
+      name: '',
+      address: selectedLeadForDestinations.address || '',
+      city: '',
+      state: '',
+      pincode: '',
+      latitude: '',
+      longitude: '',
+      placeId: '',
+      contactPerson: selectedLeadForDestinations.customerName || '',
+      contactPhone: selectedLeadForDestinations.phone || '',
+      notes: '',
+      status: 'ACTIVE',
+    });
+    setDestinationFormError(null);
+    setEditingDestinationId(null);
+    setDestinationModalMode('create');
+  };
+
+  const handleOpenEditDestination = (dest: CustomerDestination) => {
+    setDestinationFormData({
+      name: dest.name || '',
+      address: dest.address || '',
+      city: dest.city || '',
+      state: dest.state || '',
+      pincode: dest.pincode || '',
+      latitude: dest.latitude ? String(dest.latitude) : '',
+      longitude: dest.longitude ? String(dest.longitude) : '',
+      placeId: dest.placeId || '',
+      contactPerson: dest.contactPerson || '',
+      contactPhone: dest.contactPhone || '',
+      notes: dest.notes || '',
+      status: dest.status || 'ACTIVE',
+    });
+    setDestinationFormError(null);
+    setEditingDestinationId(dest.id);
+    setDestinationModalMode('edit');
+  };
+
+  const handleDestinationInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setDestinationFormData((prev) => ({ ...prev, [name]: value }));
+    if (destinationFormError) setDestinationFormError(null);
+  };
+
+  const handleSelectAddressSuggestion = (suggestion: {
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+    latitude: string;
+    longitude: string;
+    placeId?: string;
+    name?: string;
+  }) => {
+    setDestinationFormData((prev) => ({
+      ...prev,
+      name: prev.name.trim() === '' && suggestion.name ? suggestion.name : prev.name,
+      address: suggestion.address || prev.address,
+      city: suggestion.city || prev.city,
+      state: suggestion.state || prev.state,
+      pincode: suggestion.pincode || prev.pincode,
+      latitude: suggestion.latitude || prev.latitude,
+      longitude: suggestion.longitude || prev.longitude,
+      placeId: suggestion.placeId || prev.placeId,
+    }));
+    if (destinationFormError) setDestinationFormError(null);
+  };
+
+  const handleDestinationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLeadForDestinations) return;
+    setDestinationFormError(null);
+
+    if (!destinationFormData.name.trim() || destinationFormData.name.trim().length < 2) {
+      setDestinationFormError('Destination name must be at least 2 characters.');
+      return;
+    }
+
+    setDestinationFormSubmitting(true);
+    try {
+      if (destinationModalMode === 'create') {
+        await leadsApi.createLeadDestination(selectedLeadForDestinations.id, {
+          name: destinationFormData.name.trim(),
+          address: destinationFormData.address.trim() || undefined,
+          city: destinationFormData.city.trim() || undefined,
+          state: destinationFormData.state.trim() || undefined,
+          pincode: destinationFormData.pincode.trim() || undefined,
+          latitude: destinationFormData.latitude.trim() || null,
+          longitude: destinationFormData.longitude.trim() || null,
+          placeId: destinationFormData.placeId?.trim() || undefined,
+          contactPerson: destinationFormData.contactPerson.trim() || undefined,
+          contactPhone: destinationFormData.contactPhone.trim() || undefined,
+          notes: destinationFormData.notes.trim() || undefined,
+          status: destinationFormData.status,
+        });
+
+        toast.success('Destination registered successfully!');
+        setDestinationModalMode(null);
+        fetchDestinations(selectedLeadForDestinations.id);
+        fetchLeads();
+      } else if (destinationModalMode === 'edit' && editingDestinationId) {
+        await leadsApi.updateLeadDestination(
+          selectedLeadForDestinations.id,
+          editingDestinationId,
+          {
+            name: destinationFormData.name.trim(),
+            address: destinationFormData.address.trim() || undefined,
+            city: destinationFormData.city.trim() || undefined,
+            state: destinationFormData.state.trim() || undefined,
+            pincode: destinationFormData.pincode.trim() || undefined,
+            latitude: destinationFormData.latitude.trim() || null,
+            longitude: destinationFormData.longitude.trim() || null,
+            placeId: destinationFormData.placeId?.trim() || undefined,
+            contactPerson: destinationFormData.contactPerson.trim() || undefined,
+            contactPhone: destinationFormData.contactPhone.trim() || undefined,
+            notes: destinationFormData.notes.trim() || undefined,
+            status: destinationFormData.status,
+          }
+        );
+
+        toast.success('Destination updated successfully!');
+        setDestinationModalMode(null);
+        fetchDestinations(selectedLeadForDestinations.id);
+        fetchLeads();
+      }
+    } catch (err: any) {
+      setDestinationFormError(err?.message || 'Failed to save destination');
+    } finally {
+      setDestinationFormSubmitting(false);
+    }
+  };
+
+  const handleDeleteDestination = async (destination: CustomerDestination) => {
+    if (!selectedLeadForDestinations) return;
+    const confirmed = await confirmModal({
+      title: 'Remove Destination Site',
+      message: `Are you sure you want to remove "${destination.name}" from this lead?`,
+      confirmText: 'Remove Destination',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    setDeletingDestinationId(destination.id);
+    try {
+      await leadsApi.deleteLeadDestination(selectedLeadForDestinations.id, destination.id);
+      toast.success(`Destination "${destination.name}" removed successfully.`);
+      fetchDestinations(selectedLeadForDestinations.id);
+      fetchLeads();
+    } catch (err: any) {
+      toast.error('Failed to delete destination', err?.message);
+    } finally {
+      setDeletingDestinationId(null);
+    }
+  };
+
 
   useEffect(() => {
     const loadEmployees = async () => {
@@ -217,6 +437,11 @@ export const LeadManagementPage: React.FC = () => {
         toast.error('Failed to delete lead', err?.message);
       }
     }
+  };
+
+  const handleLeadUpdated = (updatedLead: Lead) => {
+    setLeads((prev) => prev.map((item) => (item.id === updatedLead.id ? updatedLead : item)));
+    setActiveLead(updatedLead);
   };
 
   const handleSaveLead = async (savedLead: Lead) => {
@@ -464,6 +689,7 @@ export const LeadManagementPage: React.FC = () => {
                     <ArrowUpDown size={12} />
                   </div>
                 </TableHead>
+                <TableHead className="min-w-[150px]">SERVICE DESTINATIONS</TableHead>
                 <TableHead className="min-w-[170px]">PRODUCT INTERESTED</TableHead>
                 <TableHead align="right" className="min-w-[130px]">
                   <div className="flex items-center justify-end gap-1.5 cursor-pointer hover:text-slate-600">
@@ -480,7 +706,7 @@ export const LeadManagementPage: React.FC = () => {
             <TableBody>
               {filteredLeads.length === 0 ? (
                 <TableEmptyState
-                  colSpan={8}
+                  colSpan={9}
                   icon={<Building2 size={24} />}
                   title="No leads found matching criteria"
                   description="No leads match your active filters. Try resetting search criteria or adding a new lead."
@@ -516,6 +742,22 @@ export const LeadManagementPage: React.FC = () => {
                           <span className="truncate">{lead.companyName}</span>
                         </div>
                       </div>
+                    </TableCell>
+
+                    {/* SERVICE DESTINATIONS */}
+                    <TableCell className="align-middle">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200/70 hover:bg-indigo-100 transition-colors cursor-pointer"
+                        onClick={() => handleOpenDestinations(lead)}
+                        title="Click to view/manage lead destinations & facilities"
+                      >
+                        <MapPin size={11} />
+                        <span className="tabular-nums">
+                          {lead.destinationCount || 0}{' '}
+                          {lead.destinationCount === 1 ? 'Site' : 'Sites'}
+                        </span>
+                      </button>
                     </TableCell>
 
                     {/* PRODUCT INTERESTED */}
@@ -625,9 +867,49 @@ export const LeadManagementPage: React.FC = () => {
         lead={activeLead}
         onClose={() => setIsDrawerOpen(false)}
         onSave={handleSaveLead}
+        onLeadUpdated={handleLeadUpdated}
         onSwitchToEdit={() => setDrawerMode('edit')}
+        onOpenDestinations={handleOpenDestinations}
+      />
+
+      {/* Lead Destinations Drawer */}
+      <DestinationsDrawer
+        customer={
+          selectedLeadForDestinations
+            ? {
+                name: selectedLeadForDestinations.customerName,
+                companyName: selectedLeadForDestinations.companyName,
+              }
+            : null
+        }
+        title="Lead Destinations & Facilities"
+        destinations={destinations}
+        loading={loadingDestinations}
+        onClose={() => {
+          setSelectedLeadForDestinations(null);
+          setDestinationModalMode(null);
+        }}
+        onAddDestination={handleOpenCreateDestination}
+        onEditDestination={handleOpenEditDestination}
+        onDeleteDestination={handleDeleteDestination}
+        deletingDestinationId={deletingDestinationId}
+        canManage={true}
+      />
+
+      {/* Register Destination Site Modal */}
+      <DestinationModal
+        modalMode={destinationModalMode}
+        isOpen={Boolean(destinationModalMode)}
+        onClose={() => setDestinationModalMode(null)}
+        onSubmit={handleDestinationSubmit}
+        formData={destinationFormData}
+        onInputChange={handleDestinationInputChange}
+        onSelectAddressSuggestion={handleSelectAddressSuggestion}
+        formSubmitting={destinationFormSubmitting}
+        formError={destinationFormError}
       />
 
     </div>
   );
 };
+
