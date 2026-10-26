@@ -212,8 +212,13 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                     <TableCell className="align-middle">
                       <div className="flex flex-col min-w-0 pr-1">
                         <div className="flex items-center gap-1.5 font-medium text-slate-800 text-xs truncate" title={task.customer?.name || 'Unknown Client'}>
-                          <Building2 size={12} className="text-blue-600 shrink-0" />
+                          <Building2 size={12} className={task.customer?.isLead || task.leadId ? 'text-indigo-600 shrink-0' : 'text-blue-600 shrink-0'} />
                           <span className="truncate">{task.customer?.name || 'Unknown Client'}</span>
+                          {(task.customer?.isLead || task.leadId) && (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+                              Lead
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1 text-slate-500 text-[11px] truncate mt-0.5" title={task.destination?.name || 'Site location'}>
                           <MapPin size={10} className="text-slate-400 shrink-0" />

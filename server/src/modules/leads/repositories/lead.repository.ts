@@ -872,5 +872,161 @@ export class LeadRepository {
     });
     return this.findById(id, user);
   }
+
+  async convertToCustomer(id: string, user?: JwtPayload) {
+    await this.ensureSchema();
+    const lead = await this.findById(id, user);
+    if (!lead) {
+      throw AppError.notFound('Lead not found');
+    }
+
+    // Check if the lead has a linked client that exists in customers
+    let targetCustomerId: string | null = null;
+    if (lead.linkedClientId) {
+      const [existingLinked] = await db
+        .select()
+        .from(customers)
+        .where(eq(customers.id, lead.linkedClientId))
+        .limit(1);
+      // Only keep if the customer name matches or resembles the lead name
+      if (
+        existingLinked &&
+        existingLinked.name.toLowerCase().trim() === lead.customerName.toLowerCase().trim()
+      ) {
+        targetCustomerId = existingLinked.id;
+      }
+    }
+
+    // If not found yet, check if there is an exact match customer by name and company
+    if (!targetCustomerId) {
+      const trimmedName = lead.customerName.trim();
+      const trimmedCompany = (lead.companyName || '').trim();
+      const trimmedEmail = (lead.email || '').trim().toLowerCase();
+
+      const candidateCustomers = await db
+        .select()
+        .from(customers)
+        .where(ilike(customers.name, trimmedName))
+        .limit(10);
+
+      const exactMatch = candidateCustomers.find((c) => {
+        const matchComp =
+          trimmedCompany &&
+          c.companyName &&
+          c.companyName.toLowerCase().trim() === trimmedCompany.toLowerCase();
+        const matchEm = trimmedEmail && c.email && c.email.toLowerCase().trim() === trimmedEmail;
+        return Boolean(matchComp || matchEm);
+      });
+
+      if (exactMatch) {
+        targetCustomerId = exactMatch.id;
+      }
+    }
+
+    // Fetch lead destinations
+    const leadDests = await this.findDestinationsByLeadId(id);
+    const firstDest = leadDests[0];
+
+    // If still no target customer, create a new customer
+    if (!targetCustomerId) {
+      const [newCust] = await db
+        .insert(customers)
+        .values({
+          name: lead.customerName.trim(),
+          companyName: lead.companyName?.trim() || lead.customerName.trim(),
+          phone: lead.phone?.trim() || null,
+          email: lead.email?.trim() || null,
+          address: lead.address?.trim() || firstDest?.address || null,
+          city: firstDest?.city || null,
+          state: firstDest?.state || null,
+          pincode: firstDest?.pincode || null,
+          notes: lead.productInterested
+            ? `Converted from Lead ${lead.id} (${lead.leadCode}). Product: ${lead.productInterested}`
+            : `Converted from Lead ${lead.id} (${lead.leadCode})`,
+          status: 'ACTIVE',
+          createdById: lead.createdById || user?.userId || null,
+          createdBy: lead.createdBy || (user as any)?.fullName || 'User',
+        })
+        .returning();
+
+      targetCustomerId = newCust.id;
+    }
+
+    // Copy lead destinations into customer_destinations
+    if (leadDests.length > 0) {
+      const existingCustDests = await db
+        .select()
+        .from(customerDestinations)
+        .where(eq(customerDestinations.customerId, targetCustomerId));
+
+      for (const dest of leadDests) {
+        const alreadyExists = existingCustDests.some(
+          (cd) => cd.name.toLowerCase().trim() === dest.name.toLowerCase().trim()
+        );
+        if (!alreadyExists) {
+          await db.insert(customerDestinations).values({
+            customerId: targetCustomerId,
+            name: dest.name,
+            address: dest.address || null,
+            city: dest.city || null,
+            state: dest.state || null,
+            pincode: dest.pincode || null,
+            latitude: dest.latitude ? String(dest.latitude) : null,
+            longitude: dest.longitude ? String(dest.longitude) : null,
+            placeId: dest.placeId || null,
+            contactPerson: dest.contactPerson || lead.customerName,
+            contactPhone: dest.contactPhone || lead.phone || null,
+            notes: dest.notes || null,
+            status: (dest.status as any) || 'ACTIVE',
+          });
+        }
+      }
+    }
+
+    // Link lead to this customer
+    await db
+      .update(leads)
+      .set({
+        linkedClientId: targetCustomerId,
+        updatedAt: new Date(),
+      })
+      .where(eq(leads.id, id));
+
+    // Add activity log
+    const authorName = (user as any)?.fullName || 'User';
+    await db.insert(leadActivityLogs).values({
+      id: `act-${id}-${Date.now()}`,
+      leadId: id,
+      title: `Lead converted to customer: ${lead.customerName} (by ${authorName})`,
+      date: new Date().toISOString().split('T')[0],
+      type: 'System',
+    });
+
+    // Fetch final updated lead and customer with destinations
+    const updatedLead = await this.findById(id, user);
+
+    const [customerRow] = await db
+      .select()
+      .from(customers)
+      .where(eq(customers.id, targetCustomerId))
+      .limit(1);
+
+    const fullCustDestinations = await db
+      .select()
+      .from(customerDestinations)
+      .where(eq(customerDestinations.customerId, targetCustomerId))
+      .orderBy(desc(customerDestinations.createdAt));
+
+    const finalCustomer = {
+      ...customerRow,
+      destinations: fullCustDestinations,
+      destinationCount: fullCustDestinations.length,
+    };
+
+    return {
+      customer: finalCustomer,
+      lead: updatedLead,
+    };
+  }
 }
 

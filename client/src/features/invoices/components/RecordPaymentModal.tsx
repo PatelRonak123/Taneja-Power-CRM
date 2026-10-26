@@ -17,6 +17,16 @@ interface RecordPaymentModalProps {
     totalAmount: string | number;
     paidAmount?: string | number;
   } | null;
+  proformaInvoice?: {
+    id: string;
+    proformaInvoiceNumber: string;
+    customerId?: string;
+    customerName?: string;
+    totalAmount: string | number;
+    paidAmount?: string | number;
+    advanceAmountRequested?: string | number;
+    salesOrderId?: string;
+  } | null;
   amcContract?: {
     id: string;
     contractNumber: string;
@@ -37,6 +47,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   onClose,
   onSuccess,
   invoice,
+  proformaInvoice,
   amcContract,
   customer,
   customerId: initialCustomerId,
@@ -44,8 +55,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const defaultCustomerId = invoice?.customerId || amcContract?.customerId || customer?.id || initialCustomerId || '';
-  const defaultCustomerName = invoice?.customerName || (invoice as any)?.customerNameSnapshot || (invoice as any)?.customer?.name || amcContract?.customerName || customer?.name || initialCustomerName || '';
+  const defaultCustomerId = proformaInvoice?.customerId || invoice?.customerId || amcContract?.customerId || customer?.id || initialCustomerId || '';
+  const defaultCustomerName = proformaInvoice?.customerName || invoice?.customerName || (invoice as any)?.customerNameSnapshot || (invoice as any)?.customer?.name || amcContract?.customerName || customer?.name || initialCustomerName || '';
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(defaultCustomerId);
   const [customersList, setCustomersList] = useState<any[]>([]);
@@ -63,7 +74,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const customerName = defaultCustomerName || chosenCustomerObj?.name || 'Customer';
 
   // Calculate remaining balance if available
-  const defaultAmount = invoice
+  const defaultAmount = proformaInvoice
+    ? Math.max(0, Number(proformaInvoice.advanceAmountRequested || proformaInvoice.totalAmount) - Number(proformaInvoice.paidAmount || 0))
+    : invoice
     ? Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount || 0))
     : amcContract
     ? Number(amcContract.totalAmount)
@@ -90,7 +103,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       setIsSubmitting(true);
       await invoiceService.recordPayment({
         customerId,
-        salesInvoiceId: invoice?.id,
+        salesInvoiceId: proformaInvoice ? undefined : invoice?.id,
+        proformaInvoiceId: proformaInvoice?.id,
+        salesOrderId: proformaInvoice?.salesOrderId,
         amcContractId: amcContract?.id,
         amount: parsedAmount,
         paymentDate,
@@ -135,7 +150,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               <div>
                 <h3 className="text-base font-bold text-slate-900">Record Payment Received</h3>
                 <p className="text-xs text-slate-500">
-                  {invoice
+                  {proformaInvoice
+                    ? `Advance against PI: ${proformaInvoice.proformaInvoiceNumber}`
+                    : invoice
                     ? `Against Invoice: ${invoice.invoiceNumber}`
                     : amcContract
                     ? `Against AMC Contract: ${amcContract.contractNumber}`
@@ -155,7 +172,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
             {/* Customer Picker when opened without context */}
-            {!invoice && !amcContract && !initialCustomerId && (
+            {!invoice && !proformaInvoice && !amcContract && !initialCustomerId && (
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Customer Account <span className="text-rose-500">*</span>
@@ -177,12 +194,32 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             )}
 
             {/* Context Summary Banner */}
-            {(invoice || amcContract || initialCustomerId) && (
+            {(invoice || proformaInvoice || amcContract || initialCustomerId) && (
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-medium">Customer:</span>
                   <span className="font-bold text-slate-800">{customerName}</span>
                 </div>
+                {proformaInvoice && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Pro Forma Invoice:</span>
+                      <span className="font-mono font-bold text-indigo-700">{proformaInvoice.proformaInvoiceNumber}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Advance Requested:</span>
+                      <span className="font-semibold text-amber-700 font-mono">
+                        ₹{Number(proformaInvoice.advanceAmountRequested || proformaInvoice.totalAmount).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Advance Balance Due:</span>
+                      <span className="font-bold text-rose-600 font-mono">
+                        ₹{Math.max(0, Number(proformaInvoice.advanceAmountRequested || proformaInvoice.totalAmount) - Number(proformaInvoice.paidAmount || 0)).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  </>
+                )}
                 {invoice && (
                   <>
                     <div className="flex justify-between">

@@ -26,6 +26,7 @@ router.get('/:id', validateRequest(getLeadByIdSchema), controller.getById);
 router.put('/:id', requirePermission('leads:edit_own'), validateRequest(updateLeadSchema), controller.update);
 router.delete('/:id', requirePermission('leads:delete'), validateRequest(deleteLeadSchema), controller.delete);
 router.post('/:id/activity', requirePermission('leads:edit_own'), controller.addActivity);
+router.post('/:id/convert-to-customer', requirePermission('customers:create'), validateRequest(getLeadByIdSchema), controller.convertToCustomer);
 
 // Lead destination routes
 router.get('/:leadId/destinations', validateRequest(leadDestinationParamSchema), controller.listDestinations);

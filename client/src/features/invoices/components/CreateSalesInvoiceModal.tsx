@@ -9,6 +9,7 @@ import { useSalesOrders, useSalesOrder } from '../../sales-orders/hooks';
 import { useCreateSalesInvoiceFromSo } from '../hooks';
 import type { CreateSalesInvoiceFromSoPayload } from '../types/invoice.types';
 import type { SalesOrder } from '../../sales-orders/types/salesOrder.types';
+import { proformaInvoiceApi } from '../../proforma-invoices/api/proformaInvoiceApi';
 
 export interface CreateSalesInvoiceModalProps {
   onClose: () => void;
@@ -36,6 +37,7 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
   );
   const [notes, setNotes] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [linkedPi, setLinkedPi] = useState<any>(null);
 
   useEffect(() => {
     if (initialSalesOrderId) {
@@ -77,6 +79,21 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
       }
     }
   }, [activeSo]);
+
+  // Load linked Pro Forma Invoice if present
+  useEffect(() => {
+    if (activeSo?.id) {
+      proformaInvoiceApi
+        .list({ salesOrderId: activeSo.id, limit: 5 })
+        .then((res) => {
+          const found = (res.data || []).find((p: any) => p.status !== 'CANCELLED');
+          setLinkedPi(found || null);
+        })
+        .catch(() => setLinkedPi(null));
+    } else {
+      setLinkedPi(null);
+    }
+  }, [activeSo?.id]);
 
   const createInvoice = useCreateSalesInvoiceFromSo();
 
@@ -274,6 +291,30 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
                   <span className="font-mono text-blue-700">{fmt(activeSo.totalAmount)}</span>
                 </div>
               </div>
+
+              {/* Linked Pro Forma Invoice Reference & Advance Notice */}
+              {linkedPi && (
+                <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-950 space-y-1">
+                  <div className="flex items-center justify-between font-semibold">
+                    <span className="flex items-center gap-1.5 text-indigo-900">
+                      <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+                      Originating Pro Forma Invoice: <strong className="font-mono">{linkedPi.proformaInvoiceNumber}</strong>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-800 font-bold border border-indigo-200">
+                      {linkedPi.status}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-indigo-800/90 pt-0.5">
+                    <span>Advance Requested: {fmt(linkedPi.advanceAmountRequested)}</span>
+                    <span className="font-bold text-emerald-800 font-mono">
+                      Advance Received: {fmt(linkedPi.paidAmount)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 pt-1">
+                    * Eligible advance payments recorded against this order will automatically be linked and reconciled on the final Tax Invoice.
+                  </p>
+                </div>
+              )}
             </div>
           ) : null}
 

@@ -2,6 +2,8 @@ import { sql, eq, desc, and } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import { payments } from '../../../database/schema/payments.js';
 import { salesInvoices, invoiceActivityLogs } from '../../../database/schema/invoices.js';
+import { proformaInvoices } from '../../../database/schema/proforma-invoices.js';
+import { salesOrders } from '../../../database/schema/sales-orders.js';
 import { amcContracts } from '../../../database/schema/amc-contracts.js';
 import { customers } from '../../../database/schema/customers.js';
 import { users } from '../../../database/schema/users.js';
@@ -10,6 +12,8 @@ import { SALES_INVOICE_STATUSES } from '../../../config/constants.js';
 export interface RecordPaymentInput {
   customerId: string;
   salesInvoiceId?: string;
+  proformaInvoiceId?: string;
+  salesOrderId?: string;
   amcContractId?: string;
   amount: number;
   paymentDate?: string;
@@ -133,7 +137,46 @@ export class PaymentService {
         }
       }
 
-      // 2. If directly linked to an AMC Contract (and not already handled above)
+      // 2. If directly linked to a Pro Forma Invoice (Advance payment)
+      if (input.proformaInvoiceId) {
+        const [foundPi] = await tx
+          .select()
+          .from(proformaInvoices)
+          .where(eq(proformaInvoices.id, input.proformaInvoiceId));
+
+        if (!foundPi) {
+          const err: any = new Error('Pro Forma Invoice not found');
+          err.statusCode = 404;
+          throw err;
+        }
+
+        input.customerId = foundPi.customerId;
+        if (!input.salesOrderId && foundPi.salesOrderId) {
+          input.salesOrderId = foundPi.salesOrderId;
+        }
+
+        const currentPaid = Number(foundPi.paidAmount || 0);
+        const totalAmount = Number(foundPi.totalAmount);
+        const newPaid = Number((currentPaid + amountNum).toFixed(2));
+
+        const newStatus =
+          newPaid >= totalAmount
+            ? 'PAID'
+            : newPaid > 0
+            ? 'PARTIALLY_PAID'
+            : foundPi.status;
+
+        await tx
+          .update(proformaInvoices)
+          .set({
+            paidAmount: String(newPaid),
+            status: newStatus,
+            updatedAt: new Date(),
+          })
+          .where(eq(proformaInvoices.id, input.proformaInvoiceId));
+      }
+
+      // 3. If directly linked to an AMC Contract (and not already handled above)
       if (input.amcContractId && !input.salesInvoiceId) {
         const [foundAmc] = await tx
           .select()
@@ -168,13 +211,15 @@ export class PaymentService {
           .where(eq(amcContracts.id, input.amcContractId));
       }
 
-      // 3. Insert Payment Master Record
+      // 4. Insert Payment Master Record
       const [inserted] = await tx
         .insert(payments)
         .values({
           paymentNumber,
           customerId: input.customerId,
           salesInvoiceId: input.salesInvoiceId || null,
+          proformaInvoiceId: input.proformaInvoiceId || null,
+          salesOrderId: input.salesOrderId || null,
           amcContractId: input.amcContractId || null,
           amount: String(amountNum),
           paymentDate,
@@ -195,6 +240,8 @@ export class PaymentService {
   public async listPayments(query: {
     customerId?: string;
     salesInvoiceId?: string;
+    proformaInvoiceId?: string;
+    salesOrderId?: string;
     amcContractId?: string;
     search?: string;
     page?: number;
@@ -207,11 +254,13 @@ export class PaymentService {
     const conditions: any[] = [];
     if (query.customerId) conditions.push(eq(payments.customerId, query.customerId));
     if (query.salesInvoiceId) conditions.push(eq(payments.salesInvoiceId, query.salesInvoiceId));
+    if (query.proformaInvoiceId) conditions.push(eq(payments.proformaInvoiceId, query.proformaInvoiceId));
+    if (query.salesOrderId) conditions.push(eq(payments.salesOrderId, query.salesOrderId));
     if (query.amcContractId) conditions.push(eq(payments.amcContractId, query.amcContractId));
     if (query.search?.trim()) {
       const term = `%${query.search.trim()}%`;
       conditions.push(
-        sql`(${payments.paymentNumber} ILIKE ${term} OR ${payments.referenceNumber} ILIKE ${term} OR ${customers.name} ILIKE ${term} OR ${customers.companyName} ILIKE ${term})`
+        sql`(${payments.paymentNumber} ILIKE ${term} OR ${payments.referenceNumber} ILIKE ${term} OR ${customers.name} ILIKE ${term} OR ${customers.companyName} ILIKE ${term} OR ${proformaInvoices.proformaInvoiceNumber} ILIKE ${term})`
       );
     }
 
@@ -227,6 +276,10 @@ export class PaymentService {
           customerCompanyName: customers.companyName,
           salesInvoiceId: payments.salesInvoiceId,
           invoiceNumber: salesInvoices.invoiceNumber,
+          proformaInvoiceId: payments.proformaInvoiceId,
+          proformaInvoiceNumber: proformaInvoices.proformaInvoiceNumber,
+          salesOrderId: payments.salesOrderId,
+          salesOrderNumber: salesOrders.salesOrderNumber,
           amcContractId: payments.amcContractId,
           amcContractNumber: amcContracts.contractNumber,
           amount: payments.amount,
@@ -241,6 +294,8 @@ export class PaymentService {
         .from(payments)
         .leftJoin(customers, eq(customers.id, payments.customerId))
         .leftJoin(salesInvoices, eq(salesInvoices.id, payments.salesInvoiceId))
+        .leftJoin(proformaInvoices, eq(proformaInvoices.id, payments.proformaInvoiceId))
+        .leftJoin(salesOrders, eq(salesOrders.id, payments.salesOrderId))
         .leftJoin(amcContracts, eq(amcContracts.id, payments.amcContractId))
         .leftJoin(users, eq(users.id, payments.recordedBy))
         .where(whereClause)
@@ -251,11 +306,13 @@ export class PaymentService {
         .select({ count: sql<number>`count(*)::int` })
         .from(payments)
         .leftJoin(customers, eq(customers.id, payments.customerId))
+        .leftJoin(proformaInvoices, eq(proformaInvoices.id, payments.proformaInvoiceId))
         .where(whereClause),
       db
         .select({ sum: sql<string>`coalesce(sum(${payments.amount}), 0)` })
         .from(payments)
         .leftJoin(customers, eq(customers.id, payments.customerId))
+        .leftJoin(proformaInvoices, eq(proformaInvoices.id, payments.proformaInvoiceId))
         .where(whereClause),
     ]);
 

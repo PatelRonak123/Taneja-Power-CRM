@@ -26,6 +26,7 @@ import {
   Truck,
   ShoppingCart,
   Receipt,
+  FileText,
   Cpu,
 } from 'lucide-react';
 
@@ -163,6 +164,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       label: 'Invoices (Sales & Vendor)',
       icon: Receipt,
       description: 'Sales tax invoices & vendor purchase bills',
+    },
+    {
+      id: 'proforma-invoice-management',
+      path: '/proforma-invoices',
+      aliasPaths: ['/admin/proforma-invoices'],
+      label: 'Pro Forma Invoices',
+      icon: FileText,
+      description: 'Preliminary commercial invoices & customer advances',
     },
     {
       id: 'dispatch-management',
@@ -323,6 +332,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           aliasPaths: ['/admin/invoices'],
           label: 'Invoices (Sales & Vendor)',
           icon: Receipt,
+        },
+        {
+          id: 'accountant-proforma-invoices',
+          path: '/proforma-invoices',
+          aliasPaths: ['/admin/proforma-invoices'],
+          label: 'Pro Forma Invoices',
+          icon: FileText,
         },
         {
           id: 'accountant-dispatches',

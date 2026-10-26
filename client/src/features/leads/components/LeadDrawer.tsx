@@ -116,11 +116,11 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
               setSelectedCustomerId(singleCust.id);
               setFormData((prev) => ({
                 ...prev,
-                customerName: singleCust.name || prev.customerName,
-                companyName: singleCust.companyName || singleCust.name || prev.companyName,
-                email: singleCust.email || prev.email || '',
-                phone: singleCust.phone || prev.phone || '',
-                address: singleCust.address || prev.address || '',
+                customerName: prev.customerName || singleCust.name,
+                companyName: prev.companyName || singleCust.companyName || singleCust.name,
+                email: prev.email || singleCust.email || '',
+                phone: prev.phone || singleCust.phone || '',
+                address: prev.address || singleCust.address || '',
                 linkedClientId: singleCust.id,
               }));
             }
@@ -293,47 +293,72 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
 
     setIsConverting(true);
     try {
-      // 1. Deduplicate: check if customer already exists in customersList
-      const existingCustomer = customersList.find((c) => {
-        const matchPhone =
-          lead.phone && c.phone && c.phone.trim() !== '' && c.phone.trim() === lead.phone.trim();
-        const matchEmail =
-          lead.email &&
-          c.email &&
-          c.email.trim() !== '' &&
-          c.email.toLowerCase().trim() === lead.email.toLowerCase().trim();
-        const matchNameCompany =
-          c.name?.toLowerCase().trim() === lead.customerName.toLowerCase().trim() &&
-          (c.companyName?.toLowerCase().trim() || '') === (lead.companyName?.toLowerCase().trim() || '');
-        return Boolean(matchPhone || matchEmail || matchNameCompany);
-      });
+      let newCustomer: Customer | null = null;
+      let updatedLead: Lead | null = null;
 
-      let targetCustomerId = existingCustomer?.id;
+      try {
+        // Preferred: Call backend atomic convert endpoint
+        const res = await leadsApi.convertToCustomer(lead.id);
+        newCustomer = (res as any)?.customer || res;
+        updatedLead = (res as any)?.lead;
+      } catch (backendErr) {
+        console.warn('Backend convert-to-customer endpoint fallback:', backendErr);
 
-      if (!targetCustomerId) {
-        // Create the customer with lead details
+        // Fallback: Fetch lead destinations and create customer + destinations manually
+        const leadDestinations = await leadsApi.getLeadDestinations(lead.id).catch(() => []);
+        const firstDest = leadDestinations[0];
+
         const custRes = await customerService.createCustomer({
           name: lead.customerName.trim(),
           companyName: lead.companyName?.trim() || lead.customerName.trim(),
           phone: lead.phone?.trim() || undefined,
           email: lead.email?.trim() || undefined,
-          address: lead.address?.trim() || undefined,
+          address: lead.address?.trim() || firstDest?.address || undefined,
+          city: firstDest?.city || undefined,
+          state: firstDest?.state || undefined,
+          pincode: firstDest?.pincode || undefined,
           status: 'ACTIVE',
           createdById: lead.createdById || undefined,
           createdBy: lead.createdBy || undefined,
         });
-        const newCustomer: Customer = (custRes as any)?.data || (custRes as any);
-        targetCustomerId = newCustomer?.id;
-        if (!targetCustomerId) throw new Error('Customer creation did not return an ID.');
 
-        // Update local customer list
-        setCustomersList((prev) => [newCustomer, ...prev]);
+        newCustomer = (custRes as any)?.data || (custRes as any);
+        if (!newCustomer?.id) throw new Error('Customer creation did not return an ID.');
+
+        // Copy destinations
+        for (const dest of leadDestinations) {
+          try {
+            await customerService.createDestination(newCustomer.id, {
+              name: dest.name,
+              address: dest.address || undefined,
+              city: dest.city || undefined,
+              state: dest.state || undefined,
+              pincode: dest.pincode || undefined,
+              latitude: dest.latitude ? String(dest.latitude) : null,
+              longitude: dest.longitude ? String(dest.longitude) : null,
+              placeId: dest.placeId || undefined,
+              contactPerson: dest.contactPerson || lead.customerName,
+              contactPhone: dest.contactPhone || lead.phone || undefined,
+              notes: dest.notes || undefined,
+              status: dest.status || 'ACTIVE',
+            });
+          } catch (destErr) {
+            console.warn('Failed to copy destination during conversion:', destErr);
+          }
+        }
+
+        // Link lead in DB
+        await leadsApi.updateLead(lead.id, { linkedClientId: newCustomer.id });
       }
 
-      // 2. Link this lead to the customer in DB
-      await leadsApi.updateLead(lead.id, { linkedClientId: targetCustomerId });
+      if (!newCustomer || !newCustomer.id) {
+        throw new Error('Failed to convert lead: Customer details could not be retrieved.');
+      }
 
-      // 3. Reflect in local state
+      const targetCustomerId = newCustomer.id;
+
+      // Update local customer list
+      setCustomersList((prev) => [newCustomer!, ...prev.filter((c) => c.id !== targetCustomerId)]);
       setSelectedCustomerId(targetCustomerId);
       setFormData((prev) => ({
         ...prev,
@@ -347,21 +372,22 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
         date: new Date().toISOString().split('T')[0],
         type: 'System',
       };
-      const updatedLead: Lead = {
+
+      const finalLead: Lead = updatedLead || {
         ...lead,
         linkedClientId: targetCustomerId,
         activityLogs: [logItem, ...(lead.activityLogs || [])],
       };
 
       if (onLeadUpdated) {
-        onLeadUpdated(updatedLead);
+        onLeadUpdated(finalLead);
       } else {
-        onSave(updatedLead);
+        onSave(finalLead);
       }
 
       toast.success(
         'Converted to Customer!',
-        `Lead "${lead.customerName}" has been successfully converted to a customer.`
+        `Lead "${lead.customerName}" has been successfully added to the customer database and customer list.`
       );
     } catch (err: any) {
       const msg =

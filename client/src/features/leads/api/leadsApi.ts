@@ -1,6 +1,6 @@
 import { apiClient } from '../../../app/api/apiClient';
 import { Lead } from '../types/lead';
-import { CustomerDestination, CreateDestinationPayload } from '../../customers/types/customer.types';
+import { Customer, CustomerDestination, CreateDestinationPayload } from '../../customers/types/customer.types';
 
 export const leadsApi = {
   getLeads: async (params?: {
@@ -84,6 +84,11 @@ export const leadsApi = {
   deleteLeadDestination: async (leadId: string, destinationId: string): Promise<boolean> => {
     const response = await apiClient.delete<any, any>(`/leads/${leadId}/destinations/${destinationId}`);
     return response?.success ?? true;
+  },
+
+  convertToCustomer: async (leadId: string): Promise<{ customer: Customer; lead: Lead }> => {
+    const response = await apiClient.post<any, any>(`/leads/${leadId}/convert-to-customer`);
+    return response?.data || response;
   },
 };
 

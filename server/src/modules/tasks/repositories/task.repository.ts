@@ -2,6 +2,7 @@ import { eq, ilike, or, and, count, desc, sql, aliasedTable, gte, lte } from 'dr
 import { db } from '../../../database/db.js';
 import { tasks, TaskEntity, NewTaskEntity } from '../../../database/schema/tasks.js';
 import { customers, customerDestinations, CustomerEntity, CustomerDestinationEntity } from '../../../database/schema/customers.js';
+import { leads, leadDestinations } from '../../../database/schema/leads.js';
 import { users } from '../../../database/schema/users.js';
 import { amcServiceVisits, amcContracts, amcServiceReports } from '../../../database/schema/amc-contracts.js';
 
@@ -11,6 +12,7 @@ export interface TaskFilterOptions {
   priority?: string;
   assignedTo?: string;
   customerId?: string;
+  leadId?: string;
   scheduledDate?: string;
   createdBy?: string;
   page?: number;
@@ -52,6 +54,7 @@ export interface TaskWithDetails extends TaskEntity {
     phone: string | null;
     email: string | null;
     status: string;
+    isLead?: boolean;
   } | null;
   destination: {
     id: string;
@@ -88,9 +91,38 @@ const assignedUsers = aliasedTable(users, 'assigned_users');
 const createdByUsers = aliasedTable(users, 'created_by_users');
 
 export class TaskRepository {
+  async ensureSchema() {
+    try {
+      await db.execute(sql`
+        DO $$ 
+        BEGIN 
+          ALTER TABLE tasks ALTER COLUMN customer_id DROP NOT NULL;
+          ALTER TABLE tasks ALTER COLUMN destination_id DROP NOT NULL;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'tasks' AND column_name = 'lead_id'
+          ) THEN
+            ALTER TABLE tasks ADD COLUMN lead_id varchar(255) REFERENCES leads(id) ON DELETE SET NULL;
+            CREATE INDEX IF NOT EXISTS tasks_lead_id_idx ON tasks(lead_id);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'tasks' AND column_name = 'lead_destination_id'
+          ) THEN
+            ALTER TABLE tasks ADD COLUMN lead_destination_id uuid REFERENCES lead_destinations(id) ON DELETE SET NULL;
+            CREATE INDEX IF NOT EXISTS tasks_lead_destination_id_idx ON tasks(lead_destination_id);
+          END IF;
+        END $$;
+      `);
+    } catch (err) {
+      console.warn('Task ensureSchema warning:', err);
+    }
+  }
+
   async findAll(
     options: TaskFilterOptions = {}
   ): Promise<{ data: TaskWithDetails[]; total: number }> {
+    await this.ensureSchema();
     const page = options.page || 1;
     const limit = options.limit || 10;
     const offset = (page - 1) * limit;
@@ -110,7 +142,16 @@ export class TaskRepository {
     }
 
     if (options.customerId && options.customerId.trim() !== '' && options.customerId.trim() !== 'ALL') {
-      conditions.push(eq(tasks.customerId, options.customerId.trim()));
+      conditions.push(
+        or(
+          eq(tasks.customerId, options.customerId.trim()),
+          eq(tasks.leadId, options.customerId.trim())
+        )
+      );
+    }
+
+    if (options.leadId && options.leadId.trim() !== '' && options.leadId.trim() !== 'ALL') {
+      conditions.push(eq(tasks.leadId, options.leadId.trim()));
     }
 
     if (options.createdBy && options.createdBy.trim() !== '') {
@@ -140,6 +181,9 @@ export class TaskRepository {
           ilike(customers.name, searchPattern),
           ilike(customers.companyName, searchPattern),
           ilike(customerDestinations.name, searchPattern),
+          ilike(leads.customerName, searchPattern),
+          ilike(leads.companyName, searchPattern),
+          ilike(leadDestinations.name, searchPattern),
           ilike(assignedUsers.fullName, searchPattern)
         )
       );
@@ -153,6 +197,8 @@ export class TaskRepository {
       .from(tasks)
       .leftJoin(customers, eq(tasks.customerId, customers.id))
       .leftJoin(customerDestinations, eq(tasks.destinationId, customerDestinations.id))
+      .leftJoin(leads, eq(tasks.leadId, leads.id))
+      .leftJoin(leadDestinations, eq(tasks.leadDestinationId, leadDestinations.id))
       .leftJoin(assignedUsers, eq(tasks.assignedTo, assignedUsers.id))
       .where(whereClause);
 
@@ -183,6 +229,27 @@ export class TaskRepository {
           contactPhone: customerDestinations.contactPhone,
           status: customerDestinations.status,
         },
+        lead: {
+          id: leads.id,
+          name: leads.customerName,
+          companyName: leads.companyName,
+          phone: leads.phone,
+          email: leads.email,
+          status: leads.status,
+        },
+        leadDestination: {
+          id: leadDestinations.id,
+          name: leadDestinations.name,
+          address: leadDestinations.address,
+          city: leadDestinations.city,
+          state: leadDestinations.state,
+          pincode: leadDestinations.pincode,
+          latitude: leadDestinations.latitude,
+          longitude: leadDestinations.longitude,
+          contactPerson: leadDestinations.contactPerson,
+          contactPhone: leadDestinations.contactPhone,
+          status: leadDestinations.status,
+        },
         assignedUser: {
           id: assignedUsers.id,
           fullName: assignedUsers.fullName,
@@ -217,6 +284,8 @@ export class TaskRepository {
       .from(tasks)
       .leftJoin(customers, eq(tasks.customerId, customers.id))
       .leftJoin(customerDestinations, eq(tasks.destinationId, customerDestinations.id))
+      .leftJoin(leads, eq(tasks.leadId, leads.id))
+      .leftJoin(leadDestinations, eq(tasks.leadDestinationId, leadDestinations.id))
       .leftJoin(assignedUsers, eq(tasks.assignedTo, assignedUsers.id))
       .leftJoin(createdByUsers, eq(tasks.createdBy, createdByUsers.id))
       .leftJoin(amcServiceVisits, eq(amcServiceVisits.taskId, tasks.id))
@@ -227,38 +296,61 @@ export class TaskRepository {
       .limit(limit)
       .offset(offset);
 
-    const data: TaskWithDetails[] = rows.map((r) => ({
-      ...r.task,
-      customer: r.customer?.id ? r.customer : null,
-      destination: r.destination?.id ? r.destination : null,
-      assignedUser: r.assignedUser?.id ? r.assignedUser : null,
-      createdByUser: r.createdByUser?.id ? r.createdByUser : null,
-      amcVisit: r.amcVisit?.id
+    const data: TaskWithDetails[] = rows.map((r) => {
+      const client = r.customer?.id
+        ? { ...r.customer, isLead: false }
+        : r.lead?.id
         ? {
-            id: r.amcVisit.id,
-            visitNumber: r.amcVisit.visitNumber,
-            amcContractId: r.amcVisit.amcContractId,
-            contractNumber: r.amcVisit.contractNumber || null,
-            serviceType: r.amcVisit.serviceType,
-            status: r.amcVisit.status,
-            actualStartAt: r.amcVisit.actualStartAt,
-            actualEndAt: r.amcVisit.actualEndAt,
-            completedAt: r.amcVisit.completedAt,
-            report: r.amcReport?.id
-              ? {
-                  id: r.amcReport.id,
-                  reportNumber: r.amcReport.reportNumber,
-                  status: r.amcReport.status,
-                }
-              : null,
+            id: r.lead.id,
+            name: r.lead.name,
+            companyName: r.lead.companyName,
+            phone: r.lead.phone,
+            email: r.lead.email,
+            status: r.lead.status,
+            isLead: true,
           }
-        : null,
-    }));
+        : null;
+
+      const dest = r.destination?.id
+        ? r.destination
+        : r.leadDestination?.id
+        ? r.leadDestination
+        : null;
+
+      return {
+        ...r.task,
+        customer: client,
+        destination: dest,
+        assignedUser: r.assignedUser?.id ? r.assignedUser : null,
+        createdByUser: r.createdByUser?.id ? r.createdByUser : null,
+        amcVisit: r.amcVisit?.id
+          ? {
+              id: r.amcVisit.id,
+              visitNumber: r.amcVisit.visitNumber,
+              amcContractId: r.amcVisit.amcContractId,
+              contractNumber: r.amcVisit.contractNumber || null,
+              serviceType: r.amcVisit.serviceType,
+              status: r.amcVisit.status,
+              actualStartAt: r.amcVisit.actualStartAt,
+              actualEndAt: r.amcVisit.actualEndAt,
+              completedAt: r.amcVisit.completedAt,
+              report: r.amcReport?.id
+                ? {
+                    id: r.amcReport.id,
+                    reportNumber: r.amcReport.reportNumber,
+                    status: r.amcReport.status,
+                  }
+                : null,
+            }
+          : null,
+      };
+    });
 
     return { data, total };
   }
 
   async findById(id: string): Promise<TaskWithDetails | undefined> {
+    await this.ensureSchema();
     const rows = await db
       .select({
         task: tasks,
@@ -283,6 +375,27 @@ export class TaskRepository {
           contactPhone: customerDestinations.contactPhone,
           status: customerDestinations.status,
         },
+        lead: {
+          id: leads.id,
+          name: leads.customerName,
+          companyName: leads.companyName,
+          phone: leads.phone,
+          email: leads.email,
+          status: leads.status,
+        },
+        leadDestination: {
+          id: leadDestinations.id,
+          name: leadDestinations.name,
+          address: leadDestinations.address,
+          city: leadDestinations.city,
+          state: leadDestinations.state,
+          pincode: leadDestinations.pincode,
+          latitude: leadDestinations.latitude,
+          longitude: leadDestinations.longitude,
+          contactPerson: leadDestinations.contactPerson,
+          contactPhone: leadDestinations.contactPhone,
+          status: leadDestinations.status,
+        },
         assignedUser: {
           id: assignedUsers.id,
           fullName: assignedUsers.fullName,
@@ -317,6 +430,8 @@ export class TaskRepository {
       .from(tasks)
       .leftJoin(customers, eq(tasks.customerId, customers.id))
       .leftJoin(customerDestinations, eq(tasks.destinationId, customerDestinations.id))
+      .leftJoin(leads, eq(tasks.leadId, leads.id))
+      .leftJoin(leadDestinations, eq(tasks.leadDestinationId, leadDestinations.id))
       .leftJoin(assignedUsers, eq(tasks.assignedTo, assignedUsers.id))
       .leftJoin(createdByUsers, eq(tasks.createdBy, createdByUsers.id))
       .leftJoin(amcServiceVisits, eq(amcServiceVisits.taskId, tasks.id))
@@ -328,10 +443,30 @@ export class TaskRepository {
     if (!rows[0]) return undefined;
 
     const r = rows[0];
+    const client = r.customer?.id
+      ? { ...r.customer, isLead: false }
+      : r.lead?.id
+      ? {
+          id: r.lead.id,
+          name: r.lead.name,
+          companyName: r.lead.companyName,
+          phone: r.lead.phone,
+          email: r.lead.email,
+          status: r.lead.status,
+          isLead: true,
+        }
+      : null;
+
+    const dest = r.destination?.id
+      ? r.destination
+      : r.leadDestination?.id
+      ? r.leadDestination
+      : null;
+
     return {
       ...r.task,
-      customer: r.customer?.id ? r.customer : null,
-      destination: r.destination?.id ? r.destination : null,
+      customer: client,
+      destination: dest,
       assignedUser: r.assignedUser?.id ? r.assignedUser : null,
       createdByUser: r.createdByUser?.id ? r.createdByUser : null,
       amcVisit: r.amcVisit?.id
@@ -460,6 +595,27 @@ export class TaskRepository {
           contactPhone: customerDestinations.contactPhone,
           status: customerDestinations.status,
         },
+        lead: {
+          id: leads.id,
+          name: leads.customerName,
+          companyName: leads.companyName,
+          phone: leads.phone,
+          email: leads.email,
+          status: leads.status,
+        },
+        leadDestination: {
+          id: leadDestinations.id,
+          name: leadDestinations.name,
+          address: leadDestinations.address,
+          city: leadDestinations.city,
+          state: leadDestinations.state,
+          pincode: leadDestinations.pincode,
+          latitude: leadDestinations.latitude,
+          longitude: leadDestinations.longitude,
+          contactPerson: leadDestinations.contactPerson,
+          contactPhone: leadDestinations.contactPhone,
+          status: leadDestinations.status,
+        },
         assignedUser: {
           id: assignedUsers.id,
           fullName: assignedUsers.fullName,
@@ -478,17 +634,41 @@ export class TaskRepository {
       .from(tasks)
       .leftJoin(customers, eq(tasks.customerId, customers.id))
       .leftJoin(customerDestinations, eq(tasks.destinationId, customerDestinations.id))
+      .leftJoin(leads, eq(tasks.leadId, leads.id))
+      .leftJoin(leadDestinations, eq(tasks.leadDestinationId, leadDestinations.id))
       .leftJoin(assignedUsers, eq(tasks.assignedTo, assignedUsers.id))
       .leftJoin(createdByUsers, eq(tasks.createdBy, createdByUsers.id))
       .where(whereClause)
       .orderBy(desc(tasks.lastLocationUpdatedAt), desc(tasks.startedAt));
 
-    return rows.map((r) => ({
-      ...r.task,
-      customer: r.customer?.id ? r.customer : null,
-      destination: r.destination?.id ? r.destination : null,
-      assignedUser: r.assignedUser?.id ? r.assignedUser : null,
-      createdByUser: r.createdByUser?.id ? r.createdByUser : null,
-    }));
+    return rows.map((r) => {
+      const client = r.customer?.id
+        ? { ...r.customer, isLead: false }
+        : r.lead?.id
+        ? {
+            id: r.lead.id,
+            name: r.lead.name,
+            companyName: r.lead.companyName,
+            phone: r.lead.phone,
+            email: r.lead.email,
+            status: r.lead.status,
+            isLead: true,
+          }
+        : null;
+
+      const dest = r.destination?.id
+        ? r.destination
+        : r.leadDestination?.id
+        ? r.leadDestination
+        : null;
+
+      return {
+        ...r.task,
+        customer: client,
+        destination: dest,
+        assignedUser: r.assignedUser?.id ? r.assignedUser : null,
+        createdByUser: r.createdByUser?.id ? r.createdByUser : null,
+      };
+    });
   }
 }

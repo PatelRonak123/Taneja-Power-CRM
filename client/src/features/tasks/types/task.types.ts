@@ -8,6 +8,7 @@ export interface TaskCustomerSummary {
   phone?: string | null;
   email?: string | null;
   status: string;
+  isLead?: boolean;
 }
 
 export interface TaskDestinationSummary {
@@ -53,8 +54,10 @@ export interface TaskAmcVisitSummary {
 
 export interface TaskItem {
   id: string;
-  customerId: string;
-  destinationId: string;
+  customerId?: string | null;
+  destinationId?: string | null;
+  leadId?: string | null;
+  leadDestinationId?: string | null;
   assignedTo?: string | null;
   title: string;
   description?: string | null;
@@ -90,6 +93,7 @@ export interface TaskQueryParams {
   priority?: string;
   assignedTo?: string;
   customerId?: string;
+  leadId?: string;
   scheduledDate?: string;
   page?: number;
   limit?: number;
@@ -98,8 +102,10 @@ export interface TaskQueryParams {
 export interface CreateTaskPayload {
   title: string;
   description?: string;
-  customerId: string;
-  destinationId: string;
+  customerId?: string | null;
+  destinationId?: string | null;
+  leadId?: string | null;
+  leadDestinationId?: string | null;
   assignedTo?: string | null;
   priority?: TaskPriority;
   scheduledAt?: string | null;
@@ -110,8 +116,10 @@ export interface CreateTaskPayload {
 export interface UpdateTaskPayload {
   title?: string;
   description?: string;
-  customerId?: string;
-  destinationId?: string;
+  customerId?: string | null;
+  destinationId?: string | null;
+  leadId?: string | null;
+  leadDestinationId?: string | null;
   assignedTo?: string | null;
   priority?: TaskPriority;
   status?: TaskStatus;

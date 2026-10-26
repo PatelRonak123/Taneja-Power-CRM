@@ -155,6 +155,8 @@ export const invoiceService = {
   recordPayment: async (payload: {
     customerId: string;
     salesInvoiceId?: string;
+    proformaInvoiceId?: string;
+    salesOrderId?: string;
     amcContractId?: string;
     amount: number;
     paymentDate?: string;
@@ -169,6 +171,8 @@ export const invoiceService = {
   listPayments: async (query: {
     customerId?: string;
     salesInvoiceId?: string;
+    proformaInvoiceId?: string;
+    salesOrderId?: string;
     amcContractId?: string;
     search?: string;
     page?: number;
@@ -177,6 +181,8 @@ export const invoiceService = {
     const params = new URLSearchParams();
     if (query.customerId) params.set('customerId', query.customerId);
     if (query.salesInvoiceId) params.set('salesInvoiceId', query.salesInvoiceId);
+    if (query.proformaInvoiceId) params.set('proformaInvoiceId', query.proformaInvoiceId);
+    if (query.salesOrderId) params.set('salesOrderId', query.salesOrderId);
     if (query.amcContractId) params.set('amcContractId', query.amcContractId);
     if (query.search) params.set('search', query.search);
     if (query.page) params.set('page', String(query.page));

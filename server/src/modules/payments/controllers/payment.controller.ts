@@ -34,6 +34,8 @@ export class PaymentController {
       const result = await this.service.listPayments({
         customerId: req.query.customerId as string,
         salesInvoiceId: req.params.invoiceId || (req.query.salesInvoiceId as string),
+        proformaInvoiceId: req.query.proformaInvoiceId as string,
+        salesOrderId: req.query.salesOrderId as string,
         amcContractId: req.params.contractId || (req.query.amcContractId as string),
         search: req.query.search as string,
         page,

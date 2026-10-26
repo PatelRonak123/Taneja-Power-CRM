@@ -212,9 +212,16 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {/* Customer Box */}
           <div className="p-3.5 rounded-lg border border-border bg-card">
-            <div className="flex items-center gap-1.5 font-medium text-slate-900 text-xs pb-2 border-b border-border/60 mb-2">
-              <Building2 size={14} className="text-blue-600" />
-              <span>Customer Information</span>
+            <div className="flex items-center justify-between gap-1.5 font-medium text-slate-900 text-xs pb-2 border-b border-border/60 mb-2">
+              <div className="flex items-center gap-1.5">
+                <Building2 size={14} className={task.customer?.isLead || task.leadId ? 'text-indigo-600' : 'text-blue-600'} />
+                <span>{task.customer?.isLead || task.leadId ? 'Lead Information' : 'Customer Information'}</span>
+              </div>
+              {(task.customer?.isLead || task.leadId) && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  Lead
+                </span>
+              )}
             </div>
             <div className="space-y-1 text-slate-600">
               <div className="font-semibold text-slate-900 text-xs">{task.customer?.name || 'Unknown Client'}</div>
