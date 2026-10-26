@@ -7,6 +7,7 @@ import { ProductTable } from '../modules/ProductTable/ProductTable';
 import { ProductGrid } from '../modules/ProductGrid/ProductGrid';
 import { ProductForm } from '../modules/ProductForm/ProductForm';
 import { ProductDetailModal } from '../components/ProductDetailModal';
+import { ExcelImportModal } from '../components/ExcelImportModal';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
 import { ErrorAlert } from '@/components/feedback/ErrorAlert';
@@ -50,6 +51,7 @@ export const ProductsPage: React.FC = () => {
 
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [selectedProductForAdjustment, setSelectedProductForAdjustment] = useState<Product | null>(null);
@@ -93,6 +95,7 @@ export const ProductsPage: React.FC = () => {
         totalValuation={totalValuation}
         activeCount={activeCount}
         onAddProduct={handleOpenAddModal}
+        onImportExcel={() => setIsExcelModalOpen(true)}
         canCreate={canManageProducts}
       />
 
@@ -233,6 +236,13 @@ export const ProductsPage: React.FC = () => {
         isOpen={!!selectedProductForHistory}
         onClose={() => setSelectedProductForHistory(null)}
         product={selectedProductForHistory}
+      />
+
+      {/* Automated Excel Catalogue Import & Seeding Modal */}
+      <ExcelImportModal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+        onSuccess={() => refetch()}
       />
     </div>
   );

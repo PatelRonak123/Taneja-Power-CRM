@@ -1,5 +1,13 @@
 import { apiClient, ApiEnvelope } from '../../../app/api/apiClient';
-import { Product, ProductQueryParams, CreateProductPayload, UpdateProductPayload } from '../types/product.types';
+import {
+  Product,
+  ProductQueryParams,
+  CreateProductPayload,
+  UpdateProductPayload,
+  ExcelImportPayload,
+  SeedExcelPayload,
+  ExcelImportResult,
+} from '../types/product.types';
 
 export const productService = {
   getProducts: async (params?: ProductQueryParams): Promise<ApiEnvelope<Product[]>> => {
@@ -21,4 +29,13 @@ export const productService = {
   deleteProduct: async (id: string): Promise<ApiEnvelope<{ id: string }>> => {
     return apiClient.delete(`/products/${id}`) as unknown as Promise<ApiEnvelope<{ id: string }>>;
   },
+
+  importExcel: async (payload: ExcelImportPayload): Promise<ApiEnvelope<ExcelImportResult>> => {
+    return apiClient.post('/products/import-excel', payload) as unknown as Promise<ApiEnvelope<ExcelImportResult>>;
+  },
+
+  seedExcel: async (payload?: SeedExcelPayload): Promise<ApiEnvelope<ExcelImportResult>> => {
+    return apiClient.post('/products/seed-excel', payload || {}) as unknown as Promise<ApiEnvelope<ExcelImportResult>>;
+  },
 };
+

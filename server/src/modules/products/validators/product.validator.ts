@@ -149,3 +149,26 @@ export type CreateProductInput = z.infer<typeof createProductSchema>['body'];
 export type UpdateProductInput = z.infer<typeof updateProductSchema>['body'];
 export type ListProductsQuery = z.infer<typeof listProductsSchema>['query'];
 
+export const importExcelProductSchema = z.object({
+  body: z.object({
+    fileData: z.string().min(1, 'Excel file data is required (base64)'),
+    fileName: z.string().optional(),
+    mode: z.enum(['upsert', 'skip_existing', 'fail_on_existing']).optional().default('upsert'),
+    dryRun: z.boolean().optional().default(false),
+  }),
+});
+
+export const seedExcelProductSchema = z.object({
+  body: z
+    .object({
+      filePath: z.string().optional(),
+      mode: z.enum(['upsert', 'skip_existing', 'fail_on_existing']).optional().default('upsert'),
+      dryRun: z.boolean().optional().default(false),
+    })
+    .optional()
+    .default({ mode: 'upsert', dryRun: false }),
+});
+
+export type ImportExcelProductInput = z.infer<typeof importExcelProductSchema>['body'];
+export type SeedExcelProductInput = z.infer<typeof seedExcelProductSchema>['body'];
+
