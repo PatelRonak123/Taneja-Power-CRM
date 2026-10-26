@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { ProductController } from '../controllers/product.controller.js';
 import { validateRequest } from '../../../common/middleware/validate.middleware.js';
-import { authenticate, requireRoles, requireAccountantOrAdminOrManager } from '../../../common/middleware/auth.middleware.js';
+import {
+  authenticate,
+  optionalAuthenticate,
+  requireRoles,
+  requireAccountantOrAdminOrManager,
+} from '../../../common/middleware/auth.middleware.js';
 import {
   createProductSchema,
   updateProductSchema,

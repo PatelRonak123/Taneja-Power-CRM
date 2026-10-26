@@ -140,6 +140,37 @@ export const authenticate = (req: Request, _res: Response, next: NextFunction): 
   }
 };
 
+/**
+ * Optional authentication: attaches user if valid token exists,
+ * but allows unauthenticated requests to proceed.
+ */
+export const optionalAuthenticate = (req: Request, _res: Response, next: NextFunction): void => {
+  let token: string | undefined = req.cookies?.access_token;
+
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+  }
+
+  if (!token && typeof req.query?.token === 'string') {
+    token = req.query.token;
+  }
+
+  if (!token) {
+    return next();
+  }
+
+  try {
+    const decoded = verifyToken(token);
+    req.user = decoded;
+  } catch {
+    // Optional auth: ignore token errors and continue unauthenticated
+  }
+  next();
+};
+
 export const requireRoles = (...allowedRoles: UserRole[]) => {
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {
