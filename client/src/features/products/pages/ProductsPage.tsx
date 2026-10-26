@@ -6,7 +6,6 @@ import { ProductFilters } from '../modules/ProductFilters/ProductFilters';
 import { ProductTable } from '../modules/ProductTable/ProductTable';
 import { ProductGrid } from '../modules/ProductGrid/ProductGrid';
 import { ProductForm } from '../modules/ProductForm/ProductForm';
-import { ProductDetailModal } from '../components/ProductDetailModal';
 import { ExcelImportModal } from '../components/ExcelImportModal';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
