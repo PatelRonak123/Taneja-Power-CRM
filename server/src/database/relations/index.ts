@@ -30,6 +30,7 @@ import {
 } from '../schema/customer-equipment.js';
 import { customerDestinations } from '../schema/customers.js';
 import { quotationItems } from '../schema/quotations.js';
+import { followUps } from '../schema/follow-ups.js';
 
 export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   product: one(products, {
@@ -374,7 +375,16 @@ export const customerEquipmentRelations = relations(customerEquipment, ({ one, m
     references: [users.id],
     relationName: 'ce_updated_by',
   }),
+  commissionedByUser: one(users, {
+    fields: [customerEquipment.commissionedById],
+    references: [users.id],
+    relationName: 'ce_commissioned_by',
+  }),
   quotationItemLinks: many(quotationItemEquipment),
+  followUps: many(followUps),
+  sourceQuotations: many(quotations, {
+    relationName: 'quotation_source_equipment',
+  }),
 }));
 
 export const quotationItemEquipmentRelations = relations(quotationItemEquipment, ({ one }) => ({
@@ -387,4 +397,92 @@ export const quotationItemEquipmentRelations = relations(quotationItemEquipment,
     references: [customerEquipment.id],
   }),
 }));
+
+export const quotationsRelations = relations(quotations, ({ one, many }) => ({
+  customer: one(customers, {
+    fields: [quotations.customerId],
+    references: [customers.id],
+  }),
+  destination: one(customerDestinations, {
+    fields: [quotations.destinationId],
+    references: [customerDestinations.id],
+  }),
+  salesperson: one(users, {
+    fields: [quotations.salespersonId],
+    references: [users.id],
+    relationName: 'quotation_salesperson',
+  }),
+  createdByUser: one(users, {
+    fields: [quotations.createdById],
+    references: [users.id],
+    relationName: 'quotation_created_by',
+  }),
+  updatedByUser: one(users, {
+    fields: [quotations.updatedById],
+    references: [users.id],
+    relationName: 'quotation_updated_by',
+  }),
+  sourceEquipment: one(customerEquipment, {
+    fields: [quotations.sourceEquipmentId],
+    references: [customerEquipment.id],
+    relationName: 'quotation_source_equipment',
+  }),
+  sourceFollowUp: one(followUps, {
+    fields: [quotations.sourceFollowUpId],
+    references: [followUps.id],
+    relationName: 'quotation_source_follow_up',
+  }),
+  revisions: many(quotationRevisions),
+  salesOrders: many(salesOrders),
+}));
+
+export const quotationRevisionsRelations = relations(quotationRevisions, ({ one }) => ({
+  quotation: one(quotations, {
+    fields: [quotationRevisions.quotationId],
+    references: [quotations.id],
+  }),
+  createdByUser: one(users, {
+    fields: [quotationRevisions.createdById],
+    references: [users.id],
+  }),
+}));
+
+export const followUpsRelations = relations(followUps, ({ one, many }) => ({
+  customer: one(customers, {
+    fields: [followUps.customerId],
+    references: [customers.id],
+  }),
+  quotation: one(quotations, {
+    fields: [followUps.quotationId],
+    references: [quotations.id],
+  }),
+  customerEquipment: one(customerEquipment, {
+    fields: [followUps.customerEquipmentId],
+    references: [customerEquipment.id],
+  }),
+  assignedToUser: one(users, {
+    fields: [followUps.assignedTo],
+    references: [users.id],
+    relationName: 'follow_up_assigned_to',
+  }),
+  createdByUser: one(users, {
+    fields: [followUps.createdBy],
+    references: [users.id],
+    relationName: 'follow_up_created_by',
+  }),
+  completedByUser: one(users, {
+    fields: [followUps.completedBy],
+    references: [users.id],
+    relationName: 'follow_up_completed_by',
+  }),
+  cancelledByUser: one(users, {
+    fields: [followUps.cancelledBy],
+    references: [users.id],
+    relationName: 'follow_up_cancelled_by',
+  }),
+  sourceQuotations: many(quotations, {
+    relationName: 'quotation_source_follow_up',
+  }),
+}));
+
 

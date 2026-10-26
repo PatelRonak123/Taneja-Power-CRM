@@ -312,6 +312,7 @@ export class PaymentService {
     summary: {
       totalInvoiced: number;
       totalReceived: number;
+      totalPaid?: number;
       totalOutstanding: number;
       customersCount: number;
     };
@@ -374,6 +375,7 @@ export class PaymentService {
         totalInvoiced: invoiced,
         totalPaid: invoicePaid,
         outstandingBalance: outstanding,
+        totalOutstanding: outstanding,
         totalInvoices: Number(row.total_invoices || 0),
         unpaidInvoicesCount: Number(row.unpaid_invoices_count || 0),
         amcContractsCount: amcInfo ? Number(amcInfo.total_amc_contracts || 0) : 0,
@@ -384,11 +386,19 @@ export class PaymentService {
 
     customerReceivables.sort((a, b) => b.outstandingBalance - a.outstandingBalance);
 
+    // Query true total payments recorded across the system
+    const paymentsSumRes = await db.execute(sql`
+      SELECT COALESCE(SUM(amount), 0)::numeric as total_payments_sum FROM payments
+    `);
+    const totalPaymentsRecorded = Number((paymentsSumRes.rows || paymentsSumRes)[0]?.total_payments_sum || 0);
+    const finalReceived = Math.max(overallReceived, totalPaymentsRecorded);
+
     return {
       summary: {
         totalInvoiced: Number(overallInvoiced.toFixed(2)),
-        totalReceived: Number(overallReceived.toFixed(2)),
-        totalOutstanding: Number(Math.max(0, overallInvoiced - overallReceived).toFixed(2)),
+        totalReceived: Number(finalReceived.toFixed(2)),
+        totalPaid: Number(finalReceived.toFixed(2)),
+        totalOutstanding: Number(Math.max(0, overallInvoiced - finalReceived).toFixed(2)),
         customersCount: customerReceivables.length,
       },
       customerReceivables,

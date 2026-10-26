@@ -895,17 +895,35 @@ const DispatchDetailDrawer: React.FC<DetailDrawerProps> = ({
             </div>
           )}
 
-          {/* Stock OUT Ledger Confirmation Note */}
+          {/* Stock Deduction & Dispatch Confirmation Note */}
           {isDispatched && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-800">
-              <div className="font-bold flex items-center gap-1.5 mb-1">
-                <PackageCheck className="w-4 h-4 text-emerald-600" />
-                <span>Physical Stock OUT Confirmed</span>
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50/70 border border-emerald-200/80 rounded-xl p-4 text-xs text-emerald-900 shadow-xs">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
+                    <PackageCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-xs">
+                      Goods Dispatched & Inventory Deducted
+                    </h4>
+                    <p className="text-slate-600 text-[11px] mt-0.5">
+                      Warehouse stock has been successfully released and recorded in the inventory ledger.
+                    </p>
+                  </div>
+                </div>
+                {dispatch.dispatchedAt && (
+                  <span className="text-[11px] font-mono text-emerald-800 font-medium bg-emerald-100/60 px-2.5 py-1 rounded-md border border-emerald-200/60 shrink-0">
+                    {new Date(dispatch.dispatchedAt).toLocaleString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                )}
               </div>
-              <p>
-                Inventory deducted via <code className="font-mono bg-emerald-100 px-1 py-0.5 rounded">StockService.removeStock()</code> on{' '}
-                {dispatch.dispatchedAt ? new Date(dispatch.dispatchedAt).toLocaleString('en-IN') : '—'}.
-              </p>
             </div>
           )}
 

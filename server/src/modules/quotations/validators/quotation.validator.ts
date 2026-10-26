@@ -104,6 +104,8 @@ export const createQuotationSchema = z.object({
       freightCharges: z.coerce.number().min(0).optional().default(0),
       otherCharges: z.coerce.number().min(0).optional().default(0),
       roundOff: z.coerce.number().optional(),
+      sourceEquipmentId: z.string().uuid('Invalid source equipment ID format').optional().nullable(),
+      sourceFollowUpId: z.string().uuid('Invalid source follow-up ID format').optional().nullable(),
       items: z.array(lineItemSchema).min(1, 'At least one line item is required'),
     })
     .merge(amcFieldsSchema)

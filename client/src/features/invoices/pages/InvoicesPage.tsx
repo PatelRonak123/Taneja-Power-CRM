@@ -48,7 +48,7 @@ import {
 } from '../hooks';
 import { SalesInvoicePrintDocument } from '../components/SalesInvoicePrintDocument';
 import { CreateSalesInvoiceModal } from '../components/CreateSalesInvoiceModal';
-import { RecordPaymentModal } from '../components/RecordPaymentModal';
+import { RecordPaymentModal, PaymentCustomerContext } from '../components/RecordPaymentModal';
 
 // ─── Status Badges ────────────────────────────────────────────────────────────
 
@@ -410,7 +410,7 @@ export const InvoicesPage: React.FC = () => {
   const [paymentsPage, setPaymentsPage] = useState(1);
   const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
   const [selectedPaymentInvoice, setSelectedPaymentInvoice] = useState<any>(null);
-  const [selectedPaymentCustomer, setSelectedPaymentCustomer] = useState<{ id: string; name: string } | null>(null);
+  const [selectedPaymentCustomer, setSelectedPaymentCustomer] = useState<PaymentCustomerContext | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
 
   // Sales Invoice filters
@@ -1069,7 +1069,7 @@ export const InvoicesPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-2xl font-bold font-mono text-emerald-600">
-                ₹{Number(receivablesData?.summary?.totalPaid || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₹{Number(receivablesData?.summary?.totalPaid ?? receivablesData?.summary?.totalReceived ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
               <p className="text-xs text-slate-400 mt-1">Total payments received to date</p>
             </div>
@@ -1095,7 +1095,7 @@ export const InvoicesPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-2xl font-bold font-mono text-slate-900">
-                {receivablesData?.customers?.filter((c: CustomerReceivableSummary) => Number(c.totalOutstanding) > 0).length || 0}
+                {receivablesData?.customers?.filter((c: any) => Number(c.totalOutstanding ?? c.outstandingBalance ?? 0) > 0).length || 0}
               </p>
               <p className="text-xs text-slate-400 mt-1">Active customer accounts with pending balance</p>
             </div>
@@ -1264,6 +1264,11 @@ export const InvoicesPage: React.FC = () => {
                                         setSelectedPaymentCustomer({
                                           id: c.customerId,
                                           name: c.customerName,
+                                          phone: c.phone,
+                                          email: c.email,
+                                          totalInvoiced: c.totalInvoiced,
+                                          totalPaid: c.totalPaid,
+                                          totalOutstanding: outstanding,
                                         });
                                         setSelectedPaymentInvoice(null);
                                         setShowRecordPaymentModal(true);

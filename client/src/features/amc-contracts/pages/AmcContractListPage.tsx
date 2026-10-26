@@ -347,6 +347,7 @@ export const AmcContractListPage: React.FC = () => {
             <option value="EXPIRING_SOON">EXPIRING SOON</option>
             <option value="EXPIRED">EXPIRED</option>
             <option value="TERMINATED">TERMINATED</option>
+            <option value="CANCELLED">CANCELLED</option>
           </select>
 
           {/* AMC Plan Filter */}

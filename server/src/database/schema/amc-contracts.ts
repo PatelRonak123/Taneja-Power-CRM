@@ -10,9 +10,10 @@ import {
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { customers, customerDestinations } from './customers.js';
 import { users } from './users.js';
-import { quotations, quotationRevisions, quotationItems, quotationAmcScopeItems, quotationAmcExclusions, quotationAmcEscalations } from './quotations.js';
+import { quotations, quotationRevisions, quotationItems  } from './quotations.js';
 import { salesOrders } from './sales-orders.js';
 import { tasks } from './tasks.js';
 import { products } from './products.js';
@@ -85,6 +86,9 @@ export const amcContracts = pgTable(
   },
   (table) => [
     uniqueIndex('amc_contracts_contract_number_idx').on(table.contractNumber),
+    uniqueIndex('amc_contracts_initial_quotation_unique_idx')
+      .on(table.quotationId)
+      .where(sql`${table.renewedFromContractId} IS NULL`),
     index('amc_contracts_customer_id_idx').on(table.customerId),
     index('amc_contracts_destination_id_idx').on(table.destinationId),
     index('amc_contracts_quotation_id_idx').on(table.quotationId),

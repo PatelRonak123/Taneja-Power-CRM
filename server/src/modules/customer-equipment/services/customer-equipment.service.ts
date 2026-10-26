@@ -1,10 +1,14 @@
 import { AppError } from '../../../common/errors/AppError.js';
 import { CustomerEquipmentRepository } from '../repositories/customer-equipment.repository.js';
 import { CustomerEquipmentNumberService } from './customer-equipment-number.service.js';
+import { WarrantyCommissioningService } from './warranty-commissioning.service.js';
+import { WarrantyReminderService } from './warranty-reminder.service.js';
 import {
   ListCustomerEquipmentQuery,
   UpdateCustomerEquipmentInput,
   ManualCreateCustomerEquipmentInput,
+  CommissionCustomerEquipmentInput,
+  ProcessWarrantyRemindersInput,
 } from '../validators/customer-equipment.validator.js';
 import { db } from '../../../database/db.js';
 import { customers } from '../../../database/schema/customers.js';
@@ -16,7 +20,9 @@ import { JwtPayload } from '../../../common/auth/jwt.js';
 export class CustomerEquipmentService {
   constructor(
     private readonly repo: CustomerEquipmentRepository = new CustomerEquipmentRepository(),
-    private readonly numberService: CustomerEquipmentNumberService = new CustomerEquipmentNumberService()
+    private readonly numberService: CustomerEquipmentNumberService = new CustomerEquipmentNumberService(),
+    private readonly commissioningService: WarrantyCommissioningService = new WarrantyCommissioningService(),
+    private readonly reminderService: WarrantyReminderService = new WarrantyReminderService()
   ) {}
 
   async listEquipment(query: ListCustomerEquipmentQuery) {
@@ -64,7 +70,27 @@ export class CustomerEquipmentService {
   async updateEquipment(id: string, input: UpdateCustomerEquipmentInput, user: any) {
     const existing = await this.getEquipmentById(id);
 
+    // Prevent generic update from modifying installation date once equipment has been commissioned
+    // (ACTIVE, EXPIRING_SOON, EXPIRED, AMC_COVERED)
+    const commissionedStatuses = ['ACTIVE', 'EXPIRING_SOON', 'EXPIRED', 'AMC_COVERED'];
+    if (commissionedStatuses.includes(existing.warrantyStatus) && input.installationDate !== undefined) {
+      throw AppError.badRequest(
+        'Cannot modify installation date directly on equipment with an active or expiring warranty (including EXPIRED or AMC_COVERED). Recommissioning or date changes must follow approved service workflows.'
+      );
+    }
+
     return this.repo.update(id, input);
+  }
+
+  async commissionEquipment(id: string, input: CommissionCustomerEquipmentInput, authUser?: JwtPayload) {
+    return this.commissioningService.commissionEquipment(id, input, authUser);
+  }
+
+  async processWarrantyReminders(authUser?: JwtPayload, options?: ProcessWarrantyRemindersInput) {
+    return this.reminderService.processWarrantyExpiryReminders({
+      actorUserId: authUser?.userId,
+      ...options,
+    });
   }
 
   async manualCreateEquipment(input: ManualCreateCustomerEquipmentInput, user: any) {
