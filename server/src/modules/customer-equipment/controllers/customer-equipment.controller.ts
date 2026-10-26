@@ -6,8 +6,6 @@ import {
   listCustomerEquipmentQuerySchema,
   updateCustomerEquipmentSchema,
   manualCreateCustomerEquipmentSchema,
-  commissionCustomerEquipmentSchema,
-  processWarrantyRemindersSchema,
 } from '../validators/customer-equipment.validator.js';
 
 export class CustomerEquipmentController {
@@ -80,37 +78,4 @@ export class CustomerEquipmentController {
       next(error);
     }
   };
-
-  commission = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const validatedInput = commissionCustomerEquipmentSchema.parse(req.body);
-      const authUser = req.user;
-      const result = await this.service.commissionEquipment(req.params.id, validatedInput, authUser);
-      sendResponse(
-        res,
-        APP_CONSTANTS.HTTP_STATUS.OK,
-        result,
-        'Equipment commissioned and warranty activated successfully'
-      );
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  processReminders = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const authUser = req.user;
-      const options = processWarrantyRemindersSchema.parse(req.body || {});
-      const result = await this.service.processWarrantyReminders(authUser, options);
-      sendResponse(
-        res,
-        APP_CONSTANTS.HTTP_STATUS.OK,
-        result,
-        `Warranty expiry reminder scan completed. Generated: ${result.generatedCount}, Skipped: ${result.skippedCount}`
-      );
-    } catch (error) {
-      next(error);
-    }
-  };
 }
-

@@ -15,6 +15,8 @@ import {
   Send,
   MessageSquare,
   UserCheck,
+  UserPlus,
+  Loader2,
 } from 'lucide-react';
 import { Lead, LeadPriority, LeadStatus, LeadSource } from '../types/lead';
 import { useAuthStore } from '../../../stores/authStore';
@@ -35,7 +37,9 @@ interface LeadDrawerProps {
   lead: Lead | null;
   onClose: () => void;
   onSave: (savedLead: Lead) => void;
+  onLeadUpdated?: (updatedLead: Lead) => void;
   onSwitchToEdit?: () => void;
+  onOpenDestinations?: (lead: Lead) => void;
 }
 
 export const LeadDrawer: React.FC<LeadDrawerProps> = ({
@@ -44,15 +48,19 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
   lead,
   onClose,
   onSave,
+  onLeadUpdated,
   onSwitchToEdit,
+  onOpenDestinations,
 }) => {
   const { user } = useAuthStore();
+
   const [newNoteText, setNewNoteText] = useState('');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [customersList, setCustomersList] = useState<Customer[]>([]);
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [isConverting, setIsConverting] = useState(false);
 
   useEffect(() => {
     const loadRefData = async () => {
@@ -66,9 +74,8 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
           }
         }
 
-        const [custRes, leadsRes, prodRes] = await Promise.all([
+        const [custRes, prodRes] = await Promise.all([
           customerService.getCustomers({ limit: 500 }).catch(() => null),
-          leadsApi.getLeads({}).catch(() => null),
           productService.getProducts({ limit: 500 }).catch(() => null),
         ]);
 
@@ -76,53 +83,23 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
           const prodData = Array.isArray(prodRes)
             ? prodRes
             : Array.isArray((prodRes as any)?.data)
-            ? (prodRes as any).data
-            : Array.isArray((prodRes as any)?.data?.products)
-            ? (prodRes as any).data.products
-            : [];
+              ? (prodRes as any).data
+              : Array.isArray((prodRes as any)?.data?.products)
+                ? (prodRes as any).data.products
+                : [];
           setProductsList(prodData);
         }
-
-        let combined: Customer[] = [];
 
         if (custRes) {
           const custData = Array.isArray(custRes)
             ? custRes
             : Array.isArray((custRes as any)?.data)
-            ? (custRes as any).data
-            : Array.isArray((custRes as any)?.data?.customers)
-            ? (custRes as any).data.customers
-            : [];
-          combined = [...custData];
+              ? (custRes as any).data
+              : Array.isArray((custRes as any)?.data?.customers)
+                ? (custRes as any).data.customers
+                : [];
+          setCustomersList(custData);
         }
-
-        if (leadsRes && Array.isArray(leadsRes)) {
-          for (const l of leadsRes) {
-            if (l.customerName && l.customerName.trim() !== '') {
-              const exists = combined.some(
-                (c) =>
-                  (l.linkedClientId && c.id === l.linkedClientId) ||
-                  c.name.toLowerCase() === l.customerName.toLowerCase() ||
-                  (c.companyName && l.companyName && c.companyName.toLowerCase() === l.companyName.toLowerCase())
-              );
-              if (!exists) {
-                combined.push({
-                  id: l.linkedClientId || `lead-cust-${l.id}`,
-                  name: l.customerName,
-                  companyName: l.companyName || l.customerName,
-                  email: l.email || null,
-                  phone: l.phone || null,
-                  address: l.address || null,
-                  status: 'ACTIVE',
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                } as Customer);
-              }
-            }
-          }
-        }
-
-        setCustomersList(combined);
 
         // If lead has a linkedClientId, fetch specific customer by ID
         if (lead?.linkedClientId) {
@@ -139,11 +116,11 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
               setSelectedCustomerId(singleCust.id);
               setFormData((prev) => ({
                 ...prev,
-                customerName: singleCust.name || prev.customerName,
-                companyName: singleCust.companyName || singleCust.name || prev.companyName,
-                email: singleCust.email || prev.email || '',
-                phone: singleCust.phone || prev.phone || '',
-                address: singleCust.address || prev.address || '',
+                customerName: prev.customerName || singleCust.name,
+                companyName: prev.companyName || singleCust.companyName || singleCust.name,
+                email: prev.email || singleCust.email || '',
+                phone: prev.phone || singleCust.phone || '',
+                address: prev.address || singleCust.address || '',
                 linkedClientId: singleCust.id,
               }));
             }
@@ -182,25 +159,8 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
       const linkedId = lead.linkedClientId;
       if (linkedId) {
         setSelectedCustomerId(linkedId);
-      } else if (customersList.length > 0) {
-        const match = customersList.find(
-          (c) =>
-            (c.email && lead.email && c.email.toLowerCase() === lead.email.toLowerCase()) ||
-            (c.phone && lead.phone && c.phone === lead.phone) ||
-            (c.name && lead.customerName && c.name.toLowerCase() === lead.customerName.toLowerCase())
-        );
-        if (match) {
-          setSelectedCustomerId(match.id);
-          setFormData((prev) => ({
-            ...prev,
-            customerName: match.name || prev.customerName,
-            companyName: match.companyName || match.name || prev.companyName,
-            email: match.email || prev.email || '',
-            phone: match.phone || prev.phone || '',
-            address: match.address || prev.address || '',
-            linkedClientId: match.id,
-          }));
-        }
+      } else {
+        setSelectedCustomerId('');
       }
     } else if (mode === 'add') {
       setSelectedCustomerId('');
@@ -219,7 +179,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
         source: 'Web',
       });
     }
-  }, [lead, mode, user, employees, customersList]);
+  }, [lead, mode, user, employees]);
 
   // Handle ESC key press to close drawer
   useEffect(() => {
@@ -244,8 +204,8 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
     const authorName = user?.fullName || 'User';
     const newLog = {
       id: `act-${Date.now()}`,
-      title: mode === 'add' 
-        ? `Lead Created in System by ${authorName}` 
+      title: mode === 'add'
+        ? `Lead Created in System by ${authorName}`
         : `Lead details updated by ${authorName}`,
       date: new Date().toISOString().split('T')[0],
       type: 'User',
@@ -292,7 +252,11 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
       activityLogs: [newLogItem, ...(lead.activityLogs || [])],
     };
 
-    onSave(updatedLead);
+    if (onLeadUpdated) {
+      onLeadUpdated(updatedLead);
+    } else {
+      onSave(updatedLead);
+    }
     setNewNoteText('');
   };
 
@@ -300,7 +264,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
     onClose();
     if (lead) {
       const params = new URLSearchParams();
-      const cid = selectedCustomerId || lead.linkedClientId;
+      const cid = selectedCustomerId || lead.linkedClientId || formData.linkedClientId;
       if (cid) {
         params.set('customerId', cid);
       }
@@ -320,6 +284,122 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
     }
   };
 
+  const handleConvertToCustomer = async () => {
+    if (!lead) return;
+    if (!lead.customerName || !lead.customerName.trim()) {
+      toast.warning('Customer Name Required', 'This lead does not have a customer name.');
+      return;
+    }
+
+    setIsConverting(true);
+    try {
+      let newCustomer: Customer | null = null;
+      let updatedLead: Lead | null = null;
+
+      try {
+        // Preferred: Call backend atomic convert endpoint
+        const res = await leadsApi.convertToCustomer(lead.id);
+        newCustomer = (res as any)?.customer || res;
+        updatedLead = (res as any)?.lead;
+      } catch (backendErr) {
+        console.warn('Backend convert-to-customer endpoint fallback:', backendErr);
+
+        // Fallback: Fetch lead destinations and create customer + destinations manually
+        const leadDestinations = await leadsApi.getLeadDestinations(lead.id).catch(() => []);
+        const firstDest = leadDestinations[0];
+
+        const custRes = await customerService.createCustomer({
+          name: lead.customerName.trim(),
+          companyName: lead.companyName?.trim() || lead.customerName.trim(),
+          phone: lead.phone?.trim() || undefined,
+          email: lead.email?.trim() || undefined,
+          address: lead.address?.trim() || firstDest?.address || undefined,
+          city: firstDest?.city || undefined,
+          state: firstDest?.state || undefined,
+          pincode: firstDest?.pincode || undefined,
+          status: 'ACTIVE',
+          createdById: lead.createdById || undefined,
+          createdBy: lead.createdBy || undefined,
+        });
+
+        newCustomer = (custRes as any)?.data || (custRes as any);
+        if (!newCustomer?.id) throw new Error('Customer creation did not return an ID.');
+
+        // Copy destinations
+        for (const dest of leadDestinations) {
+          try {
+            await customerService.createDestination(newCustomer.id, {
+              name: dest.name,
+              address: dest.address || undefined,
+              city: dest.city || undefined,
+              state: dest.state || undefined,
+              pincode: dest.pincode || undefined,
+              latitude: dest.latitude ? String(dest.latitude) : null,
+              longitude: dest.longitude ? String(dest.longitude) : null,
+              placeId: dest.placeId || undefined,
+              contactPerson: dest.contactPerson || lead.customerName,
+              contactPhone: dest.contactPhone || lead.phone || undefined,
+              notes: dest.notes || undefined,
+              status: dest.status || 'ACTIVE',
+            });
+          } catch (destErr) {
+            console.warn('Failed to copy destination during conversion:', destErr);
+          }
+        }
+
+        // Link lead in DB
+        await leadsApi.updateLead(lead.id, { linkedClientId: newCustomer.id });
+      }
+
+      if (!newCustomer || !newCustomer.id) {
+        throw new Error('Failed to convert lead: Customer details could not be retrieved.');
+      }
+
+      const targetCustomerId = newCustomer.id;
+
+      // Update local customer list
+      setCustomersList((prev) => [newCustomer!, ...prev.filter((c) => c.id !== targetCustomerId)]);
+      setSelectedCustomerId(targetCustomerId);
+      setFormData((prev) => ({
+        ...prev,
+        linkedClientId: targetCustomerId,
+      }));
+
+      const authorName = user?.fullName || 'User';
+      const logItem = {
+        id: `act-${Date.now()}`,
+        title: `Lead converted to customer: ${lead.customerName} (by ${authorName})`,
+        date: new Date().toISOString().split('T')[0],
+        type: 'System',
+      };
+
+      const finalLead: Lead = updatedLead || {
+        ...lead,
+        linkedClientId: targetCustomerId,
+        activityLogs: [logItem, ...(lead.activityLogs || [])],
+      };
+
+      if (onLeadUpdated) {
+        onLeadUpdated(finalLead);
+      } else {
+        onSave(finalLead);
+      }
+
+      toast.success(
+        'Converted to Customer!',
+        `Lead "${lead.customerName}" has been successfully added to the customer database and customer list.`
+      );
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to convert lead to customer.';
+      toast.error('Conversion Failed', msg);
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-[100] overflow-hidden select-none">
       {/* Dark Overlay Backdrop */}
@@ -331,7 +411,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
       {/* Slide-Over Right Panel */}
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-[100]">
         <div className="w-screen max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 animate-slide-in-right overflow-y-auto">
-          
+
           {/* Drawer Top Navigation Header */}
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-10">
             <div className="flex items-center gap-3">
@@ -368,7 +448,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
 
           {/* Drawer Body Content */}
           <div className="p-6 flex-1 space-y-7">
-            
+
             {/* VIEW MODE */}
             {mode === 'view' && lead && (
               <>
@@ -392,15 +472,14 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                     <span className="text-base font-bold text-slate-800">{lead.status}</span>
                   </div>
                   <span
-                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold tracking-wide ${
-                      lead.status.toUpperCase().includes('APPROVED') || lead.status.toUpperCase().includes('COMPLETED')
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold tracking-wide ${lead.status.toUpperCase().includes('APPROVED') || lead.status.toUpperCase().includes('COMPLETED')
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
                         : lead.status.toUpperCase() === 'LOST'
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200/80'
-                        : lead.status.toUpperCase() === 'NEW' || lead.status.toUpperCase().includes('NEGOTIATION')
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200/80'
-                        : 'bg-blue-50 text-blue-700 border border-blue-200/80'
-                    }`}
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200/80'
+                          : lead.status.toUpperCase() === 'NEW' || lead.status.toUpperCase().includes('NEGOTIATION')
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200/80'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200/80'
+                      }`}
                   >
                     {lead.status}
                   </span>
@@ -453,13 +532,12 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                       PRIORITY RATING
                     </span>
                     <span
-                      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                        lead.priority === 'High' || lead.priority === 'Urgent'
+                      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${lead.priority === 'High' || lead.priority === 'Urgent'
                           ? 'bg-rose-50 text-rose-700 border border-rose-200'
                           : lead.priority === 'Medium'
-                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                          : 'bg-blue-50 text-blue-700 border border-blue-200'
-                      }`}
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}
                     >
                       {lead.priority}
                     </span>
@@ -494,22 +572,72 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                       <span>{lead.address || 'No location address listed.'}</span>
                     </div>
                   </div>
+
+                  {/* Service Destinations Summary in View Mode */}
+                  <div className="col-span-2 p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                        <MapPin size={14} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                          Service Destinations
+                        </div>
+                        <div className="text-[11px] text-indigo-700 font-medium">
+                          {lead.destinationCount || 0} {lead.destinationCount === 1 ? 'Site Registered' : 'Sites Registered'}
+                        </div>
+                      </div>
+                    </div>
+                    {onOpenDestinations && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenDestinations(lead)}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-semibold text-xs rounded-lg shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <MapPin size={12} />
+                        <span>Manage Sites</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
+
                 {/* Quick Actions & User Context Bar */}
-                <div className="p-4 bg-blue-50/60 border border-blue-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center justify-between gap-3 p-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl shadow-2xs">
                   <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                     <User size={14} className="text-blue-600" />
                     <span>Logged in as: <strong className="text-slate-900">{user?.fullName || 'User'}</strong> ({user?.role || 'USER'})</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleCreateQuotation}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
-                  >
-                    <FileText size={14} />
-                    <span>Create Quotation</span>
-                  </button>
+
+                  {!(lead.linkedClientId || selectedCustomerId || formData.linkedClientId) ? (
+                    <button
+                      type="button"
+                      onClick={handleConvertToCustomer}
+                      disabled={isConverting}
+                      className="shrink-0 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                    >
+                      {isConverting ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          <span>Converting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus size={13} />
+                          <span>Convert to Customer</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleCreateQuotation}
+                      className="shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <FileText size={13} />
+                      <span>Create Quotation</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Add Custom Note / Activity Section */}
@@ -688,9 +816,21 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                   </div>
 
                   <div className="sm:col-span-2 space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                      SITE/DELIVERY ADDRESS
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                        SITE/DELIVERY ADDRESS
+                      </label>
+                      {mode === 'edit' && lead && onOpenDestinations && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenDestinations(lead)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+                        >
+                          <MapPin size={12} />
+                          <span>Manage Service Destinations ({lead.destinationCount || 0})</span>
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="text"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -699,6 +839,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     />
                   </div>
+
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">

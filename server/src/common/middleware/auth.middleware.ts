@@ -140,40 +140,6 @@ export const authenticate = (req: Request, _res: Response, next: NextFunction): 
   }
 };
 
-/**
- * Optional authentication middleware for public endpoints with role-enhanced views.
- * - If no credentials are supplied, continues as anonymous (req.user remains undefined).
- * - If credentials are supplied, strictly verifies them and attaches req.user.
- * - If supplied credentials are invalid or expired, returns 401 Unauthorized.
- */
-export const optionalAuthenticate = (req: Request, _res: Response, next: NextFunction): void => {
-  let token: string | undefined = req.cookies?.access_token;
-
-  if (!token) {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    }
-  }
-
-  if (!token && typeof req.query?.token === 'string') {
-    token = req.query.token;
-  }
-
-  if (!token) {
-    req.user = undefined;
-    return next();
-  }
-
-  try {
-    const decoded = verifyToken(token);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    next(AppError.unauthorized('Invalid or expired token'));
-  }
-};
-
 export const requireRoles = (...allowedRoles: UserRole[]) => {
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {

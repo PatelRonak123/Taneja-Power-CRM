@@ -157,12 +157,14 @@ export class CustomerService {
       authUser?.role === APP_CONSTANTS.ROLES.MANAGER;
 
     let creatorName = input.createdBy || null;
-    if (authUser?.userId) {
+    const targetUserId =
+      isAdminOrManager && input.createdById ? input.createdById : authUser?.userId;
+    if (targetUserId) {
       try {
         const [u] = await db
           .select({ fullName: users.fullName })
           .from(users)
-          .where(eq(users.id, authUser.userId))
+          .where(eq(users.id, targetUserId))
           .limit(1);
         if (u?.fullName) {
           creatorName = u.fullName;

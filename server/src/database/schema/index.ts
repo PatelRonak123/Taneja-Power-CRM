@@ -16,3 +16,4 @@ export * from "./invoices.js";
 export * from "./dispatch.js";
 export * from "./customer-equipment.js";
 export * from "./payments.js";
+export * from "./proforma-invoices.js";

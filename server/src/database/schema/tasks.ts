@@ -1,5 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, index, numeric } from 'drizzle-orm/pg-core';
 import { customers, customerDestinations } from './customers.js';
+import { leads, leadDestinations } from './leads.js';
 import { users } from './users.js';
 
 export const tasks = pgTable(
@@ -7,11 +8,13 @@ export const tasks = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     customerId: uuid('customer_id')
-      .references(() => customers.id, { onDelete: 'restrict' })
-      .notNull(),
+      .references(() => customers.id, { onDelete: 'restrict' }),
     destinationId: uuid('destination_id')
-      .references(() => customerDestinations.id, { onDelete: 'restrict' })
-      .notNull(),
+      .references(() => customerDestinations.id, { onDelete: 'restrict' }),
+    leadId: varchar('lead_id', { length: 255 })
+      .references(() => leads.id, { onDelete: 'set null' }),
+    leadDestinationId: uuid('lead_destination_id')
+      .references(() => leadDestinations.id, { onDelete: 'set null' }),
     assignedTo: uuid('assigned_to').references(() => users.id, { onDelete: 'set null' }),
     title: varchar('title', { length: 255 }).notNull(),
     description: text('description'),
@@ -36,6 +39,8 @@ export const tasks = pgTable(
   (table) => [
     index('tasks_customer_id_idx').on(table.customerId),
     index('tasks_destination_id_idx').on(table.destinationId),
+    index('tasks_lead_id_idx').on(table.leadId),
+    index('tasks_lead_destination_id_idx').on(table.leadDestinationId),
     index('tasks_assigned_to_idx').on(table.assignedTo),
     index('tasks_status_idx').on(table.status),
     index('tasks_priority_idx').on(table.priority),

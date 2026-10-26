@@ -14,7 +14,6 @@ import { productService } from '../../products/services/productService';
 import type { Customer } from '../../customers/types/customer.types';
 import type { Product } from '../../products/types/product.types';
 import { TablePagination } from '../../../components/ui/table';
-import { WarrantyStatusBadge } from '../components/WarrantyStatusBadge';
 import {
   Cpu,
   Eye,
@@ -323,7 +322,6 @@ export const CustomerEquipmentListPage: React.FC = () => {
                 <th className="py-3 px-3">Product & Model</th>
                 <th className="py-3 px-3">Serial Number</th>
                 <th className="py-3 px-3">Delivery Date</th>
-                <th className="py-3 px-3 text-center">Warranty</th>
                 <th className="py-3 px-3 text-center">Condition</th>
                 <th className="py-3 px-3 text-center">Status</th>
                 <th className="py-3 px-4 text-right">Actions</th>
@@ -332,14 +330,14 @@ export const CustomerEquipmentListPage: React.FC = () => {
             <tbody className="divide-y divide-gray-100">
               {loading && equipmentList.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-16 text-center text-gray-500">
+                  <td colSpan={8} className="py-16 text-center text-gray-500">
                     <Loader2 size={24} className="animate-spin mx-auto mb-2 text-blue-600" />
                     Loading equipment registry...
                   </td>
                 </tr>
               ) : equipmentList.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-16 text-center">
+                  <td colSpan={8} className="py-16 text-center">
                     <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
                       <Package className="w-6 h-6" />
                     </div>
@@ -429,15 +427,6 @@ export const CustomerEquipmentListPage: React.FC = () => {
                               : '—'}
                           </span>
                         </div>
-                      </td>
-
-                      {/* Warranty Status */}
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
-                        <WarrantyStatusBadge
-                          status={item.warrantyStatus}
-                          expiryDate={item.warrantyEndDate}
-                          showExpiry={item.warrantyStatus === 'ACTIVE' || item.warrantyStatus === 'EXPIRING_SOON'}
-                        />
                       </td>
 
                       {/* Condition Status */}

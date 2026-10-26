@@ -16,6 +16,8 @@ import {
 } from '../types/task.types';
 import { Customer } from '../../customers/types/customer.types';
 import { Employee } from '../../admin/types/employee.types';
+import { leadsApi } from '../../leads/api/leadsApi';
+import { Lead } from '../../leads/types/lead';
 import { TaskMetricsCards } from '../components/TaskMetricsCards';
 import { TaskToolbar } from '../components/TaskToolbar';
 import { TaskTable } from '../components/TaskTable';
@@ -73,6 +75,7 @@ export const TaskManagementPage: React.FC = () => {
 
   // Reference Data for Dropdowns
   const [customersList, setCustomersList] = useState<Customer[]>([]);
+  const [leadsList, setLeadsList] = useState<Lead[]>([]);
   const [employeesList, setEmployeesList] = useState<Employee[]>([]);
 
   // Task Create / Edit Modal State
@@ -87,6 +90,9 @@ export const TaskManagementPage: React.FC = () => {
     description: string;
     customerId: string;
     destinationId: string;
+    leadId: string;
+    leadDestinationId: string;
+    clientType: 'customer' | 'lead';
     assignedTo: string;
     priority: TaskPriority;
     status: TaskStatus;
@@ -97,6 +103,9 @@ export const TaskManagementPage: React.FC = () => {
     description: '',
     customerId: '',
     destinationId: '',
+    leadId: '',
+    leadDestinationId: '',
+    clientType: 'customer',
     assignedTo: '',
     priority: 'MEDIUM',
     status: 'CREATED',
@@ -135,6 +144,9 @@ export const TaskManagementPage: React.FC = () => {
         description: payload.description || '',
         customerId: payload.customerId || '',
         destinationId: payload.destinationId || '',
+        leadId: '',
+        leadDestinationId: '',
+        clientType: 'customer',
         assignedTo: '',
         priority: payload.priority || 'MEDIUM',
         status: 'CREATED',
@@ -160,6 +172,17 @@ export const TaskManagementPage: React.FC = () => {
         }
       })
       .catch(() => {});
+
+    if (!isServiceOffice) {
+      leadsApi
+        .getLeads()
+        .then((res) => {
+          if (Array.isArray(res)) {
+            setLeadsList(res);
+          }
+        })
+        .catch(() => {});
+    }
 
     if (isManagement) {
       // Admin/Manager can see all employees
@@ -277,6 +300,9 @@ export const TaskManagementPage: React.FC = () => {
       description: '',
       customerId: '',
       destinationId: '',
+      leadId: '',
+      leadDestinationId: '',
+      clientType: isSalesOffice ? 'lead' : 'customer',
       assignedTo: '',
       priority: 'MEDIUM',
       status: 'CREATED',
@@ -290,11 +316,15 @@ export const TaskManagementPage: React.FC = () => {
     setTaskModalMode('edit');
     setEditingTaskId(task.id);
     setTaskFormError(null);
+    const isLead = !!task.leadId || !!task.customer?.isLead;
     setTaskFormData({
       title: task.title,
       description: task.description || '',
-      customerId: task.customerId,
-      destinationId: task.destinationId,
+      customerId: task.customerId || '',
+      destinationId: task.destinationId || '',
+      leadId: task.leadId || (isLead ? task.customer?.id || '' : ''),
+      leadDestinationId: task.leadDestinationId || (isLead ? task.destination?.id || '' : ''),
+      clientType: isLead ? 'lead' : 'customer',
       assignedTo: task.assignedTo || '',
       priority: task.priority,
       status: task.status,
@@ -309,6 +339,38 @@ export const TaskManagementPage: React.FC = () => {
       customerId,
       destinationId: '',
     }));
+    if (taskFormError) setTaskFormError(null);
+  };
+
+  const handleLeadChangeInForm = (leadId: string) => {
+    setTaskFormData((prev) => ({
+      ...prev,
+      leadId,
+      leadDestinationId: '',
+      destinationId: '',
+    }));
+    if (taskFormError) setTaskFormError(null);
+  };
+
+  const handleClientTypeChangeInForm = (clientType: 'customer' | 'lead') => {
+    setTaskFormData((prev) => {
+      let newAssignedTo = prev.assignedTo;
+      if (clientType === 'lead' && prev.assignedTo) {
+        const emp = employeesList.find((e) => e.id === prev.assignedTo);
+        if (emp && !emp.designation?.toLowerCase().includes('sales')) {
+          newAssignedTo = '';
+        }
+      }
+      return {
+        ...prev,
+        clientType,
+        customerId: '',
+        destinationId: '',
+        leadId: '',
+        leadDestinationId: '',
+        assignedTo: newAssignedTo,
+      };
+    });
     if (taskFormError) setTaskFormError(null);
   };
 
@@ -329,23 +391,49 @@ export const TaskManagementPage: React.FC = () => {
       setTaskFormError('Task title must be at least 2 characters long.');
       return;
     }
-    if (!taskFormData.customerId) {
-      setTaskFormError('Please select a customer.');
-      return;
-    }
-    if (!taskFormData.destinationId) {
-      setTaskFormError('Please select a destination site.');
-      return;
+
+    const isLead = taskFormData.clientType === 'lead';
+
+    if (isLead) {
+      if (!taskFormData.leadId) {
+        setTaskFormError('Please select a lead.');
+        return;
+      }
+      if (!taskFormData.leadDestinationId && !taskFormData.destinationId) {
+        setTaskFormError('Please select a destination site for the lead.');
+        return;
+      }
+      // Sales employee assignment restriction
+      if (taskFormData.assignedTo) {
+        const emp = employeesList.find((e) => e.id === taskFormData.assignedTo);
+        if (emp && !emp.designation?.toLowerCase().includes('sales')) {
+          setTaskFormError('Lead tasks can only be assigned to sales employees.');
+          return;
+        }
+      }
+    } else {
+      if (!taskFormData.customerId) {
+        setTaskFormError('Please select a customer.');
+        return;
+      }
+      if (!taskFormData.destinationId) {
+        setTaskFormError('Please select a destination site.');
+        return;
+      }
     }
 
     setTaskFormSubmitting(true);
     try {
+      const targetLeadDestId = taskFormData.leadDestinationId || taskFormData.destinationId;
+
       if (taskModalMode === 'create') {
         const response = await taskService.createTask({
           title: taskFormData.title.trim(),
           description: taskFormData.description.trim() || undefined,
-          customerId: taskFormData.customerId,
-          destinationId: taskFormData.destinationId,
+          customerId: isLead ? null : taskFormData.customerId,
+          destinationId: isLead ? null : taskFormData.destinationId,
+          leadId: isLead ? taskFormData.leadId : null,
+          leadDestinationId: isLead ? targetLeadDestId : null,
           assignedTo: taskFormData.assignedTo || null,
           priority: taskFormData.priority,
           scheduledAt: taskFormData.scheduledAt ? new Date(taskFormData.scheduledAt).toISOString() : null,
@@ -377,8 +465,10 @@ export const TaskManagementPage: React.FC = () => {
         const response = await taskService.updateTask(editingTaskId, {
           title: taskFormData.title.trim(),
           description: taskFormData.description.trim() || undefined,
-          customerId: taskFormData.customerId,
-          destinationId: taskFormData.destinationId,
+          customerId: isLead ? null : taskFormData.customerId,
+          destinationId: isLead ? null : taskFormData.destinationId,
+          leadId: isLead ? taskFormData.leadId : null,
+          leadDestinationId: isLead ? targetLeadDestId : null,
           assignedTo: taskFormData.assignedTo || null,
           priority: taskFormData.priority,
           status: taskFormData.status,
@@ -555,10 +645,14 @@ export const TaskManagementPage: React.FC = () => {
         formData={taskFormData}
         onInputChange={handleTaskInputChange}
         customers={customersList}
+        leads={leadsList}
         employees={employeesList}
         formSubmitting={taskFormSubmitting}
         formError={taskFormError}
         onCustomerChange={handleCustomerChangeInForm}
+        onLeadChange={handleLeadChangeInForm}
+        onClientTypeChange={handleClientTypeChangeInForm}
+        isServiceOffice={isServiceOffice}
       />
 
       {/* Task Detail Modal */}

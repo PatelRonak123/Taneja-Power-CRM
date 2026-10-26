@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -9,14 +9,12 @@ import {
   Target,
   FileSpreadsheet,
   ShieldCheck,
-  ShieldAlert,
   CheckCircle2,
   CalendarClock,
   Ban,
   ArrowRight,
   Phone,
   History,
-  Cpu,
 } from 'lucide-react';
 import { FollowUpItem } from '../types/follow-up.types';
 import { FollowUpStatusBadge } from './FollowUpStatusBadge';
@@ -27,9 +25,6 @@ import { confirmModal } from '../../../utils/confirmModal';
 import { useCancelFollowUp } from '../hooks/useFollowUps';
 import { useAuthStore } from '../../../stores/authStore';
 import { navigate } from '../../../app/router/navigation';
-import { calculateAmcDatesFromWarrantyEnd } from '../../customer-equipment/utils/warranty-date.util';
-import { AMC_CONVERSION_STORAGE_KEY } from '../../quotations/utils/amc-conversion-handoff.util';
-import { toast } from '../../../utils/toast';
 
 interface FollowUpDetailModalProps {
   isOpen: boolean;
@@ -49,7 +44,6 @@ export const FollowUpDetailModal: React.FC<FollowUpDetailModalProps> = ({
 }) => {
   const { user } = useAuthStore();
   const cancelMutation = useCancelFollowUp();
-  const [isConverting, setIsConverting] = useState(false);
 
   if (!isOpen || !followUp) return null;
 
@@ -57,51 +51,6 @@ export const FollowUpDetailModal: React.FC<FollowUpDetailModalProps> = ({
   const isAccountantOffice =
     user?.role === 'USER' && user?.designation === 'Accountant Office';
   const canMutate = !isAccountantOffice && isPending;
-
-  const handleConvertToAmcQuotation = () => {
-    if (!followUp || !followUp.customerId) {
-      toast.error('Missing Customer', 'Cannot convert follow-up without a customer association.');
-      return;
-    }
-
-    setIsConverting(true);
-    const eq = followUp.equipment;
-    let amcStartDate = '';
-    let amcEndDate = '';
-    if (eq?.warrantyEndDate) {
-      try {
-        const dates = calculateAmcDatesFromWarrantyEnd(eq.warrantyEndDate);
-        amcStartDate = dates.proposedAmcStartDate;
-        amcEndDate = dates.proposedAmcEndDate;
-      } catch (err) {
-        console.error('Failed to calculate AMC dates from warranty end date:', err);
-      }
-    }
-
-    const conversionId = `conv_${followUp.id}_${Date.now()}`;
-    const conversionPayload = {
-      conversionId,
-      followUpId: followUp.id,
-      equipmentId: followUp.customerEquipmentId || eq?.id || null,
-      customerId: followUp.customerId,
-      customerName: followUp.customer?.name || '',
-      companyName: followUp.customer?.companyName || null,
-      assetNumber: eq?.assetNumber || '',
-      productName: eq?.productName || 'STABILIZER AMC',
-      make: eq?.make || null,
-      model: eq?.model || null,
-      capacityRating: eq?.capacityRating || null,
-      warrantyEndDate: eq?.warrantyEndDate ? String(eq.warrantyEndDate).split('T')[0] : null,
-      amcStartDate,
-      amcEndDate,
-      createdAt: Date.now(),
-    };
-
-    sessionStorage.setItem(AMC_CONVERSION_STORAGE_KEY, JSON.stringify(conversionPayload));
-    toast.info('Drafting AMC Quotation', 'Prefilling commercial proposal for expiring warranty equipment.');
-    onClose();
-    navigate(`/quotations/create?type=AMC&customerId=${followUp.customerId}&conversionId=${conversionId}`);
-  };
 
   const handleCancelClick = async () => {
     const confirmed = await confirmModal.danger(
@@ -324,49 +273,6 @@ export const FollowUpDetailModal: React.FC<FollowUpDetailModalProps> = ({
                   </div>
                 </div>
               )}
-
-              {(followUp.equipment || followUp.customerEquipmentId) && (
-                <div
-                  onClick={() => {
-                    const targetEqId = followUp.customerEquipmentId || followUp.equipment?.id;
-                    if (targetEqId) {
-                      navigate(`/customer-equipment/${targetEqId}`);
-                      onClose();
-                    }
-                  }}
-                  className="p-3 rounded-xl border border-slate-200 bg-white hover:border-indigo-400 hover:shadow-xs transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center justify-between text-slate-500 mb-1">
-                    <span className="flex items-center gap-1 font-medium text-indigo-700">
-                      <Cpu className="w-3.5 h-3.5 text-indigo-600" /> Customer Equipment
-                    </span>
-                    <ArrowRight className="w-3 h-3 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                  <div className="font-bold text-slate-900 text-sm font-mono">
-                    {followUp.equipment?.assetNumber || 'Linked Asset'}
-                  </div>
-                  {followUp.equipment?.productName && (
-                    <div className="text-slate-700 font-medium text-xs mt-0.5">
-                      {followUp.equipment.productName}
-                      {followUp.equipment.model && (
-                        <span className="text-slate-500 font-normal"> • {followUp.equipment.model}</span>
-                      )}
-                    </div>
-                  )}
-                  {followUp.equipment?.warrantyEndDate && (
-                    <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                      <span>
-                        Warranty Expiry: {new Date(followUp.equipment.warrantyEndDate).toLocaleDateString()}
-                      </span>
-                      {followUp.equipment.warrantyStatus && (
-                        <span className="font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-[10px]">
-                          {followUp.equipment.warrantyStatus}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
 
@@ -424,36 +330,6 @@ export const FollowUpDetailModal: React.FC<FollowUpDetailModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
-            {followUp.type === 'WARRANTY_EXPIRY' && (
-              followUp.quotationId ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    navigate(`/quotations/${followUp.quotationId}`);
-                    onClose();
-                  }}
-                  className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                  View AMC Quotation
-                </Button>
-              ) : (
-                canMutate && (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    isLoading={isConverting}
-                    onClick={handleConvertToAmcQuotation}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs"
-                  >
-                    <ShieldAlert className="w-3.5 h-3.5 mr-1" />
-                    Convert to AMC Quotation
-                  </Button>
-                )
-              )
-            )}
-
             {canMutate && (
               <>
                 <Button

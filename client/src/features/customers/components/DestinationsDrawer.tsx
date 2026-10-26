@@ -9,13 +9,15 @@ import {
   Edit2,
   Trash2,
 } from 'lucide-react';
-import { Customer, CustomerDestination } from '../types/customer.types';
+import { CustomerDestination } from '../types/customer.types';
 import { Drawer } from '../../../components/ui/Drawer';
+
 import { Button } from '../../../components/ui/Button';
 import { StatusPill } from '../../../components/ui/StatusPill';
 
 interface DestinationsDrawerProps {
-  customer: Customer | null;
+  customer: { name?: string; customerName?: string; companyName?: string | null } | null;
+  title?: string;
   destinations: CustomerDestination[];
   loading: boolean;
   onClose: () => void;
@@ -28,6 +30,7 @@ interface DestinationsDrawerProps {
 
 export const DestinationsDrawer: React.FC<DestinationsDrawerProps> = ({
   customer,
+  title: customTitle,
   destinations,
   loading,
   onClose,
@@ -39,17 +42,22 @@ export const DestinationsDrawer: React.FC<DestinationsDrawerProps> = ({
 }) => {
   if (!customer) return null;
 
+  const displayName = customer.companyName || customer.name || (customer as any).customerName || '';
+
   const title = (
     <div className="flex items-center gap-2.5">
       <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
         <MapPin size={16} />
       </div>
       <div>
-        <h3 className="text-base font-semibold text-slate-900 leading-snug">Customer Destinations & Facilities</h3>
-        <p className="text-xs text-slate-500 font-normal">{customer.companyName || customer.name}</p>
+        <h3 className="text-base font-semibold text-slate-900 leading-snug">
+          {customTitle || 'Customer Destinations & Facilities'}
+        </h3>
+        {displayName && <p className="text-xs text-slate-500 font-normal">{displayName}</p>}
       </div>
     </div>
   );
+
 
   const footer = (
     <div className="flex items-center justify-end w-full">

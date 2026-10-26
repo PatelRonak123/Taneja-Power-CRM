@@ -38,6 +38,9 @@ export const salesInvoices = pgTable(
       .references(() => salesOrders.id, { onDelete: 'restrict' })
       .notNull(),
 
+    // Linked Pro Forma Invoice (optional – if originated from a proforma invoice)
+    proformaInvoiceId: uuid('proforma_invoice_id'),
+
     // Customer reference
     customerId: uuid('customer_id')
       .references(() => customers.id, { onDelete: 'restrict' })

@@ -1,4 +1,4 @@
-import { eq, and, ne, desc, sql, like, ilike, or, lte, gte, gt, inArray, isNull } from 'drizzle-orm';
+import { eq, and, ne, desc, sql, like, ilike, or, lte, gte, gt, inArray } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import {
   amcContracts,
@@ -22,9 +22,7 @@ import { users } from '../../../database/schema/users.js';
 import { products } from '../../../database/schema/products.js';
 import { salesOrders } from '../../../database/schema/sales-orders.js';
 import { customerEquipment, quotationItemEquipment } from '../../../database/schema/customer-equipment.js';
-import { followUps } from '../../../database/schema/follow-ups.js';
 import { fieldServiceReports } from '../../../database/schema/field-service.js';
-import { AppError } from '../../../common/errors/AppError.js';
 import { AmcContractNumberService } from './amc-contract-number.service.js';
 import { AmcServiceReportPdfService, ServiceReportPdfData } from './amc-service-report-pdf.service.js';
 import { StockService } from '../../inventory/services/stock.service.js';
@@ -72,23 +70,23 @@ export class AmcContractService {
     }
 
     return await db.transaction(async (tx) => {
-      // 1. Fetch quotation (with FOR UPDATE lock to serialize concurrent creation for the same quotation)
+      // 1. Fetch quotation
       const [quotation] = await tx
         .select()
         .from(quotations)
         .where(eq(quotations.id, quotationId))
-        .for('update');
+        .limit(1);
 
       if (!quotation) {
-        throw AppError.notFound(`Quotation with ID ${quotationId} not found.`);
+        throw new Error(`Quotation with ID ${quotationId} not found.`);
       }
 
       if (quotation.quotationType !== 'AMC') {
-        throw AppError.badRequest(`Only AMC type quotations can be converted into an AMC Contract.`);
+        throw new Error(`Only AMC type quotations can be converted into an AMC Contract.`);
       }
 
       if (quotation.status !== 'ACCEPTED') {
-        throw AppError.badRequest(
+        throw new Error(
           `Cannot create AMC Contract: Customer has not accepted the quotation. Current status: ${quotation.status}`
         );
       }
@@ -104,43 +102,26 @@ export class AmcContractService {
         .limit(1);
 
       if (!linkedSo) {
-        throw AppError.badRequest(
+        throw new Error(
           'Cannot create AMC Contract: Sales Order must be created and confirmed first.'
         );
       }
 
       const allowedSoStatuses = ['CONFIRMED', 'PARTIALLY_INVOICED', 'FULLY_INVOICED'];
       if (!allowedSoStatuses.includes(linkedSo.status)) {
-        throw AppError.badRequest(
+        throw new Error(
           `Cannot create AMC Contract: Sales Order must be CONFIRMED or INVOICED. Current status: ${linkedSo.status}`
         );
       }
 
-      // 2. Check existing contract (exclude renewals)
-      // Option A policy: a cancelled initial contract permanently consumes the quotation.
-      // Attempting creation again must fail with CONTRACT_ALREADY_CANCELLED (409) rather
-      // than silently returning the cancelled record as a success.
+      // 2. Check existing contract
       const [existingContract] = await tx
         .select()
         .from(amcContracts)
-        .where(
-          and(
-            eq(amcContracts.quotationId, quotationId),
-            isNull(amcContracts.renewedFromContractId)
-          )
-        )
+        .where(eq(amcContracts.quotationId, quotationId))
         .limit(1);
 
       if (existingContract) {
-        if (existingContract.status === 'CANCELLED') {
-          throw AppError.conflict(
-            `Quotation ${quotation.quotationNumber} was already used to create AMC Contract ` +
-            `${existingContract.contractNumber}, which has since been cancelled. ` +
-            `This quotation is permanently consumed. Please create a new or revised quotation ` +
-            `to generate a replacement AMC Contract.`,
-            'CONTRACT_ALREADY_CANCELLED'
-          );
-        }
         return existingContract;
       }
 
@@ -194,76 +175,39 @@ export class AmcContractService {
         : new Date(startDate.getTime() + 365 * 24 * 60 * 60 * 1000);
 
       // 7. Insert contract master
-      let contract: AmcContractEntity;
-      try {
-        const [insertedContract] = await tx
-          .insert(amcContracts)
-          .values({
-            contractNumber,
-            quotationId: quotation.id,
-            quotationRevisionId: revision.id,
-            salesOrderId: linkedSo.id,
-            customerId: quotation.customerId,
-            destinationId: quotation.destinationId,
-            customerName: revision.customerName,
-            companyName: revision.companyName,
-            endUser: revision.endUser || revision.companyName || revision.customerName,
-            customerCode: revision.customerCode,
-            branch: revision.branch,
-            zone: revision.zone,
-            amcPlan: revision.amcPlan || 'Comprehensive AMC',
-            contractStartDate: startDate,
-            contractEndDate: endDate,
-            serviceFrequency: revision.amcServiceFrequency || 'Quarterly',
-            scheduledVisits:
-              (revision.amcStartDate && revision.amcEndDate && revision.amcServiceFrequency
-                ? calculatePreventiveVisits(startDate, endDate, revision.amcServiceFrequency)
-                : null) || revision.amcScheduledVisits || 4,
-            completedVisits: 0,
-            breakdownVisitType: revision.amcBreakdownVisitType || 'UNLIMITED',
-            status: 'PENDING_ACTIVATION',
-            paymentStatus: 'PENDING',
-            totalAmount: revision.grandTotal,
-            specialClauses: revision.specialClauses,
-            amcPaymentTerms: revision.amcPaymentTerms || revision.paymentTerms,
-            createdById,
-          })
-          .returning();
-        contract = insertedContract;
-      } catch (insertError: any) {
-        // Concurrency-safe recovery: if another concurrent transaction inserted the contract, return it.
-        // Option A policy applies here too: if the race winner is a cancelled contract, surface the same
-        // CONTRACT_ALREADY_CANCELLED error rather than returning the cancelled record as success.
-        if (
-          insertError?.code === '23505' ||
-          insertError?.message?.includes('unique') ||
-          insertError?.message?.includes('duplicate')
-        ) {
-          const [found] = await tx
-            .select()
-            .from(amcContracts)
-            .where(
-              and(
-                eq(amcContracts.quotationId, quotationId),
-                isNull(amcContracts.renewedFromContractId)
-              )
-            )
-            .limit(1);
-          if (found) {
-            if (found.status === 'CANCELLED') {
-              throw AppError.conflict(
-                `Quotation ${quotation.quotationNumber} was already used to create AMC Contract ` +
-                `${found.contractNumber}, which has since been cancelled. ` +
-                `This quotation is permanently consumed. Please create a new or revised quotation ` +
-                `to generate a replacement AMC Contract.`,
-                'CONTRACT_ALREADY_CANCELLED'
-              );
-            }
-            return found;
-          }
-        }
-        throw insertError;
-      }
+      const [contract] = await tx
+        .insert(amcContracts)
+        .values({
+          contractNumber,
+          quotationId: quotation.id,
+          quotationRevisionId: revision.id,
+          salesOrderId: linkedSo.id,
+          customerId: quotation.customerId,
+          destinationId: quotation.destinationId,
+          customerName: revision.customerName,
+          companyName: revision.companyName,
+          endUser: revision.endUser || revision.companyName || revision.customerName,
+          customerCode: revision.customerCode,
+          branch: revision.branch,
+          zone: revision.zone,
+          amcPlan: revision.amcPlan || 'Comprehensive AMC',
+          contractStartDate: startDate,
+          contractEndDate: endDate,
+          serviceFrequency: revision.amcServiceFrequency || 'Quarterly',
+          scheduledVisits:
+            (revision.amcStartDate && revision.amcEndDate && revision.amcServiceFrequency
+              ? calculatePreventiveVisits(startDate, endDate, revision.amcServiceFrequency)
+              : null) || revision.amcScheduledVisits || 4,
+          completedVisits: 0,
+          breakdownVisitType: revision.amcBreakdownVisitType || 'UNLIMITED',
+          status: 'PENDING_ACTIVATION',
+          paymentStatus: 'PENDING',
+          totalAmount: revision.grandTotal,
+          specialClauses: revision.specialClauses,
+          amcPaymentTerms: revision.amcPaymentTerms || revision.paymentTerms,
+          createdById,
+        })
+        .returning();
 
       // 8. Copy equipment rows
       if (items.length > 0) {
@@ -308,13 +252,11 @@ export class AmcContractService {
               });
             }
           } else {
-            // Standard / legacy line without specific customer equipment link in junction table.
-            // If the quotation originated from a warranty conversion (sourceEquipmentId exists), link it here.
-            const fallbackEquipmentId = quotation.sourceEquipmentId || null;
+            // Standard / legacy line without specific customer equipment link
             contractEquipmentRows.push({
               amcContractId: contract.id,
               quotationItemId: item.id,
-              customerEquipmentId: fallbackEquipmentId,
+              customerEquipmentId: null,
               equipmentType: item.equipmentType || 'STABILIZER',
               equipmentName: item.productName,
               configuration: item.equipmentConfiguration || item.model,
@@ -377,20 +319,19 @@ export class AmcContractService {
   /**
    * Calendar-aware Service Schedule Generator
    */
-  public async generateServiceSchedule(contractId: string, tx?: any): Promise<any[]> {
-    const dbClient = tx || db;
-    const [contract] = await dbClient
+  public async generateServiceSchedule(contractId: string): Promise<any[]> {
+    const [contract] = await db
       .select()
       .from(amcContracts)
       .where(eq(amcContracts.id, contractId))
       .limit(1);
 
     if (!contract) {
-      throw AppError.notFound(`AMC Contract ${contractId} not found.`);
+      throw new Error(`AMC Contract ${contractId} not found.`);
     }
 
     // Clear any existing scheduled visits
-    await dbClient.delete(amcServiceVisits).where(eq(amcServiceVisits.amcContractId, contractId));
+    await db.delete(amcServiceVisits).where(eq(amcServiceVisits.amcContractId, contractId));
 
     const visitsCount = Math.max(1, contract.scheduledVisits || 4);
     const startDate = new Date(contract.contractStartDate);
@@ -434,271 +375,40 @@ export class AmcContractService {
     }
 
     if (visitValues.length > 0) {
-      return await dbClient.insert(amcServiceVisits).values(visitValues).returning();
+      return await db.insert(amcServiceVisits).values(visitValues).returning();
     }
 
     return [];
   }
 
   /**
-   * Activate an AMC contract and generate its preventive service schedule.
-   * Atomic operation within a single database transaction:
-   * 1. Locks contract row (FOR UPDATE)
-   * 2. Enforces status === 'PENDING_ACTIVATION'
-   * 3. Enforces paymentStatus IN ('PAID', 'PARTIALLY_PAID')
-   * 4. Validates start and end dates
-   * 5. Deterministically locks covered equipment rows (FOR UPDATE) to prevent concurrency races
-   * 6. Validates equipment belongs to the same customer
-   * 7. Checks for overlapping active contract coverage across all covered equipment
-   * 8. Sets contract status to 'ACTIVE'
-   * 9. Generates calendar-aware preventive service schedule in the same transaction
-   * 10. Updates covered equipment warrantyStatus to 'AMC_COVERED'
-   * 11. Links and completes originating WARRANTY_EXPIRY follow-up (if provenance exists)
+   * Activate an AMC contract and generate its preventive service schedule
    */
-  public async activateContract(
-    contractId: string,
-    updatedById?: string
-  ): Promise<AmcContractEntity & { schedule: any[] }> {
-    return await db.transaction(async (tx) => {
-      // 1. Fetch & lock contract row
-      const [contract] = await tx
-        .select()
-        .from(amcContracts)
-        .where(eq(amcContracts.id, contractId))
-        .for('update');
+  public async activateContract(contractId: string, updatedById?: string): Promise<AmcContractEntity> {
+    const [contract] = await db
+      .select()
+      .from(amcContracts)
+      .where(eq(amcContracts.id, contractId))
+      .limit(1);
 
-      if (!contract) {
-        throw AppError.notFound(`AMC Contract ${contractId} not found.`);
-      }
+    if (!contract) {
+      throw new Error(`AMC Contract ${contractId} not found.`);
+    }
 
-      // 2. Precondition: Status must be PENDING_ACTIVATION
-      if (contract.status !== 'PENDING_ACTIVATION') {
-        if (contract.status === 'ACTIVE') {
-          throw AppError.conflict(
-            `AMC Contract ${contract.contractNumber} is already ACTIVE.`,
-            'CONTRACT_ALREADY_ACTIVE'
-          );
-        }
-        throw AppError.badRequest(
-          `Cannot activate AMC Contract: Contract must be in PENDING_ACTIVATION status. Current status: ${contract.status}`,
-          undefined,
-          'INVALID_CONTRACT_STATUS'
-        );
-      }
+    const [updated] = await db
+      .update(amcContracts)
+      .set({
+        status: 'ACTIVE',
+        updatedById: updatedById || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(amcContracts.id, contractId))
+      .returning();
 
-      // 3. Precondition: Payment must be PAID or PARTIALLY_PAID
-      const eligiblePaymentStatuses = ['PAID', 'PARTIALLY_PAID'];
-      if (!eligiblePaymentStatuses.includes(contract.paymentStatus)) {
-        if (contract.paymentStatus === 'PENDING') {
-          throw AppError.badRequest(
-            `Cannot activate AMC Contract: Payment is PENDING. Advance payment (PAID or PARTIALLY_PAID) is required prior to activation.`,
-            undefined,
-            'PAYMENT_PENDING'
-          );
-        }
-        if (contract.paymentStatus === 'OVERDUE') {
-          throw AppError.badRequest(
-            `Cannot activate AMC Contract: Payment is OVERDUE.`,
-            undefined,
-            'PAYMENT_OVERDUE'
-          );
-        }
-        throw AppError.badRequest(
-          `Cannot activate AMC Contract: Ineligible payment status "${contract.paymentStatus}". Required: PAID or PARTIALLY_PAID.`,
-          undefined,
-          'INVALID_PAYMENT_STATUS'
-        );
-      }
+    // Automatically generate preventive visits
+    await this.generateServiceSchedule(contractId);
 
-      // 4. Validate contract start and end dates
-      const startDate = new Date(contract.contractStartDate);
-      const endDate = new Date(contract.contractEndDate);
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        throw AppError.badRequest(
-          'Cannot activate AMC Contract: Invalid contract start or end date.',
-          undefined,
-          'INVALID_DATES'
-        );
-      }
-      if (startDate >= endDate) {
-        throw AppError.badRequest(
-          `Cannot activate AMC Contract: Contract start date (${startDate.toISOString().split('T')[0]}) must be strictly before end date (${endDate.toISOString().split('T')[0]}).`,
-          undefined,
-          'INVALID_DATE_RANGE'
-        );
-      }
-
-      // 5. Load covered equipment items
-      const contractEquipments = await tx
-        .select()
-        .from(amcContractEquipment)
-        .where(eq(amcContractEquipment.amcContractId, contractId));
-
-      const coveredEquipmentIds = [
-        ...new Set(
-          contractEquipments
-            .map((e) => e.customerEquipmentId)
-            .filter((id): id is string => Boolean(id))
-        ),
-      ];
-
-      if (coveredEquipmentIds.length > 0) {
-        // Deterministically sort equipment IDs before locking to prevent deadlocks across concurrent requests
-        const sortedEquipmentIds = [...coveredEquipmentIds].sort();
-
-        // Lock equipment rows FOR UPDATE
-        const equipmentRecords = await tx
-          .select()
-          .from(customerEquipment)
-          .where(inArray(customerEquipment.id, sortedEquipmentIds))
-          .for('update');
-
-        // Verify customer ownership
-        for (const eqRec of equipmentRecords) {
-          if (eqRec.customerId !== contract.customerId) {
-            throw AppError.badRequest(
-              `Covered equipment ${eqRec.assetNumber} belongs to customer ${eqRec.customerId}, not contract customer ${contract.customerId}.`,
-              undefined,
-              'EQUIPMENT_CUSTOMER_MISMATCH'
-            );
-          }
-        }
-
-        // 6. Check for overlapping coverage by another ACTIVE contract (Part D)
-        // Two inclusive ranges overlap when: existingStart <= requestedEnd AND existingEnd >= requestedStart
-        const overlappingActiveContracts = await tx
-          .select({
-            contractId: amcContracts.id,
-            contractNumber: amcContracts.contractNumber,
-            startDate: amcContracts.contractStartDate,
-            endDate: amcContracts.contractEndDate,
-            equipmentId: amcContractEquipment.customerEquipmentId,
-          })
-          .from(amcContractEquipment)
-          .innerJoin(amcContracts, eq(amcContractEquipment.amcContractId, amcContracts.id))
-          .where(
-            and(
-              inArray(amcContractEquipment.customerEquipmentId, sortedEquipmentIds),
-              ne(amcContracts.id, contractId),
-              eq(amcContracts.status, 'ACTIVE'),
-              lte(amcContracts.contractStartDate, endDate),
-              gte(amcContracts.contractEndDate, startDate)
-            )
-          );
-
-        if (overlappingActiveContracts.length > 0) {
-          const overlap = overlappingActiveContracts[0];
-          throw AppError.conflict(
-            `Cannot activate AMC Contract: Equipment is already covered by active AMC Contract ${overlap.contractNumber} from ${new Date(overlap.startDate).toISOString().split('T')[0]} to ${new Date(overlap.endDate).toISOString().split('T')[0]}.`,
-            'OVERLAPPING_AMC_COVERAGE'
-          );
-        }
-
-        // 7. Update covered equipment warrantyStatus to AMC_COVERED
-        await tx
-          .update(customerEquipment)
-          .set({
-            warrantyStatus: 'AMC_COVERED',
-            updatedById: updatedById || null,
-            updatedAt: new Date(),
-          })
-          .where(inArray(customerEquipment.id, sortedEquipmentIds));
-      }
-
-      // 8. Update contract status to ACTIVE
-      const [updatedContract] = await tx
-        .update(amcContracts)
-        .set({
-          status: 'ACTIVE',
-          updatedById: updatedById || null,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(amcContracts.id, contractId),
-            eq(amcContracts.status, 'PENDING_ACTIVATION')
-          )
-        )
-        .returning();
-
-      if (!updatedContract) {
-        throw AppError.conflict(
-          'Failed to activate AMC Contract: Contract was modified or activated concurrently.',
-          'CONCURRENT_ACTIVATION_CONFLICT'
-        );
-      }
-
-      // 9. Generate preventive service visits using tx
-      const schedule = await this.generateServiceSchedule(contractId, tx);
-
-      // 10. Originating Follow-Up Closure (Part C)
-      if (contract.quotationId) {
-        const [sourceQuotation] = await tx
-          .select({
-            sourceFollowUpId: quotations.sourceFollowUpId,
-            sourceEquipmentId: quotations.sourceEquipmentId,
-          })
-          .from(quotations)
-          .where(eq(quotations.id, contract.quotationId))
-          .limit(1);
-
-        if (sourceQuotation?.sourceFollowUpId) {
-          const [sourceFollowUp] = await tx
-            .select()
-            .from(followUps)
-            .where(eq(followUps.id, sourceQuotation.sourceFollowUpId))
-            .for('update');
-
-          if (!sourceFollowUp) {
-            throw AppError.notFound(
-              `Originating follow-up ${sourceQuotation.sourceFollowUpId} not found.`,
-              'FOLLOW_UP_NOT_FOUND'
-            );
-          }
-
-          if (sourceFollowUp.type !== 'WARRANTY_EXPIRY') {
-            throw AppError.badRequest(
-              `Originating follow-up ${sourceFollowUp.followUpNumber} is not a WARRANTY_EXPIRY follow-up (type: ${sourceFollowUp.type}).`,
-              undefined,
-              'INVALID_FOLLOW_UP_TYPE'
-            );
-          }
-
-          if (sourceFollowUp.customerId && sourceFollowUp.customerId !== contract.customerId) {
-            throw AppError.badRequest(
-              `Originating follow-up ${sourceFollowUp.followUpNumber} belongs to customer ${sourceFollowUp.customerId}, not contract customer ${contract.customerId}.`,
-              undefined,
-              'FOLLOW_UP_CUSTOMER_MISMATCH'
-            );
-          }
-
-          if (sourceFollowUp.amcContractId && sourceFollowUp.amcContractId !== contract.id) {
-            throw AppError.conflict(
-              `Originating follow-up ${sourceFollowUp.followUpNumber} is already linked to another AMC Contract (${sourceFollowUp.amcContractId}).`,
-              'FOLLOW_UP_ALREADY_LINKED'
-            );
-          }
-
-          const now = new Date();
-          await tx
-            .update(followUps)
-            .set({
-              amcContractId: contract.id,
-              status: 'COMPLETED',
-              completedAt: now,
-              completedBy: updatedById || null,
-              outcome: `Converted to active AMC Contract ${contract.contractNumber}.`,
-              updatedAt: now,
-            })
-            .where(eq(followUps.id, sourceQuotation.sourceFollowUpId));
-        }
-      }
-
-      return {
-        ...updatedContract,
-        schedule,
-      };
-    });
+    return updated;
   }
 
   /**

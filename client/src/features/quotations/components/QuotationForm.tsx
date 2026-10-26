@@ -1,9 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { useAuthStore } from "../../../stores/authStore";
-import {
-  calculateContractDurationMonths,
-  calculatePreventiveVisits,
-} from "../../../utils/amcCalculations";
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAuthStore } from '../../../stores/authStore';
+import { calculateContractDurationMonths, calculatePreventiveVisits } from '../../../utils/amcCalculations';
 import {
   CreateQuotationPayload,
   LineItemFormInput,
@@ -12,21 +9,17 @@ import {
   QuotationAmcScopeItem,
   QuotationAmcExclusion,
   QuotationAmcEscalation,
-} from "../types/quotation.types";
-import { customerService } from "../../customers/services/customerService";
-import { customerEquipmentService } from "../../customer-equipment/services/customerEquipmentService";
-import type { CustomerEquipment } from "../../customer-equipment/types/customer-equipment.types";
-import {
-  Customer,
-  CustomerDestination,
-  CustomerStatus,
-} from "../../customers/types/customer.types";
-import { CustomerModal } from "../../customers/components/CustomerModal";
-import { Product } from "../../products/types/product.types";
-import { CatalogueProductSelector } from "./CatalogueProductSelector";
-import { Button } from "../../../components/ui/Button";
-import { toast } from "../../../utils/toast";
-import { getValidatedAmcConversionHandoff } from "../utils/amc-conversion-handoff.util";
+} from '../types/quotation.types';
+import { customerService } from '../../customers/services/customerService';
+import { customerEquipmentService } from '../../customer-equipment/services/customerEquipmentService';
+import type { CustomerEquipment } from '../../customer-equipment/types/customer-equipment.types';
+import { productService } from '../../products/services/productService';
+import { Customer, CustomerDestination, CustomerStatus } from '../../customers/types/customer.types';
+import { CustomerModal } from '../../customers/components/CustomerModal';
+import { Product } from '../../products/types/product.types';
+import { CatalogEquipmentSelector } from './CatalogEquipmentSelector';
+import { Button } from '../../../components/ui/Button';
+import { toast } from '../../../utils/toast';
 import {
   Plus,
   Trash2,
@@ -46,7 +39,7 @@ import {
   MoveUp,
   MoveDown,
   ExternalLink,
-} from "lucide-react";
+} from 'lucide-react';
 
 interface Props {
   initialData?: QuotationDetailedView;
@@ -64,228 +57,179 @@ export const QuotationForm: React.FC<Props> = ({
   // Master lists
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [destinations, setDestinations] = useState<CustomerDestination[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // Selected entities
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(
-    initialData?.customerId || "",
+    initialData?.customerId || ''
   );
   const [selectedDestinationId, setSelectedDestinationId] = useState<string>(
-    initialData?.destinationId || "",
+    initialData?.destinationId || ''
   );
 
   // Customer Equipment Registry State for AMC Quotations
-  const [customerEquipmentList, setCustomerEquipmentList] = useState<
-    CustomerEquipment[]
-  >([]);
+  const [customerEquipmentList, setCustomerEquipmentList] = useState<CustomerEquipment[]>([]);
   const [loadingEquipment, setLoadingEquipment] = useState<boolean>(false);
-  const [activeEquipmentModalItemIndex, setActiveEquipmentModalItemIndex] =
-    useState<number | null>(null);
-  const [modalSelectedEquipmentIds, setModalSelectedEquipmentIds] = useState<
-    string[]
-  >([]);
-  const [equipmentModalSearch, setEquipmentModalSearch] = useState<string>("");
+  const [activeEquipmentModalItemIndex, setActiveEquipmentModalItemIndex] = useState<number | null>(null);
+  const [modalSelectedEquipmentIds, setModalSelectedEquipmentIds] = useState<string[]>([]);
+  const [equipmentModalSearch, setEquipmentModalSearch] = useState<string>('');
 
   const { user } = useAuthStore();
-  const designationLower = (user?.designation || "").toLowerCase();
+  const designationLower = (user?.designation || '').toLowerCase();
   const isSalesOffice =
-    (user?.role === "USER" || (user as any)?.role === "SALES") &&
-    designationLower.includes("sales");
+    (user?.role === 'USER' || (user as any)?.role === 'SALES') &&
+    designationLower.includes('sales');
   const isServiceOffice =
-    (user?.role === "USER" || (user as any)?.role === "SERVICE") &&
-    designationLower.includes("service");
+    (user?.role === 'USER' || (user as any)?.role === 'SERVICE') &&
+    designationLower.includes('service');
 
   // Header State
   const [quotationType, setQuotationType] = useState<QuotationType>(() => {
     if (initialData?.quotationType) return initialData.quotationType;
     try {
-      const urlType = new URLSearchParams(window.location.search).get("type");
-      if (
-        urlType === "SERVICE" ||
-        urlType === "PRODUCT" ||
-        urlType === "TECHNICAL" ||
-        urlType === "AMC"
-      ) {
+      const urlType = new URLSearchParams(window.location.search).get('type');
+      if (urlType === 'SERVICE' || urlType === 'PRODUCT' || urlType === 'TECHNICAL' || urlType === 'AMC') {
         return urlType as QuotationType;
       }
-      if (getValidatedAmcConversionHandoff().data) return "AMC";
-      if (sessionStorage.getItem("pending_repair_link")) return "SERVICE";
+      if (sessionStorage.getItem('pending_repair_link')) return 'SERVICE';
     } catch {}
-    if (isServiceOffice) return "SERVICE";
-    return "PRODUCT";
+    if (isServiceOffice) return 'SERVICE';
+    return 'PRODUCT';
   });
   const [quotationDate, setQuotationDate] = useState<string>(
     initialData?.currentRevision?.quotationDate
-      ? new Date(initialData.currentRevision.quotationDate)
-          .toISOString()
-          .split("T")[0]
-      : new Date().toISOString().split("T")[0],
+      ? new Date(initialData.currentRevision.quotationDate).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0]
   );
   const [validityDays, setValidityDays] = useState<number>(
-    initialData?.currentRevision?.validityDays || 30,
+    initialData?.currentRevision?.validityDays || 30
   );
-
+  
   const [currency] = useState<string>(
-    initialData?.currentRevision?.currency || "INR",
+    initialData?.currentRevision?.currency || 'INR'
   );
   const [subject, setSubject] = useState<string>(() => {
-    if (initialData?.currentRevision?.subject)
-      return initialData.currentRevision.subject;
+    if (initialData?.currentRevision?.subject) return initialData.currentRevision.subject;
     try {
-      const amcHandoff = getValidatedAmcConversionHandoff();
-      if (amcHandoff.data) {
-        const parsed = amcHandoff.data;
-        if (parsed.assetNumber) {
-          return `Annual Maintenance Contract (AMC) Proposal - Asset ${parsed.assetNumber}${parsed.productName ? ` (${parsed.productName})` : ""}`;
-        }
-      }
-      const stored = sessionStorage.getItem("pending_repair_link");
+      const stored = sessionStorage.getItem('pending_repair_link');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.amcContractNumber) {
-          return `Repair Quotation - AMC ${parsed.amcContractNumber}${parsed.defectNotes ? ` (${parsed.defectNotes})` : ""}`;
+          return `Repair Quotation - AMC ${parsed.amcContractNumber}${parsed.defectNotes ? ` (${parsed.defectNotes})` : ''}`;
         }
       }
     } catch {}
-    return "";
+    return '';
   });
 
   // AMC Contract Configuration State
   const [amcPlan, setAmcPlan] = useState<string>(
-    initialData?.currentRevision?.amcPlan || "Ultra Care (UC)",
+    initialData?.currentRevision?.amcPlan || 'Ultra Care (UC)'
   );
-  const [amcStartDate, setAmcStartDate] = useState<string>(() => {
-    if (initialData?.currentRevision?.amcStartDate) {
-      return new Date(initialData.currentRevision.amcStartDate)
-        .toISOString()
-        .split("T")[0];
-    }
-    try {
-      const amcHandoff = getValidatedAmcConversionHandoff();
-      if (amcHandoff.data?.amcStartDate) return amcHandoff.data.amcStartDate;
-    } catch {}
-    return new Date().toISOString().split("T")[0];
-  });
-  const [amcEndDate, setAmcEndDate] = useState<string>(() => {
-    if (initialData?.currentRevision?.amcEndDate) {
-      return new Date(initialData.currentRevision.amcEndDate)
-        .toISOString()
-        .split("T")[0];
-    }
-    try {
-      const amcHandoff = getValidatedAmcConversionHandoff();
-      if (amcHandoff.data?.amcEndDate) return amcHandoff.data.amcEndDate;
-    } catch {}
-    return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0];
-  });
+  const [amcStartDate, setAmcStartDate] = useState<string>(
+    initialData?.currentRevision?.amcStartDate
+      ? new Date(initialData.currentRevision.amcStartDate).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0]
+  );
+  const [amcEndDate, setAmcEndDate] = useState<string>(
+    initialData?.currentRevision?.amcEndDate
+      ? new Date(initialData.currentRevision.amcEndDate).toISOString().split('T')[0]
+      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
   const [amcServiceFrequency, setAmcServiceFrequency] = useState<string>(
-    initialData?.currentRevision?.amcServiceFrequency || "Quarterly",
+    initialData?.currentRevision?.amcServiceFrequency || 'Quarterly'
   );
   const [amcBreakdownVisitType, setAmcBreakdownVisitType] = useState<string>(
-    initialData?.currentRevision?.amcBreakdownVisitType || "UNLIMITED",
+    initialData?.currentRevision?.amcBreakdownVisitType || 'UNLIMITED'
   );
 
   // Customer / Site Snapshots & End User State
   const [customerCode, setCustomerCode] = useState<string>(
-    initialData?.currentRevision?.customerCode || "",
+    initialData?.currentRevision?.customerCode || ''
   );
   const [branch, setBranch] = useState<string>(
-    initialData?.currentRevision?.branch || "",
+    initialData?.currentRevision?.branch || ''
   );
   const [zone, setZone] = useState<string>(
-    initialData?.currentRevision?.zone || "",
+    initialData?.currentRevision?.zone || ''
   );
   const [sameAsCustomer, setSameAsCustomer] = useState<boolean>(() => {
     if (!initialData?.currentRevision?.endUser) return true;
-    const custName =
-      initialData?.customer?.companyName || initialData?.customer?.name;
+    const custName = initialData?.customer?.companyName || initialData?.customer?.name;
     return initialData.currentRevision.endUser === custName;
   });
   const [endUser, setEndUser] = useState<string>(
-    initialData?.currentRevision?.endUser || "",
+    initialData?.currentRevision?.endUser || ''
   );
 
   // AMC Commercial Terms State
   const [specialClauses, setSpecialClauses] = useState<string>(
     initialData?.currentRevision?.specialClauses ||
-      "Effective only after receiving full advance payment along with official Purchase Order. Expiry date shall not be extended on account of delayed payment.",
+      'Effective only after receiving full advance payment along with official Purchase Order. Expiry date shall not be extended on account of delayed payment.'
   );
   const [amcPaymentTerms, setAmcPaymentTerms] = useState<string>(
-    initialData?.currentRevision?.amcPaymentTerms ||
-      "100% Advance along with Purchase Order.",
+    initialData?.currentRevision?.amcPaymentTerms || '100% Advance along with Purchase Order.'
   );
 
   // AMC Scope of Work State
   const [amcScope, setAmcScope] = useState<QuotationAmcScopeItem[]>(() => {
-    if (
-      initialData?.currentRevision?.amcScope &&
-      initialData.currentRevision.amcScope.length > 0
-    ) {
+    if (initialData?.currentRevision?.amcScope && initialData.currentRevision.amcScope.length > 0) {
       return initialData.currentRevision.amcScope.map((s, idx) => ({
         description: s.description,
         sortOrder: s.sortOrder || idx + 1,
       }));
     }
     return [
-      { description: "Servicing of Stabilizer", sortOrder: 1 },
-      { description: "Check Input & Output Voltage Variation", sortOrder: 2 },
-      { description: "Check Input Current & Output Current", sortOrder: 3 },
-      { description: "Auto & Manual Facility Check", sortOrder: 4 },
-      { description: "Check Motor Condition", sortOrder: 5 },
-      { description: "Check Cut Off Switch & Display", sortOrder: 6 },
+      { description: 'Servicing of Stabilizer', sortOrder: 1 },
+      { description: 'Check Input & Output Voltage Variation', sortOrder: 2 },
+      { description: 'Check Input Current & Output Current', sortOrder: 3 },
+      { description: 'Auto & Manual Facility Check', sortOrder: 4 },
+      { description: 'Check Motor Condition', sortOrder: 5 },
+      { description: 'Check Cut Off Switch & Display', sortOrder: 6 },
     ];
   });
 
   // AMC Exclusions State
-  const [amcExclusions, setAmcExclusions] = useState<QuotationAmcExclusion[]>(
-    () => {
-      if (
-        initialData?.currentRevision?.amcExclusions &&
-        initialData.currentRevision.amcExclusions.length > 0
-      ) {
-        return initialData.currentRevision.amcExclusions.map((e, idx) => ({
-          description: e.description,
-          sortOrder: e.sortOrder || idx + 1,
-        }));
-      }
-      return [
-        { description: "Transformer", sortOrder: 1 },
-        { description: "MCCB", sortOrder: 2 },
-        { description: "Capacitor", sortOrder: 3 },
-      ];
-    },
-  );
+  const [amcExclusions, setAmcExclusions] = useState<QuotationAmcExclusion[]>(() => {
+    if (initialData?.currentRevision?.amcExclusions && initialData.currentRevision.amcExclusions.length > 0) {
+      return initialData.currentRevision.amcExclusions.map((e, idx) => ({
+        description: e.description,
+        sortOrder: e.sortOrder || idx + 1,
+      }));
+    }
+    return [
+      { description: 'Transformer', sortOrder: 1 },
+      { description: 'MCCB', sortOrder: 2 },
+      { description: 'Capacitor', sortOrder: 3 },
+    ];
+  });
 
   // AMC Malfunction Escalations State
-  const [amcEscalations, setAmcEscalations] = useState<
-    QuotationAmcEscalation[]
-  >(() => {
+  const [amcEscalations, setAmcEscalations] = useState<QuotationAmcEscalation[]>(() => {
     const existing = initialData?.currentRevision?.amcEscalations || [];
-    const findLvl = (lvl: "LEVEL_1" | "LEVEL_2" | "LEVEL_3") =>
-      existing.find((e) => e.level === lvl);
+    const findLvl = (lvl: 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3') => existing.find((e) => e.level === lvl);
 
     return [
       {
-        level: "LEVEL_1",
-        contactName: findLvl("LEVEL_1")?.contactName || "Support Service Desk",
-        phone: findLvl("LEVEL_1")?.phone || "9876543210",
-        email: findLvl("LEVEL_1")?.email || "service@tanejapower.com",
+        level: 'LEVEL_1',
+        contactName: findLvl('LEVEL_1')?.contactName || 'Support Service Desk',
+        phone: findLvl('LEVEL_1')?.phone || '9876543210',
+        email: findLvl('LEVEL_1')?.email || 'service@tanejapower.com',
         sortOrder: 1,
       },
       {
-        level: "LEVEL_2",
-        contactName: findLvl("LEVEL_2")?.contactName || "",
-        phone: findLvl("LEVEL_2")?.phone || "",
-        email: findLvl("LEVEL_2")?.email || "",
+        level: 'LEVEL_2',
+        contactName: findLvl('LEVEL_2')?.contactName || '',
+        phone: findLvl('LEVEL_2')?.phone || '',
+        email: findLvl('LEVEL_2')?.email || '',
         sortOrder: 2,
       },
       {
-        level: "LEVEL_3",
-        contactName: findLvl("LEVEL_3")?.contactName || "",
-        phone: findLvl("LEVEL_3")?.phone || "",
-        email: findLvl("LEVEL_3")?.email || "",
+        level: 'LEVEL_3',
+        contactName: findLvl('LEVEL_3')?.contactName || '',
+        phone: findLvl('LEVEL_3')?.phone || '',
+        email: findLvl('LEVEL_3')?.email || '',
         sortOrder: 3,
       },
     ];
@@ -293,10 +237,7 @@ export const QuotationForm: React.FC<Props> = ({
 
   // Line Items State
   const [items, setItems] = useState<LineItemFormInput[]>(() => {
-    if (
-      initialData?.currentRevision?.items &&
-      initialData.currentRevision.items.length > 0
-    ) {
+    if (initialData?.currentRevision?.items && initialData.currentRevision.items.length > 0) {
       return initialData.currentRevision.items.map((it) => ({
         productId: it.productId || null,
         itemType: it.itemType,
@@ -307,7 +248,7 @@ export const QuotationForm: React.FC<Props> = ({
         model: it.model || null,
         technicalSpecifications: it.technicalSpecifications || null,
         hsnSac: it.hsnSac || null,
-        unit: it.unit || "NOS",
+        unit: it.unit || 'NOS',
         quantity: parseFloat(it.quantity) || 1,
         unitPrice: parseFloat(it.unitPrice) || 0,
         discountPercent: parseFloat(it.discountPercent) || 0,
@@ -320,93 +261,53 @@ export const QuotationForm: React.FC<Props> = ({
         equipmentConfiguration: it.equipmentConfiguration || null,
         equipmentRating: it.equipmentRating || null,
         sortOrder: it.sortOrder || 0,
-        customerEquipmentIds:
-          (it as any).customerEquipmentIds ||
-          (it as any).customerEquipment?.map((e: any) => e.id) ||
-          [],
+        customerEquipmentIds: (it as any).customerEquipmentIds || ((it as any).customerEquipment?.map((e: any) => e.id)) || [],
       }));
     }
     let pendingRepair: any = null;
-    let pendingAmc: any = null;
     try {
-      const stored = sessionStorage.getItem("pending_repair_link");
+      const stored = sessionStorage.getItem('pending_repair_link');
       if (stored) pendingRepair = JSON.parse(stored);
-      const amcHandoff = getValidatedAmcConversionHandoff();
-      if (amcHandoff.data) pendingAmc = amcHandoff.data;
     } catch {}
 
-    if (pendingAmc) {
+    const isServiceQuote = (new URLSearchParams(window.location.search).get('type') === 'SERVICE') || !!pendingRepair;
+
+    if (isServiceQuote && initialData?.quotationType !== 'AMC') {
       return [
         {
-          itemType: "AMC",
-          productName: pendingAmc.productName || "STABILIZER AMC",
-          description: pendingAmc.assetNumber
-            ? `Annual Maintenance Contract for Asset ${pendingAmc.assetNumber}`
-            : "Annual Maintenance Contract",
-          make: pendingAmc.make || null,
-          model: pendingAmc.model || null,
-          equipmentRating: pendingAmc.capacityRating || null,
-          equipmentType: "STABILIZER",
-          unit: "YEAR",
-          quantity: 1,
-          unitPrice: 0,
-          discountPercent: 0,
-          discountAmount: 0,
-          gstRate: 18,
-          hsnSac: "998719",
-          sortOrder: 0,
-          customerEquipmentIds: pendingAmc.equipmentId ? [pendingAmc.equipmentId] : [],
-        },
-      ];
-    }
-
-    const isServiceQuote =
-      new URLSearchParams(window.location.search).get("type") === "SERVICE" ||
-      !!pendingRepair;
-
-    if (isServiceQuote && initialData?.quotationType !== "AMC") {
-      return [
-        {
-          itemType: "SERVICE",
-          productName: "Repair & Service Charges",
-          description:
-            pendingRepair?.defectNotes ||
-            "Breakdown repair and service charges",
+          itemType: 'SERVICE',
+          productName: 'Repair & Service Charges',
+          description: pendingRepair?.defectNotes || 'Breakdown repair and service charges',
           equipmentType: null,
           equipmentConfiguration: null,
           equipmentRating: null,
-          unit: "JOB",
+          unit: 'JOB',
           quantity: 1,
           unitPrice: 0,
           discountPercent: 0,
           discountAmount: 0,
           gstRate: 18,
-          hsnSac: "998719",
+          hsnSac: '998719',
           sortOrder: 0,
-          customerEquipmentIds: pendingRepair?.equipmentId
-            ? [pendingRepair.equipmentId]
-            : [],
+          customerEquipmentIds: pendingRepair?.equipmentId ? [pendingRepair.equipmentId] : [],
         },
       ];
     }
 
     return [
       {
-        itemType: initialData?.quotationType === "AMC" ? "AMC" : "PRODUCT",
-        productName:
-          initialData?.quotationType === "AMC" ? "STABILIZER AMC" : "",
-        equipmentType:
-          initialData?.quotationType === "AMC" ? "STABILIZER" : null,
-        equipmentConfiguration:
-          initialData?.quotationType === "AMC" ? "50 KVA" : null,
-        equipmentRating: initialData?.quotationType === "AMC" ? "30 KVA" : null,
-        unit: "NOS",
+        itemType: initialData?.quotationType === 'AMC' ? 'AMC' : 'PRODUCT',
+        productName: initialData?.quotationType === 'AMC' ? 'STABILIZER AMC' : '',
+        equipmentType: initialData?.quotationType === 'AMC' ? 'STABILIZER' : null,
+        equipmentConfiguration: initialData?.quotationType === 'AMC' ? '50 KVA' : null,
+        equipmentRating: initialData?.quotationType === 'AMC' ? '30 KVA' : null,
+        unit: 'NOS',
         quantity: 1,
-        unitPrice: initialData?.quotationType === "AMC" ? 9000 : 0,
+        unitPrice: initialData?.quotationType === 'AMC' ? 9000 : 0,
         discountPercent: 0,
         discountAmount: 0,
         gstRate: 18,
-        hsnSac: initialData?.quotationType === "AMC" ? "998719" : null,
+        hsnSac: initialData?.quotationType === 'AMC' ? '998719' : null,
         sortOrder: 0,
         customerEquipmentIds: [],
       },
@@ -417,52 +318,44 @@ export const QuotationForm: React.FC<Props> = ({
   const [freightCharges, setFreightCharges] = useState<number>(
     initialData?.currentRevision?.freightCharges
       ? parseFloat(initialData.currentRevision.freightCharges)
-      : 0,
+      : 0
   );
   const [otherCharges, setOtherCharges] = useState<number>(
     initialData?.currentRevision?.otherCharges
       ? parseFloat(initialData.currentRevision.otherCharges)
-      : 0,
+      : 0
   );
   const [roundOff, setRoundOff] = useState<number>(
     initialData?.currentRevision?.roundOff
       ? parseFloat(initialData.currentRevision.roundOff)
-      : 0,
+      : 0
   );
 
   // Terms & Notes
   const [termsAndConditions, setTermsAndConditions] = useState<string>(
     initialData?.currentRevision?.termsAndConditions ||
-      "1. Prices are valid for 30 days from quotation date.\n2. Taxes extra as applicable under Indian GST laws.\n3. Standard warranty applies.",
+      '1. Prices are valid for 30 days from quotation date.\n2. Taxes extra as applicable under Indian GST laws.\n3. Standard warranty applies.'
   );
   const [paymentTerms, setPaymentTerms] = useState<string>(
-    initialData?.currentRevision?.paymentTerms ||
-      "50% Advance with Purchase Order, 50% on dispatch.",
+    initialData?.currentRevision?.paymentTerms || '50% Advance with Purchase Order, 50% on dispatch.'
   );
   const [deliveryTerms, setDeliveryTerms] = useState<string>(
-    initialData?.currentRevision?.deliveryTerms ||
-      "Ready stock subject to prior sales / 2-3 weeks.",
+    initialData?.currentRevision?.deliveryTerms || 'Ready stock subject to prior sales / 2-3 weeks.'
   );
   const [warrantyTerms, setWarrantyTerms] = useState<string>(
-    initialData?.currentRevision?.warrantyTerms ||
-      "12 Months standard manufacturer warranty.",
+    initialData?.currentRevision?.warrantyTerms || '12 Months standard manufacturer warranty.'
   );
-  const [notes, setNotes] = useState<string>(
-    initialData?.currentRevision?.notes || "",
-  );
+  const [notes, setNotes] = useState<string>(initialData?.currentRevision?.notes || '');
   const [internalRemarks, setInternalRemarks] = useState<string>(
-    initialData?.currentRevision?.internalRemarks || "",
+    initialData?.currentRevision?.internalRemarks || ''
   );
 
   const [formError, setFormError] = useState<string | null>(null);
 
   // Add New Customer Drawer / Modal State
   const [customerModalOpen, setCustomerModalOpen] = useState<boolean>(false);
-  const [customerFormSubmitting, setCustomerFormSubmitting] =
-    useState<boolean>(false);
-  const [customerFormError, setCustomerFormError] = useState<string | null>(
-    null,
-  );
+  const [customerFormSubmitting, setCustomerFormSubmitting] = useState<boolean>(false);
+  const [customerFormError, setCustomerFormError] = useState<string | null>(null);
   const [customerFormData, setCustomerFormData] = useState<{
     name: string;
     companyName: string;
@@ -475,39 +368,37 @@ export const QuotationForm: React.FC<Props> = ({
     notes: string;
     status: CustomerStatus;
   }>({
-    name: "",
-    companyName: "",
-    phone: "",
-    email: "",
-    address: "",
-    city: "",
-    state: "Gujarat",
-    pincode: "",
-    notes: "",
-    status: "ACTIVE",
+    name: '',
+    companyName: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
+    state: 'Gujarat',
+    pincode: '',
+    notes: '',
+    status: 'ACTIVE',
   });
 
   const handleOpenAddCustomer = () => {
     setCustomerFormError(null);
     setCustomerFormData({
-      name: "",
-      companyName: "",
-      phone: "",
-      email: "",
-      address: "",
-      city: "",
-      state: "Gujarat",
-      pincode: "",
-      notes: "",
-      status: "ACTIVE",
+      name: '',
+      companyName: '',
+      phone: '',
+      email: '',
+      address: '',
+      city: '',
+      state: 'Gujarat',
+      pincode: '',
+      notes: '',
+      status: 'ACTIVE',
     });
     setCustomerModalOpen(true);
   };
 
   const handleCustomerInputChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
     setCustomerFormData((prev) => ({ ...prev, [name]: value }));
@@ -518,13 +409,8 @@ export const QuotationForm: React.FC<Props> = ({
     e.preventDefault();
     setCustomerFormError(null);
 
-    if (
-      !customerFormData.name.trim() ||
-      customerFormData.name.trim().length < 2
-    ) {
-      setCustomerFormError(
-        "Primary contact name must be at least 2 characters.",
-      );
+    if (!customerFormData.name.trim() || customerFormData.name.trim().length < 2) {
+      setCustomerFormError('Primary contact name must be at least 2 characters.');
       return;
     }
 
@@ -545,55 +431,43 @@ export const QuotationForm: React.FC<Props> = ({
 
       if (res.success && res.data) {
         const newCust = res.data;
-        setCustomers((prev) => [
-          newCust,
-          ...prev.filter((c) => c.id !== newCust.id),
-        ]);
+        setCustomers((prev) => [newCust, ...prev.filter((c) => c.id !== newCust.id)]);
         setSelectedCustomerId(newCust.id);
-        setSelectedDestinationId("");
+        setSelectedDestinationId('');
         setCustomerModalOpen(false);
-        toast.success(
-          `Customer "${newCust.name}" created and selected successfully!`,
-        );
+        toast.success(`Customer "${newCust.name}" created and selected successfully!`);
       } else {
-        setCustomerFormError("Failed to create customer record.");
+        setCustomerFormError('Failed to create customer record.');
       }
     } catch (err: any) {
-      setCustomerFormError(err?.message || "Failed to create customer record.");
+      setCustomerFormError(err?.message || 'Failed to create customer record.');
     } finally {
       setCustomerFormSubmitting(false);
     }
   };
-
-  // Show actionable notice if user arrived via an invalid or expired conversion URL
-  useEffect(() => {
-    const handoff = getValidatedAmcConversionHandoff();
-    if (handoff.isConversionFlow && handoff.error) {
-      toast.warning("AMC Conversion Notice", handoff.error);
-    }
-  }, []);
 
   // Load initial customers and products
   useEffect(() => {
     const loadPrerequisites = async () => {
       try {
         setLoadingData(true);
-        const custRes = await customerService.getCustomers({ limit: 100 });
+        const [custRes, prodRes] = await Promise.all([
+          customerService.getCustomers({ limit: 100 }),
+          productService.getProducts({ limit: 100 }),
+        ]);
+
         let loadedCustomers = custRes.data || [];
+        if (prodRes.data) setProducts(prodRes.data);
 
         // Auto-select client if URL search parameters provide customer info (e.g. from Leads pipeline)
         const params = new URLSearchParams(window.location.search);
-        let paramCustomerId = params.get("customerId");
-        const paramCustomerName = params.get("customerName");
-        const paramCompanyName = params.get("companyName");
+        let paramCustomerId = params.get('customerId');
+        const paramCustomerName = params.get('customerName');
+        const paramCompanyName = params.get('companyName');
 
         if (!paramCustomerId) {
           try {
-            const amcHandoff = getValidatedAmcConversionHandoff();
-            if (amcHandoff.data?.customerId) {
-              paramCustomerId = amcHandoff.data.customerId;
-            }
-            const stored = sessionStorage.getItem("pending_repair_link");
+            const stored = sessionStorage.getItem('pending_repair_link');
             if (stored) {
               const parsed = JSON.parse(stored);
               if (parsed.customerId) paramCustomerId = parsed.customerId;
@@ -601,7 +475,7 @@ export const QuotationForm: React.FC<Props> = ({
           } catch {}
         }
 
-        let targetId = initialData?.customerId || "";
+        let targetId = initialData?.customerId || '';
 
         if (!targetId && paramCustomerId) {
           const exists = loadedCustomers.find((c) => c.id === paramCustomerId);
@@ -609,31 +483,26 @@ export const QuotationForm: React.FC<Props> = ({
             targetId = exists.id;
           } else {
             try {
-              const fetchRes =
-                await customerService.getCustomerById(paramCustomerId);
+              const fetchRes = await customerService.getCustomerById(paramCustomerId);
               if (fetchRes.data) {
                 loadedCustomers = [fetchRes.data, ...loadedCustomers];
                 targetId = fetchRes.data.id;
               }
             } catch (e) {
-              console.error("Failed to fetch customer by URL parameter id", e);
+              console.error('Failed to fetch customer by URL parameter id', e);
             }
           }
         }
 
         if (!targetId && (paramCustomerName || paramCompanyName)) {
-          const targetName = (paramCustomerName || "").toLowerCase().trim();
-          const targetCompany = (paramCompanyName || "").toLowerCase().trim();
+          const targetName = (paramCustomerName || '').toLowerCase().trim();
+          const targetCompany = (paramCompanyName || '').toLowerCase().trim();
           const match = loadedCustomers.find(
             (c) =>
               (targetName && c.name.toLowerCase().trim() === targetName) ||
-              (targetCompany &&
-                c.companyName &&
-                c.companyName.toLowerCase().trim() === targetCompany) ||
-              (targetName &&
-                c.companyName &&
-                c.companyName.toLowerCase().trim() === targetName) ||
-              (targetCompany && c.name.toLowerCase().trim() === targetCompany),
+              (targetCompany && c.companyName && c.companyName.toLowerCase().trim() === targetCompany) ||
+              (targetName && c.companyName && c.companyName.toLowerCase().trim() === targetName) ||
+              (targetCompany && c.name.toLowerCase().trim() === targetCompany)
           );
           if (match) {
             targetId = match.id;
@@ -645,7 +514,7 @@ export const QuotationForm: React.FC<Props> = ({
           setSelectedCustomerId(targetId);
         }
       } catch (err) {
-        console.error("Failed to load customers/products", err);
+        console.error('Failed to load customers/products', err);
       } finally {
         setLoadingData(false);
       }
@@ -668,7 +537,7 @@ export const QuotationForm: React.FC<Props> = ({
           setDestinations(res.data);
         }
       } catch (err) {
-        console.error("Failed to load destinations", err);
+        console.error('Failed to load destinations', err);
       }
     };
 
@@ -685,13 +554,10 @@ export const QuotationForm: React.FC<Props> = ({
     const loadCustomerEquipment = async () => {
       try {
         setLoadingEquipment(true);
-        const eqList =
-          await customerEquipmentService.getEquipmentByCustomer(
-            selectedCustomerId,
-          );
+        const eqList = await customerEquipmentService.getEquipmentByCustomer(selectedCustomerId);
         setCustomerEquipmentList(eqList || []);
       } catch (err) {
-        console.error("Failed to load customer equipment", err);
+        console.error('Failed to load customer equipment', err);
         setCustomerEquipmentList([]);
       } finally {
         setLoadingEquipment(false);
@@ -701,11 +567,8 @@ export const QuotationForm: React.FC<Props> = ({
     loadCustomerEquipment();
   }, [selectedCustomerId]);
 
-  const selectedCustomer =
-    customers.find((c) => c.id === selectedCustomerId) || initialData?.customer;
-  const selectedDestination =
-    destinations.find((d) => d.id === selectedDestinationId) ||
-    initialData?.destination;
+  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) || initialData?.customer;
+  const selectedDestination = destinations.find((d) => d.id === selectedDestinationId) || initialData?.destination;
 
   // Sync End User if sameAsCustomer toggle is checked
   useEffect(() => {
@@ -717,92 +580,51 @@ export const QuotationForm: React.FC<Props> = ({
   // Calculated AMC Duration (Months) & Scheduled Preventive Visits
   const calculatedAmcDuration = useMemo(
     () => calculateContractDurationMonths(amcStartDate, amcEndDate),
-    [amcStartDate, amcEndDate],
+    [amcStartDate, amcEndDate]
   );
 
   const autoScheduledVisits = useMemo(
-    () =>
-      calculatePreventiveVisits(amcStartDate, amcEndDate, amcServiceFrequency),
-    [amcStartDate, amcEndDate, amcServiceFrequency],
+    () => calculatePreventiveVisits(amcStartDate, amcEndDate, amcServiceFrequency),
+    [amcStartDate, amcEndDate, amcServiceFrequency]
   );
 
   // Determine state for provisional tax calculation
-  const customerState =
-    selectedDestination?.state || selectedCustomer?.state || "Gujarat";
+  const customerState = selectedDestination?.state || selectedCustomer?.state || 'Gujarat';
   const isIntraState =
-    customerState.trim().toLowerCase() === "gujarat" ||
-    customerState.trim().toLowerCase() === "gj" ||
-    customerState.trim().toLowerCase().includes("gujarat");
+    customerState.trim().toLowerCase() === 'gujarat' ||
+    customerState.trim().toLowerCase() === 'gj' ||
+    customerState.trim().toLowerCase().includes('gujarat');
 
   // Handle line item modifications
-  const handleItemChange = (
-    index: number,
-    field: keyof LineItemFormInput,
-    value: any,
-  ) => {
+  const handleItemChange = (index: number, field: keyof LineItemFormInput, value: any) => {
     setItems((prev) => {
       const updated = [...prev];
       const item = { ...updated[index], [field]: value };
 
+      // If product selection changed
+      if (field === 'productId') {
+        const prod = products.find((p) => p.id === value);
+        if (prod) {
+          item.productName = prod.name;
+          item.productSku = prod.sku;
+          if (quotationType !== 'AMC') {
+            item.unitPrice = Number(prod.price) || 0;
+          }
+          item.description = prod.description || '';
+        }
+      }
+
       // If discount percent changed, recalculate discount amount
-      if (field === "discountPercent") {
+      if (field === 'discountPercent') {
         const gross = item.quantity * item.unitPrice;
-        item.discountAmount =
-          Math.round(gross * (Number(value) / 100) * 100) / 100;
+        item.discountAmount = Math.round(gross * (Number(value) / 100) * 100) / 100;
       }
 
       // If discount amount changed, recalculate discount percent
-      if (field === "discountAmount") {
+      if (field === 'discountAmount') {
         const gross = item.quantity * item.unitPrice;
-        item.discountPercent =
-          gross > 0 ? Math.round((Number(value) / gross) * 10000) / 100 : 0;
+        item.discountPercent = gross > 0 ? Math.round((Number(value) / gross) * 10000) / 100 : 0;
       }
-
-      updated[index] = item;
-      return updated;
-    });
-  };
-
-  const handleProductSelect = (index: number, prod: Product | null) => {
-    setItems((prev) => {
-      const updated = [...prev];
-      const item = { ...updated[index] };
-      if (!prod) {
-        item.productId = null;
-        updated[index] = item;
-        return updated;
-      }
-
-      if (prod.status === "INACTIVE") {
-        toast.error(
-          "Inactive Equipment",
-          `"${prod.name}" is marked INACTIVE and cannot be selected for new quotations.`,
-        );
-        return prev;
-      }
-
-      item.productId = prod.id;
-      item.productName = prod.name;
-      item.productSku = prod.sku;
-      if (prod.brand) item.make = prod.brand;
-      if (prod.model) item.model = prod.model;
-      if (prod.hsnSac) item.hsnSac = prod.hsnSac;
-      if (prod.gstRate !== null && prod.gstRate !== undefined)
-        item.gstRate = Number(prod.gstRate);
-      if (prod.unit) item.unit = prod.unit;
-
-      if (quotationType !== "AMC") {
-        if (prod.priceOnRequest) {
-          item.unitPrice = 0;
-          toast.info(
-            "Price on Request",
-            `"${prod.name}" requires negotiated price entry.`,
-          );
-        } else if (!item.unitPrice || item.unitPrice === 0) {
-          item.unitPrice = Number(prod.price) || 0;
-        }
-      }
-      item.description = prod.description || prod.technicalSpecifications || "";
 
       updated[index] = item;
       return updated;
@@ -813,23 +635,18 @@ export const QuotationForm: React.FC<Props> = ({
     setItems((prev) => [
       ...prev,
       {
-        itemType:
-          quotationType === "AMC"
-            ? "AMC"
-            : quotationType === "SERVICE"
-              ? "SERVICE"
-              : "PRODUCT",
-        productName: quotationType === "AMC" ? "STABILIZER AMC" : "",
-        equipmentType: quotationType === "AMC" ? "STABILIZER" : null,
-        equipmentConfiguration: quotationType === "AMC" ? "50 KVA" : null,
-        equipmentRating: quotationType === "AMC" ? "30 KVA" : null,
-        unit: "NOS",
+        itemType: quotationType === 'AMC' ? 'AMC' : quotationType === 'SERVICE' ? 'SERVICE' : 'PRODUCT',
+        productName: quotationType === 'AMC' ? 'STABILIZER AMC' : '',
+        equipmentType: quotationType === 'AMC' ? 'STABILIZER' : null,
+        equipmentConfiguration: quotationType === 'AMC' ? '50 KVA' : null,
+        equipmentRating: quotationType === 'AMC' ? '30 KVA' : null,
+        unit: 'NOS',
         quantity: 1,
         unitPrice: 0,
         discountPercent: 0,
         discountAmount: 0,
         gstRate: 18,
-        hsnSac: quotationType === "AMC" ? "998719" : null,
+        hsnSac: quotationType === 'AMC' ? '998719' : null,
         sortOrder: prev.length,
         customerEquipmentIds: [],
       },
@@ -845,7 +662,7 @@ export const QuotationForm: React.FC<Props> = ({
   const handleAddScopeItem = () => {
     setAmcScope((prev) => [
       ...prev,
-      { description: "", sortOrder: prev.length + 1 },
+      { description: '', sortOrder: prev.length + 1 },
     ]);
   };
 
@@ -858,16 +675,12 @@ export const QuotationForm: React.FC<Props> = ({
   };
 
   const handleRemoveScopeItem = (index: number) => {
-    setAmcScope((prev) =>
-      prev
-        .filter((_, i) => i !== index)
-        .map((s, i) => ({ ...s, sortOrder: i + 1 })),
-    );
+    setAmcScope((prev) => prev.filter((_, i) => i !== index).map((s, i) => ({ ...s, sortOrder: i + 1 })));
   };
 
-  const handleMoveScope = (index: number, direction: "up" | "down") => {
+  const handleMoveScope = (index: number, direction: 'up' | 'down') => {
     setAmcScope((prev) => {
-      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
       if (targetIndex < 0 || targetIndex >= prev.length) return prev;
       const copy = [...prev];
       const temp = copy[index];
@@ -881,7 +694,7 @@ export const QuotationForm: React.FC<Props> = ({
   const handleAddExclusion = () => {
     setAmcExclusions((prev) => [
       ...prev,
-      { description: "", sortOrder: prev.length + 1 },
+      { description: '', sortOrder: prev.length + 1 },
     ]);
   };
 
@@ -894,16 +707,12 @@ export const QuotationForm: React.FC<Props> = ({
   };
 
   const handleRemoveExclusion = (index: number) => {
-    setAmcExclusions((prev) =>
-      prev
-        .filter((_, i) => i !== index)
-        .map((e, i) => ({ ...e, sortOrder: i + 1 })),
-    );
+    setAmcExclusions((prev) => prev.filter((_, i) => i !== index).map((e, i) => ({ ...e, sortOrder: i + 1 })));
   };
 
-  const handleMoveExclusion = (index: number, direction: "up" | "down") => {
+  const handleMoveExclusion = (index: number, direction: 'up' | 'down') => {
     setAmcExclusions((prev) => {
-      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
       if (targetIndex < 0 || targetIndex >= prev.length) return prev;
       const copy = [...prev];
       const temp = copy[index];
@@ -915,14 +724,12 @@ export const QuotationForm: React.FC<Props> = ({
 
   // Escalation contact handlers
   const handleEscalationChange = (
-    level: "LEVEL_1" | "LEVEL_2" | "LEVEL_3",
-    field: "contactName" | "phone" | "email",
-    val: string,
+    level: 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3',
+    field: 'contactName' | 'phone' | 'email',
+    val: string
   ) => {
     setAmcEscalations((prev) =>
-      prev.map((item) =>
-        item.level === level ? { ...item, [field]: val } : item,
-      ),
+      prev.map((item) => (item.level === level ? { ...item, [field]: val } : item))
     );
   };
 
@@ -937,8 +744,7 @@ export const QuotationForm: React.FC<Props> = ({
 
     items.forEach((item) => {
       const gross = item.quantity * item.unitPrice;
-      const discount =
-        item.discountAmount || (gross * (item.discountPercent || 0)) / 100;
+      const discount = item.discountAmount || (gross * (item.discountPercent || 0)) / 100;
       const taxable = Math.max(0, gross - discount);
       const gstRate = item.gstRate || 0;
 
@@ -958,10 +764,8 @@ export const QuotationForm: React.FC<Props> = ({
     });
 
     const totalTax = cgstAmount + sgstAmount + igstAmount;
-    const rawGrandTotal =
-      taxableAmount + totalTax + (freightCharges || 0) + (otherCharges || 0);
-    const grandTotal =
-      Math.round((rawGrandTotal + (roundOff || 0)) * 100) / 100;
+    const rawGrandTotal = taxableAmount + totalTax + (freightCharges || 0) + (otherCharges || 0);
+    const grandTotal = Math.round((rawGrandTotal + (roundOff || 0)) * 100) / 100;
 
     return {
       subtotal,
@@ -981,76 +785,38 @@ export const QuotationForm: React.FC<Props> = ({
     e.preventDefault();
 
     if (!selectedCustomerId) {
-      setFormError("Please select a customer.");
+      setFormError('Please select a customer.');
       return;
     }
 
-    if (
-      items.length === 0 ||
-      items.some((i) => !i.productName.trim() || i.quantity <= 0)
-    ) {
-      setFormError(
-        "Please ensure all line items have a valid name and quantity greater than 0.",
-      );
+    if (items.length === 0 || items.some((i) => !i.productName.trim() || i.quantity <= 0)) {
+      setFormError('Please ensure all line items have a valid name and quantity greater than 0.');
       return;
     }
 
-    if (
-      isSalesOffice &&
-      quotationType !== "PRODUCT" &&
-      quotationType !== "TECHNICAL"
-    ) {
-      setFormError(
-        "Sales Office employees can only create Normal Product Supply and Technical Equipment quotations.",
-      );
+    if (isSalesOffice && quotationType !== 'PRODUCT' && quotationType !== 'TECHNICAL') {
+      setFormError('Sales Office employees can only create Normal Product Supply and Technical Equipment quotations.');
       return;
     }
 
-    if (
-      isServiceOffice &&
-      quotationType !== "SERVICE" &&
-      quotationType !== "AMC"
-    ) {
-      setFormError(
-        "Service Office employees can only create Service/Repair/Testing and AMC quotations.",
-      );
+    if (isServiceOffice && quotationType !== 'SERVICE' && quotationType !== 'AMC') {
+      setFormError('Service Office employees can only create Service/Repair/Testing and AMC quotations.');
       return;
     }
 
-    if (quotationType === "AMC") {
+    if (quotationType === 'AMC') {
       if (new Date(amcEndDate) < new Date(amcStartDate)) {
-        setFormError(
-          "AMC Contract End Date cannot be earlier than Start Date.",
-        );
+        setFormError('AMC Contract End Date cannot be earlier than Start Date.');
         return;
       }
     }
 
     setFormError(null);
 
-    let pendingAmcData: any = null;
-    try {
-      const amcHandoff = getValidatedAmcConversionHandoff();
-      if (amcHandoff.data) pendingAmcData = amcHandoff.data;
-    } catch {}
-
-    const isAmcConversion =
-      quotationType === "AMC" &&
-      !!pendingAmcData &&
-      pendingAmcData.customerId === selectedCustomerId;
-
     const payload: CreateQuotationPayload = {
       quotationType,
       customerId: selectedCustomerId,
       destinationId: selectedDestinationId || null,
-      sourceEquipmentId:
-        (isAmcConversion ? pendingAmcData.equipmentId : null) ||
-        initialData?.sourceEquipmentId ||
-        null,
-      sourceFollowUpId:
-        (isAmcConversion ? pendingAmcData.followUpId : null) ||
-        initialData?.sourceFollowUpId ||
-        null,
       quotationDate,
       validityDays: Number(validityDays),
       currency,
@@ -1071,27 +837,15 @@ export const QuotationForm: React.FC<Props> = ({
         discountPercent: Number(it.discountPercent) || 0,
         discountAmount: Number(it.discountAmount) || 0,
         gstRate: Number(it.gstRate) || 0,
-        equipmentType:
-          quotationType === "AMC"
-            ? it.equipmentType || "STABILIZER"
-            : it.equipmentType || null,
-        equipmentConfiguration:
-          quotationType === "AMC"
-            ? it.equipmentConfiguration || null
-            : it.equipmentConfiguration || null,
-        equipmentRating:
-          quotationType === "AMC"
-            ? it.equipmentRating || null
-            : it.equipmentRating || null,
+        equipmentType: quotationType === 'AMC' ? it.equipmentType || 'STABILIZER' : it.equipmentType || null,
+        equipmentConfiguration: quotationType === 'AMC' ? it.equipmentConfiguration || null : it.equipmentConfiguration || null,
+        equipmentRating: quotationType === 'AMC' ? it.equipmentRating || null : it.equipmentRating || null,
         sortOrder: idx,
-        customerEquipmentIds:
-          it.customerEquipmentIds && it.customerEquipmentIds.length > 0
-            ? it.customerEquipmentIds
-            : undefined,
+        customerEquipmentIds: it.customerEquipmentIds && it.customerEquipmentIds.length > 0 ? it.customerEquipmentIds : undefined,
       })),
     };
 
-    if (quotationType === "AMC") {
+    if (quotationType === 'AMC') {
       payload.amcPlan = amcPlan;
       payload.amcStartDate = amcStartDate;
       payload.amcEndDate = amcEndDate;
@@ -1102,10 +856,7 @@ export const QuotationForm: React.FC<Props> = ({
       payload.branch = branch.trim() || null;
       payload.zone = zone.trim() || null;
       payload.endUser = sameAsCustomer
-        ? selectedCustomer?.companyName ||
-          selectedCustomer?.name ||
-          endUser.trim() ||
-          null
+        ? (selectedCustomer?.companyName || selectedCustomer?.name || endUser.trim() || null)
         : endUser.trim() || null;
       payload.specialClauses = specialClauses.trim() || null;
       payload.amcPaymentTerms = amcPaymentTerms.trim() || null;
@@ -1125,10 +876,7 @@ export const QuotationForm: React.FC<Props> = ({
         }));
 
       payload.amcEscalations = amcEscalations
-        .filter(
-          (esc) =>
-            esc.contactName?.trim() || esc.phone?.trim() || esc.email?.trim(),
-        )
+        .filter((esc) => esc.contactName?.trim() || esc.phone?.trim() || esc.email?.trim())
         .map((esc, idx) => ({
           level: esc.level,
           contactName: esc.contactName?.trim() || null,
@@ -1142,12 +890,9 @@ export const QuotationForm: React.FC<Props> = ({
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col gap-6 max-w-7xl mx-auto pb-16"
-    >
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6 max-w-7xl mx-auto pb-16">
       {/* Pending Approval Warning Alert */}
-      {isEditing && initialData?.status === "PENDING_APPROVAL" && (
+      {isEditing && initialData?.status === 'PENDING_APPROVAL' && (
         <div className="p-4 bg-amber-50 border border-amber-300/80 rounded-2xl flex items-start gap-3 shadow-xs">
           <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
           <div className="flex flex-col gap-0.5">
@@ -1155,10 +900,7 @@ export const QuotationForm: React.FC<Props> = ({
               Editing Pending Quotation (Auto-Withdrawal Notice)
             </h4>
             <p className="text-xs text-amber-700 leading-relaxed">
-              This quotation is currently in <strong>Pending Approval</strong>.
-              Saving changes will automatically withdraw its approval submission
-              and revert the status back to <strong>Draft</strong>. It must be
-              submitted for management approval again before dispatch.
+              This quotation is currently in <strong>Pending Approval</strong>. Saving changes will automatically withdraw its approval submission and revert the status back to <strong>Draft</strong>. It must be submitted for management approval again before dispatch.
             </p>
           </div>
         </div>
@@ -1182,9 +924,7 @@ export const QuotationForm: React.FC<Props> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Quotation Type */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">
-              Quotation Type
-            </label>
+            <label className="text-xs font-bold text-slate-700">Quotation Type</label>
             <select
               value={quotationType}
               onChange={(e) => {
@@ -1193,55 +933,26 @@ export const QuotationForm: React.FC<Props> = ({
                 setItems((prev) =>
                   prev.map((it) => ({
                     ...it,
-                    itemType:
-                      newType === "AMC"
-                        ? "AMC"
-                        : newType === "SERVICE"
-                          ? "SERVICE"
-                          : "PRODUCT",
-                    productName:
-                      newType === "AMC" && !it.productName
-                        ? "STABILIZER AMC"
-                        : it.productName,
-                    equipmentType:
-                      newType === "AMC"
-                        ? it.equipmentType || "STABILIZER"
-                        : it.equipmentType,
-                    equipmentConfiguration:
-                      newType === "AMC"
-                        ? it.equipmentConfiguration || "50 KVA"
-                        : it.equipmentConfiguration,
-                    equipmentRating:
-                      newType === "AMC"
-                        ? it.equipmentRating || "30 KVA"
-                        : it.equipmentRating,
-                  })),
+                    itemType: newType === 'AMC' ? 'AMC' : newType === 'SERVICE' ? 'SERVICE' : 'PRODUCT',
+                    productName: newType === 'AMC' && !it.productName ? 'STABILIZER AMC' : it.productName,
+                    equipmentType: newType === 'AMC' ? it.equipmentType || 'STABILIZER' : it.equipmentType,
+                    equipmentConfiguration: newType === 'AMC' ? it.equipmentConfiguration || '50 KVA' : it.equipmentConfiguration,
+                    equipmentRating: newType === 'AMC' ? it.equipmentRating || '30 KVA' : it.equipmentRating,
+                  }))
                 );
               }}
               className="px-3 py-2 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
             >
-              {!isServiceOffice && (
-                <option value="PRODUCT">Normal Product Supply</option>
-              )}
-              {!isServiceOffice && (
-                <option value="TECHNICAL">
-                  Technical High Voltage Equipment
-                </option>
-              )}
-              {!isSalesOffice && (
-                <option value="SERVICE">Service / Repair / Testing</option>
-              )}
-              {!isSalesOffice && (
-                <option value="AMC">Annual Maintenance Contract (AMC)</option>
-              )}
+              {!isServiceOffice && <option value="PRODUCT">Normal Product Supply</option>}
+              {!isServiceOffice && <option value="TECHNICAL">Technical High Voltage Equipment</option>}
+              {!isSalesOffice && <option value="SERVICE">Service / Repair / Testing</option>}
+              {!isSalesOffice && <option value="AMC">Annual Maintenance Contract (AMC)</option>}
             </select>
           </div>
 
           {/* Quotation Date */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">
-              Quotation Date
-            </label>
+            <label className="text-xs font-bold text-slate-700">Quotation Date</label>
             <input
               type="date"
               value={quotationDate}
@@ -1253,9 +964,7 @@ export const QuotationForm: React.FC<Props> = ({
 
           {/* Validity Days */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">
-              Validity Period (Days)
-            </label>
+            <label className="text-xs font-bold text-slate-700">Validity Period (Days)</label>
             <input
               type="number"
               min={1}
@@ -1299,26 +1008,21 @@ export const QuotationForm: React.FC<Props> = ({
             <select
               value={selectedCustomerId}
               onChange={(e) => {
-                if (e.target.value === "__ADD_NEW__") {
+                if (e.target.value === '__ADD_NEW__') {
                   handleOpenAddCustomer();
                   return;
                 }
                 setSelectedCustomerId(e.target.value);
-                setSelectedDestinationId("");
+                setSelectedDestinationId('');
               }}
               className="px-3 py-2 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white cursor-pointer"
               required
             >
               <option value="">
-                {loadingData
-                  ? "-- Loading Corporate Customers... --"
-                  : "-- Choose Corporate Customer --"}
+                {loadingData ? '-- Loading Corporate Customers... --' : '-- Choose Corporate Customer --'}
               </option>
-              <option
-                value="__ADD_NEW__"
-                className="text-blue-600 font-semibold bg-blue-50/80"
-              >
-                + Add New Customer...
+              <option value="__ADD_NEW__" className="text-blue-600 font-semibold bg-blue-50/80">
+                 + Add New Customer...
               </option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -1330,9 +1034,7 @@ export const QuotationForm: React.FC<Props> = ({
 
           {/* Destination Site Selection */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">
-              Delivery / Destination Site
-            </label>
+            <label className="text-xs font-bold text-slate-700">Delivery / Destination Site</label>
             <select
               value={selectedDestinationId}
               onChange={(e) => setSelectedDestinationId(e.target.value)}
@@ -1341,8 +1043,8 @@ export const QuotationForm: React.FC<Props> = ({
             >
               <option value="">
                 {destinations.length === 0
-                  ? "-- No facility sites registered (Uses client address) --"
-                  : "-- Choose Delivery Facility Site --"}
+                  ? '-- No facility sites registered (Uses client address) --'
+                  : '-- Choose Delivery Facility Site --'}
               </option>
               {destinations.map((d) => (
                 <option key={d.id} value={d.id}>
@@ -1354,7 +1056,7 @@ export const QuotationForm: React.FC<Props> = ({
         </div>
 
         {/* AMC SNAPSHOT EXTENSIONS (Customer Code, Branch, Zone, End User) */}
-        {quotationType === "AMC" && (
+        {quotationType === 'AMC' && (
           <div className="p-4 bg-blue-50/40 border border-blue-200/60 rounded-2xl flex flex-col gap-4 animate-in fade-in">
             <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900 uppercase tracking-wider">
               <UserCheck size={16} className="text-blue-600" />
@@ -1363,9 +1065,7 @@ export const QuotationForm: React.FC<Props> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-bold text-slate-700">
-                  Customer Code / CC
-                </label>
+                <label className="text-[11px] font-bold text-slate-700">Customer Code / CC</label>
                 <input
                   type="text"
                   value={customerCode}
@@ -1376,9 +1076,7 @@ export const QuotationForm: React.FC<Props> = ({
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-bold text-slate-700">
-                  Branch
-                </label>
+                <label className="text-[11px] font-bold text-slate-700">Branch</label>
                 <input
                   type="text"
                   value={branch}
@@ -1389,9 +1087,7 @@ export const QuotationForm: React.FC<Props> = ({
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-bold text-slate-700">
-                  Zone
-                </label>
+                <label className="text-[11px] font-bold text-slate-700">Zone</label>
                 <input
                   type="text"
                   value={zone}
@@ -1403,9 +1099,7 @@ export const QuotationForm: React.FC<Props> = ({
 
               <div className="flex flex-col gap-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-slate-700">
-                    End User
-                  </label>
+                  <label className="text-[11px] font-bold text-slate-700">End User</label>
                   <label className="flex items-center gap-1 text-[10px] text-blue-700 font-semibold cursor-pointer">
                     <input
                       type="checkbox"
@@ -1440,16 +1134,12 @@ export const QuotationForm: React.FC<Props> = ({
                 {selectedCustomer.companyName || selectedCustomer.name}
               </div>
               <div className="text-slate-500">
-                Contact: {selectedCustomer.name} •{" "}
-                {selectedCustomer.email || "No email"} •{" "}
-                {selectedCustomer.phone || "No phone"}
+                Contact: {selectedCustomer.name} • {selectedCustomer.email || 'No email'} •{' '}
+                {selectedCustomer.phone || 'No phone'}
               </div>
               <div className="text-slate-600 mt-0.5">
-                {selectedCustomer.address || "No street address"},{" "}
-                {selectedCustomer.city || ""}, {selectedCustomer.state || ""}{" "}
-                {selectedCustomer.pincode
-                  ? `- ${selectedCustomer.pincode}`
-                  : ""}
+                {selectedCustomer.address || 'No street address'}, {selectedCustomer.city || ''},{' '}
+                {selectedCustomer.state || ''} {selectedCustomer.pincode ? `- ${selectedCustomer.pincode}` : ''}
               </div>
             </div>
 
@@ -1460,15 +1150,11 @@ export const QuotationForm: React.FC<Props> = ({
               <div className="inline-flex items-center gap-1.5 font-semibold text-slate-800">
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    isIntraState ? "bg-emerald-500" : "bg-blue-500"
+                    isIntraState ? 'bg-emerald-500' : 'bg-blue-500'
                   }`}
                 />
                 <span>
-                  State: <strong>{customerState}</strong> (
-                  {isIntraState
-                    ? "Intra-State: CGST + SGST"
-                    : "Inter-State: IGST"}
-                  )
+                  State: <strong>{customerState}</strong> ({isIntraState ? 'Intra-State: CGST + SGST' : 'Inter-State: IGST'})
                 </span>
               </div>
               <span className="text-[11px] text-slate-400">
@@ -1480,9 +1166,7 @@ export const QuotationForm: React.FC<Props> = ({
 
         {/* Quotation Subject */}
         <div className="flex flex-col gap-1.5 pt-1">
-          <label className="text-xs font-bold text-slate-700">
-            Subject / Deal Heading
-          </label>
+          <label className="text-xs font-bold text-slate-700">Subject / Deal Heading</label>
           <input
             type="text"
             value={subject}
@@ -1494,7 +1178,7 @@ export const QuotationForm: React.FC<Props> = ({
       </div>
 
       {/* SECTION 2: AMC CONTRACT CONFIGURATION (Condition: quotationType === 'AMC') */}
-      {quotationType === "AMC" && (
+      {quotationType === 'AMC' && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm flex flex-col gap-5 animate-in fade-in">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
@@ -1506,21 +1190,18 @@ export const QuotationForm: React.FC<Props> = ({
             <span
               className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
                 calculatedAmcDuration > 0
-                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                  : "bg-amber-50 text-amber-700 border-amber-200"
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
               }`}
             >
-              Calculated Period: {calculatedAmcDuration}{" "}
-              {calculatedAmcDuration === 1 ? "Month" : "Months"}
+              Calculated Period: {calculatedAmcDuration} {calculatedAmcDuration === 1 ? 'Month' : 'Months'}
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* AMC Plan */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700">
-                AMC Plan / Tier
-              </label>
+              <label className="text-xs font-bold text-slate-700">AMC Plan / Tier</label>
               <select
                 value={amcPlan}
                 onChange={(e) => setAmcPlan(e.target.value)}
@@ -1531,17 +1212,13 @@ export const QuotationForm: React.FC<Props> = ({
                 <option value="Gold Care">Gold Care</option>
                 <option value="Platinum Care">Platinum Care</option>
                 <option value="Comprehensive AMC">Comprehensive AMC</option>
-                <option value="Non-Comprehensive AMC">
-                  Non-Comprehensive AMC
-                </option>
+                <option value="Non-Comprehensive AMC">Non-Comprehensive AMC</option>
               </select>
             </div>
 
             {/* Contract Start Date */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700">
-                Contract Start Date
-              </label>
+              <label className="text-xs font-bold text-slate-700">Contract Start Date</label>
               <input
                 type="date"
                 value={amcStartDate}
@@ -1553,9 +1230,7 @@ export const QuotationForm: React.FC<Props> = ({
 
             {/* Contract End Date */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700">
-                Contract End Date
-              </label>
+              <label className="text-xs font-bold text-slate-700">Contract End Date</label>
               <input
                 type="date"
                 value={amcEndDate}
@@ -1569,9 +1244,7 @@ export const QuotationForm: React.FC<Props> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Service Frequency */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700">
-                Preventive Maintenance Frequency
-              </label>
+              <label className="text-xs font-bold text-slate-700">Preventive Maintenance Frequency</label>
               <select
                 value={amcServiceFrequency}
                 onChange={(e) => setAmcServiceFrequency(e.target.value)}
@@ -1589,9 +1262,7 @@ export const QuotationForm: React.FC<Props> = ({
             {/* Scheduled Visits (Calculated / Read-Only) */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-700">
-                  Scheduled Preventive Visits
-                </label>
+                <label className="text-xs font-bold text-slate-700">Scheduled Preventive Visits</label>
                 <span className="text-[10px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
                   Calculated
                 </span>
@@ -1607,20 +1278,16 @@ export const QuotationForm: React.FC<Props> = ({
               />
               <p className="text-[10px] text-slate-500 font-medium">
                 {calculatedAmcDuration > 0
-                  ? `${autoScheduledVisits} visits based on ${calculatedAmcDuration} ${calculatedAmcDuration === 1 ? "month" : "months"} @ ${amcServiceFrequency}`
-                  : amcEndDate &&
-                      amcStartDate &&
-                      new Date(amcEndDate) < new Date(amcStartDate)
-                    ? "Invalid date range: End Date cannot be earlier than Start Date"
-                    : "Calculated automatically from contract duration and frequency"}
+                  ? `${autoScheduledVisits} visits based on ${calculatedAmcDuration} ${calculatedAmcDuration === 1 ? 'month' : 'months'} @ ${amcServiceFrequency}`
+                  : amcEndDate && amcStartDate && new Date(amcEndDate) < new Date(amcStartDate)
+                  ? 'Invalid date range: End Date cannot be earlier than Start Date'
+                  : 'Calculated automatically from contract duration and frequency'}
               </p>
             </div>
 
             {/* Breakdown Visit Entitlement */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700">
-                Breakdown Visit Entitlement
-              </label>
+              <label className="text-xs font-bold text-slate-700">Breakdown Visit Entitlement</label>
               <select
                 value={amcBreakdownVisitType}
                 onChange={(e) => setAmcBreakdownVisitType(e.target.value)}
@@ -1642,10 +1309,7 @@ export const QuotationForm: React.FC<Props> = ({
           <div className="flex items-center gap-2">
             <Package size={18} className="text-blue-600" />
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              {quotationType === "AMC"
-                ? "3. Covered Equipment & Line Items"
-                : "2. Deliverables & Line Items"}{" "}
-              ({items.length})
+              {quotationType === 'AMC' ? '3. Covered Equipment & Line Items' : '2. Deliverables & Line Items'} ({items.length})
             </h2>
           </div>
           <button
@@ -1661,9 +1325,7 @@ export const QuotationForm: React.FC<Props> = ({
         <div className="flex flex-col gap-4">
           {items.map((item, index) => {
             const gross = item.quantity * item.unitPrice;
-            const discount =
-              item.discountAmount ||
-              (gross * (item.discountPercent || 0)) / 100;
+            const discount = item.discountAmount || (gross * (item.discountPercent || 0)) / 100;
             const taxable = Math.max(0, gross - discount);
             const gst = (taxable * (item.gstRate || 0)) / 100;
             const total = taxable + gst;
@@ -1694,59 +1356,35 @@ export const QuotationForm: React.FC<Props> = ({
                 </div>
 
                 {/* AMC Specific Equipment Specification Inputs */}
-                {quotationType === "AMC" && (
+                {quotationType === 'AMC' && (
                   <div className="flex flex-col gap-3">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-blue-50/50 border border-blue-200/60 rounded-xl">
                       <div className="flex flex-col gap-1">
-                        <label className="text-[11px] font-bold text-blue-900">
-                          Equipment Type
-                        </label>
+                        <label className="text-[11px] font-bold text-blue-900">Equipment Type</label>
                         <input
                           type="text"
-                          value={item.equipmentType || ""}
-                          onChange={(e) =>
-                            handleItemChange(
-                              index,
-                              "equipmentType",
-                              e.target.value,
-                            )
-                          }
+                          value={item.equipmentType || ''}
+                          onChange={(e) => handleItemChange(index, 'equipmentType', e.target.value)}
                           placeholder="e.g. STABILIZER / TRANSFORMER"
                           className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
                         />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <label className="text-[11px] font-bold text-blue-900">
-                          Equipment Configuration
-                        </label>
+                        <label className="text-[11px] font-bold text-blue-900">Equipment Configuration</label>
                         <input
                           type="text"
-                          value={item.equipmentConfiguration || ""}
-                          onChange={(e) =>
-                            handleItemChange(
-                              index,
-                              "equipmentConfiguration",
-                              e.target.value,
-                            )
-                          }
+                          value={item.equipmentConfiguration || ''}
+                          onChange={(e) => handleItemChange(index, 'equipmentConfiguration', e.target.value)}
                           placeholder="e.g. 50 KVA"
                           className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
                         />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <label className="text-[11px] font-bold text-blue-900">
-                          Equipment Rating
-                        </label>
+                        <label className="text-[11px] font-bold text-blue-900">Equipment Rating</label>
                         <input
                           type="text"
-                          value={item.equipmentRating || ""}
-                          onChange={(e) =>
-                            handleItemChange(
-                              index,
-                              "equipmentRating",
-                              e.target.value,
-                            )
-                          }
+                          value={item.equipmentRating || ''}
+                          onChange={(e) => handleItemChange(index, 'equipmentRating', e.target.value)}
                           placeholder="e.g. 30 KVA"
                           className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
                         />
@@ -1761,23 +1399,19 @@ export const QuotationForm: React.FC<Props> = ({
                           <span className="text-xs font-bold text-indigo-950">
                             Covered Physical Assets (Installed Equipment)
                           </span>
-                          {item.customerEquipmentIds &&
-                            item.customerEquipmentIds.length > 0 && (
-                              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-700">
-                                {item.customerEquipmentIds.length} Assets
-                                Attached
-                              </span>
-                            )}
+                          {item.customerEquipmentIds && item.customerEquipmentIds.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-700">
+                              {item.customerEquipmentIds.length} Assets Attached
+                            </span>
+                          )}
                         </div>
 
                         <button
                           type="button"
                           onClick={() => {
                             setActiveEquipmentModalItemIndex(index);
-                            setModalSelectedEquipmentIds(
-                              item.customerEquipmentIds || [],
-                            );
-                            setEquipmentModalSearch("");
+                            setModalSelectedEquipmentIds(item.customerEquipmentIds || []);
+                            setEquipmentModalSearch('');
                           }}
                           className="px-3 py-1 text-xs font-semibold text-indigo-700 bg-white hover:bg-indigo-100 border border-indigo-300 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
                         >
@@ -1786,13 +1420,10 @@ export const QuotationForm: React.FC<Props> = ({
                         </button>
                       </div>
 
-                      {item.customerEquipmentIds &&
-                      item.customerEquipmentIds.length > 0 ? (
+                      {item.customerEquipmentIds && item.customerEquipmentIds.length > 0 ? (
                         <div className="flex flex-wrap gap-2 pt-1">
                           {item.customerEquipmentIds.map((eqId) => {
-                            const eq = customerEquipmentList.find(
-                              (e) => e.id === eqId,
-                            );
+                            const eq = customerEquipmentList.find((e) => e.id === eqId);
                             return (
                               <div
                                 key={eqId}
@@ -1811,32 +1442,20 @@ export const QuotationForm: React.FC<Props> = ({
                                     SN: {eq.serialNumber}
                                   </span>
                                 )}
-                                <span
-                                  className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
-                                    eq?.conditionStatus === "OPERATIONAL"
-                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                      : "bg-amber-50 text-amber-700 border border-amber-200"
-                                  }`}
-                                >
-                                  {eq?.conditionStatus || "OPERATIONAL"}
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
+                                  eq?.conditionStatus === 'OPERATIONAL'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}>
+                                  {eq?.conditionStatus || 'OPERATIONAL'}
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    const next = (
-                                      item.customerEquipmentIds || []
-                                    ).filter((id) => id !== eqId);
-                                    handleItemChange(
-                                      index,
-                                      "customerEquipmentIds",
-                                      next,
-                                    );
+                                    const next = (item.customerEquipmentIds || []).filter((id) => id !== eqId);
+                                    handleItemChange(index, 'customerEquipmentIds', next);
                                     if (next.length > 0) {
-                                      handleItemChange(
-                                        index,
-                                        "quantity",
-                                        next.length,
-                                      );
+                                      handleItemChange(index, 'quantity', next.length);
                                     }
                                   }}
                                   className="text-slate-400 hover:text-rose-600 transition-colors ml-1"
@@ -1850,9 +1469,7 @@ export const QuotationForm: React.FC<Props> = ({
                         </div>
                       ) : (
                         <p className="text-[11px] text-slate-500 italic">
-                          No physical equipment attached to this line. Click
-                          "Attach Customer Assets" to select from customer's
-                          delivered equipment.
+                          No physical equipment attached to this line. Click "Attach Customer Assets" to select from customer's delivered equipment.
                         </p>
                       )}
                     </div>
@@ -1860,30 +1477,21 @@ export const QuotationForm: React.FC<Props> = ({
                 )}
 
                 {/* Product Autocomplete Picker & Item Name */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-slate-600">
-                      Select Catalog Equipment
-                    </label>
-                    <CatalogueProductSelector
-                      selectedProductId={item.productId || null}
-                      onSelectProduct={(selectedProd) =>
-                        handleProductSelect(index, selectedProd)
-                      }
-                    />
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
+                  <CatalogEquipmentSelector
+                    products={products}
+                    selectedProductId={item.productId}
+                    onSelect={(prodId) => handleItemChange(index, 'productId', prodId)}
+                  />
 
                   <div className="md:col-span-2 flex flex-col gap-1">
                     <label className="text-[11px] font-bold text-slate-600">
-                      Item Name / Heading{" "}
-                      <span className="text-rose-500">*</span>
+                      Item Name / Heading <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={item.productName}
-                      onChange={(e) =>
-                        handleItemChange(index, "productName", e.target.value)
-                      }
+                      onChange={(e) => handleItemChange(index, 'productName', e.target.value)}
                       placeholder="Equipment or service title"
                       className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl font-medium"
                       required
@@ -1894,43 +1502,31 @@ export const QuotationForm: React.FC<Props> = ({
                 {/* Description & Technical details */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="md:col-span-2 flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-slate-600">
-                      Description / Specifications
-                    </label>
+                    <label className="text-[11px] font-bold text-slate-600">Description / Specifications</label>
                     <input
                       type="text"
-                      value={item.description || ""}
-                      onChange={(e) =>
-                        handleItemChange(index, "description", e.target.value)
-                      }
+                      value={item.description || ''}
+                      onChange={(e) => handleItemChange(index, 'description', e.target.value)}
                       placeholder="Standard scope or description..."
                       className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-slate-600">
-                      Make / Brand
-                    </label>
+                    <label className="text-[11px] font-bold text-slate-600">Make / Brand</label>
                     <input
                       type="text"
-                      value={item.make || ""}
-                      onChange={(e) =>
-                        handleItemChange(index, "make", e.target.value)
-                      }
+                      value={item.make || ''}
+                      onChange={(e) => handleItemChange(index, 'make', e.target.value)}
                       placeholder="e.g., Taneja / ABB"
                       className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-slate-600">
-                      HSN / SAC Code
-                    </label>
+                    <label className="text-[11px] font-bold text-slate-600">HSN / SAC Code</label>
                     <input
                       type="text"
-                      value={item.hsnSac || ""}
-                      onChange={(e) =>
-                        handleItemChange(index, "hsnSac", e.target.value)
-                      }
+                      value={item.hsnSac || ''}
+                      onChange={(e) => handleItemChange(index, 'hsnSac', e.target.value)}
                       placeholder="e.g., 998719"
                       className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
                     />
@@ -1940,35 +1536,23 @@ export const QuotationForm: React.FC<Props> = ({
                 {/* Quantity, Unit, Price, Discount, GST Rate, Line Total */}
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-3 pt-2 border-t border-slate-200">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-700">
-                      Qty
-                    </label>
+                    <label className="text-xs font-medium text-slate-700">Qty</label>
                     <input
                       type="number"
                       step="any"
                       min={0.001}
                       value={item.quantity}
-                      onChange={(e) =>
-                        handleItemChange(
-                          index,
-                          "quantity",
-                          Number(e.target.value),
-                        )
-                      }
+                      onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
                       className="h-9 px-3 text-[13px] font-medium text-slate-900 bg-white border border-slate-200 rounded-lg text-right tabular-nums focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                       required
                     />
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-700">
-                      Unit
-                    </label>
+                    <label className="text-xs font-medium text-slate-700">Unit</label>
                     <select
                       value={item.unit}
-                      onChange={(e) =>
-                        handleItemChange(index, "unit", e.target.value)
-                      }
+                      onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
                       className="h-9 px-2.5 text-[13px] font-medium text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
                     >
                       <option value="NOS">NOS</option>
@@ -1983,61 +1567,37 @@ export const QuotationForm: React.FC<Props> = ({
 
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-slate-700 truncate">
-                      {quotationType === "AMC"
-                        ? "AMC Price / Unit (₹)"
-                        : "Unit Price (₹)"}
+                      {quotationType === 'AMC' ? 'AMC Price / Unit (₹)' : 'Unit Price (₹)'}
                     </label>
                     <input
                       type="number"
                       step="any"
                       min={0}
                       value={item.unitPrice}
-                      onChange={(e) =>
-                        handleItemChange(
-                          index,
-                          "unitPrice",
-                          Number(e.target.value),
-                        )
-                      }
+                      onChange={(e) => handleItemChange(index, 'unitPrice', Number(e.target.value))}
                       className="h-9 px-3 text-[13px] font-medium text-slate-900 bg-white border border-slate-200 rounded-lg text-right tabular-nums focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                       required
                     />
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-700">
-                      Discount (%)
-                    </label>
+                    <label className="text-xs font-medium text-slate-700">Discount (%)</label>
                     <input
                       type="number"
                       min={0}
                       max={100}
                       step="any"
                       value={item.discountPercent || 0}
-                      onChange={(e) =>
-                        handleItemChange(
-                          index,
-                          "discountPercent",
-                          Number(e.target.value),
-                        )
-                      }
+                      onChange={(e) => handleItemChange(index, 'discountPercent', Number(e.target.value))}
                       className="h-9 px-3 text-[13px] font-medium text-slate-900 bg-white border border-slate-200 rounded-lg text-right tabular-nums focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-700">
-                      GST Rate (%)
-                    </label>
+                    <label className="text-xs font-medium text-slate-700">GST Rate (%)</label>
                     <select
                       value={item.gstRate}
-                      onChange={(e) =>
-                        handleItemChange(
-                          index,
-                          "gstRate",
-                          Number(e.target.value),
-                        )
-                      }
+                      onChange={(e) => handleItemChange(index, 'gstRate', Number(e.target.value))}
                       className="h-9 px-2.5 text-[13px] font-medium text-slate-900 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer text-right"
                     >
                       <option value={0}>0% (Exempt)</option>
@@ -2049,14 +1609,9 @@ export const QuotationForm: React.FC<Props> = ({
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-500 text-right">
-                      Line Total
-                    </label>
+                    <label className="text-xs font-medium text-slate-500 text-right">Line Total</label>
                     <div className="h-9 px-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-end text-xs font-semibold text-slate-900 tabular-nums">
-                      ₹
-                      {total.toLocaleString("en-IN", {
-                        minimumFractionDigits: 2,
-                      })}
+                      ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
                 </div>
@@ -2067,7 +1622,7 @@ export const QuotationForm: React.FC<Props> = ({
       </div>
 
       {/* SECTION 4 & 5: AMC SCOPE OF WORK & AMC EXCLUSIONS */}
-      {quotationType === "AMC" && (
+      {quotationType === 'AMC' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in">
           {/* SCOPE OF WORK */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm flex flex-col gap-4">
@@ -2102,7 +1657,7 @@ export const QuotationForm: React.FC<Props> = ({
                   />
                   <button
                     type="button"
-                    onClick={() => handleMoveScope(idx, "up")}
+                    onClick={() => handleMoveScope(idx, 'up')}
                     disabled={idx === 0}
                     className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
                   >
@@ -2110,7 +1665,7 @@ export const QuotationForm: React.FC<Props> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleMoveScope(idx, "down")}
+                    onClick={() => handleMoveScope(idx, 'down')}
                     disabled={idx === amcScope.length - 1}
                     className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
                   >
@@ -2161,7 +1716,7 @@ export const QuotationForm: React.FC<Props> = ({
                   />
                   <button
                     type="button"
-                    onClick={() => handleMoveExclusion(idx, "up")}
+                    onClick={() => handleMoveExclusion(idx, 'up')}
                     disabled={idx === 0}
                     className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
                   >
@@ -2169,7 +1724,7 @@ export const QuotationForm: React.FC<Props> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleMoveExclusion(idx, "down")}
+                    onClick={() => handleMoveExclusion(idx, 'down')}
                     disabled={idx === amcExclusions.length - 1}
                     className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
                   >
@@ -2196,17 +1751,13 @@ export const QuotationForm: React.FC<Props> = ({
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
             <DollarSign size={18} className="text-blue-600" />
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              {quotationType === "AMC"
-                ? "6. Freight & Adjustments"
-                : "3. Freight & Adjustments"}
+              {quotationType === 'AMC' ? '6. Freight & Adjustments' : '3. Freight & Adjustments'}
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-700">
-                Freight (₹)
-              </label>
+              <label className="text-xs font-bold text-slate-700">Freight (₹)</label>
               <input
                 type="number"
                 min={0}
@@ -2217,9 +1768,7 @@ export const QuotationForm: React.FC<Props> = ({
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-700">
-                Other Charges (₹)
-              </label>
+              <label className="text-xs font-bold text-slate-700">Other Charges (₹)</label>
               <input
                 type="number"
                 min={0}
@@ -2230,9 +1779,7 @@ export const QuotationForm: React.FC<Props> = ({
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-700">
-                Round Off (₹)
-              </label>
+              <label className="text-xs font-bold text-slate-700">Round Off (₹)</label>
               <input
                 type="number"
                 step="any"
@@ -2259,73 +1806,42 @@ export const QuotationForm: React.FC<Props> = ({
             <div className="flex justify-between">
               <span>Gross Subtotal:</span>
               <span className="font-semibold text-white">
-                ₹
-                {provisional.subtotal.toLocaleString("en-IN", {
-                  minimumFractionDigits: 2,
-                })}
+                ₹{provisional.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             </div>
             {provisional.totalDiscount > 0 && (
               <div className="flex justify-between text-rose-400">
                 <span>Total Discount:</span>
-                <span>
-                  -₹
-                  {provisional.totalDiscount.toLocaleString("en-IN", {
-                    minimumFractionDigits: 2,
-                  })}
-                </span>
+                <span>-₹{provisional.totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-slate-200">
               <span>Taxable Amount:</span>
-              <span>
-                ₹
-                {provisional.taxableAmount.toLocaleString("en-IN", {
-                  minimumFractionDigits: 2,
-                })}
-              </span>
+              <span>₹{provisional.taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             </div>
 
             {isIntraState ? (
               <>
                 <div className="flex justify-between text-slate-400 text-[11px]">
                   <span>CGST:</span>
-                  <span>
-                    ₹
-                    {provisional.cgstAmount.toLocaleString("en-IN", {
-                      minimumFractionDigits: 2,
-                    })}
-                  </span>
+                  <span>₹{provisional.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between text-slate-400 text-[11px]">
                   <span>SGST:</span>
-                  <span>
-                    ₹
-                    {provisional.sgstAmount.toLocaleString("en-IN", {
-                      minimumFractionDigits: 2,
-                    })}
-                  </span>
+                  <span>₹{provisional.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
               </>
             ) : (
               <div className="flex justify-between text-slate-400 text-[11px]">
                 <span>IGST (Inter-State):</span>
-                <span>
-                  ₹
-                  {provisional.igstAmount.toLocaleString("en-IN", {
-                    minimumFractionDigits: 2,
-                  })}
-                </span>
+                <span>₹{provisional.igstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
 
             <div className="flex justify-between">
               <span>Total Tax:</span>
               <span className="font-semibold text-white">
-                ₹
-                {provisional.totalTax.toLocaleString("en-IN", {
-                  minimumFractionDigits: 2,
-                })}
+                ₹{provisional.totalTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             </div>
 
@@ -2333,19 +1849,14 @@ export const QuotationForm: React.FC<Props> = ({
 
             <div className="flex justify-between text-base font-bold text-emerald-400">
               <span>Estimated Grand Total:</span>
-              <span>
-                ₹
-                {provisional.grandTotal.toLocaleString("en-IN", {
-                  minimumFractionDigits: 2,
-                })}
-              </span>
+              <span>₹{provisional.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* SECTION 7 & 8: AMC COMMERCIAL TERMS & MALFUNCTION ESCALATIONS (Condition: quotationType === 'AMC') */}
-      {quotationType === "AMC" && (
+      {quotationType === 'AMC' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in">
           {/* AMC COMMERCIAL TERMS */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm flex flex-col gap-4">
@@ -2358,9 +1869,7 @@ export const QuotationForm: React.FC<Props> = ({
 
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-slate-700">
-                  AMC Payment Terms
-                </label>
+                <label className="text-xs font-bold text-slate-700">AMC Payment Terms</label>
                 <textarea
                   rows={2}
                   value={amcPaymentTerms}
@@ -2371,9 +1880,7 @@ export const QuotationForm: React.FC<Props> = ({
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-slate-700">
-                  Special AMC Clauses
-                </label>
+                <label className="text-xs font-bold text-slate-700">Special AMC Clauses</label>
                 <textarea
                   rows={3}
                   value={specialClauses}
@@ -2396,50 +1903,29 @@ export const QuotationForm: React.FC<Props> = ({
 
             <div className="flex flex-col gap-3">
               {amcEscalations.map((esc) => (
-                <div
-                  key={esc.level}
-                  className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-2"
-                >
+                <div key={esc.level} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-2">
                   <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider">
-                    {esc.level.replace("_", " ")} Contact
+                    {esc.level.replace('_', ' ')} Contact
                   </span>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <input
                       type="text"
-                      value={esc.contactName || ""}
-                      onChange={(e) =>
-                        handleEscalationChange(
-                          esc.level,
-                          "contactName",
-                          e.target.value,
-                        )
-                      }
+                      value={esc.contactName || ''}
+                      onChange={(e) => handleEscalationChange(esc.level, 'contactName', e.target.value)}
                       placeholder="Contact Person / Role"
                       className="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg"
                     />
                     <input
                       type="text"
-                      value={esc.phone || ""}
-                      onChange={(e) =>
-                        handleEscalationChange(
-                          esc.level,
-                          "phone",
-                          e.target.value,
-                        )
-                      }
+                      value={esc.phone || ''}
+                      onChange={(e) => handleEscalationChange(esc.level, 'phone', e.target.value)}
                       placeholder="Phone / Mobile"
                       className="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg"
                     />
                     <input
                       type="email"
-                      value={esc.email || ""}
-                      onChange={(e) =>
-                        handleEscalationChange(
-                          esc.level,
-                          "email",
-                          e.target.value,
-                        )
-                      }
+                      value={esc.email || ''}
+                      onChange={(e) => handleEscalationChange(esc.level, 'email', e.target.value)}
                       placeholder="Email Address"
                       className="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg"
                     />
@@ -2456,17 +1942,13 @@ export const QuotationForm: React.FC<Props> = ({
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
           <FileText size={18} className="text-blue-600" />
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-            {quotationType === "AMC"
-              ? "9. General Terms, Delivery & Notes"
-              : "4. Terms, Delivery & Notes"}
+            {quotationType === 'AMC' ? '9. General Terms, Delivery & Notes' : '4. Terms, Delivery & Notes'}
           </h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">
-              Payment Terms
-            </label>
+            <label className="text-xs font-bold text-slate-700">Payment Terms</label>
             <textarea
               rows={2}
               value={paymentTerms}
@@ -2476,9 +1958,7 @@ export const QuotationForm: React.FC<Props> = ({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">
-              Delivery Terms
-            </label>
+            <label className="text-xs font-bold text-slate-700">Delivery Terms</label>
             <textarea
               rows={2}
               value={deliveryTerms}
@@ -2488,9 +1968,7 @@ export const QuotationForm: React.FC<Props> = ({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">
-              Warranty Terms
-            </label>
+            <label className="text-xs font-bold text-slate-700">Warranty Terms</label>
             <textarea
               rows={2}
               value={warrantyTerms}
@@ -2502,9 +1980,7 @@ export const QuotationForm: React.FC<Props> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">
-              Terms & Conditions
-            </label>
+            <label className="text-xs font-bold text-slate-700">Terms & Conditions</label>
             <textarea
               rows={3}
               value={termsAndConditions}
@@ -2514,9 +1990,7 @@ export const QuotationForm: React.FC<Props> = ({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">
-              Public Quotation Notes
-            </label>
+            <label className="text-xs font-bold text-slate-700">Public Quotation Notes</label>
             <textarea
               rows={3}
               value={notes}
@@ -2527,9 +2001,7 @@ export const QuotationForm: React.FC<Props> = ({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">
-              Internal Audit Remarks
-            </label>
+            <label className="text-xs font-bold text-slate-700">Internal Audit Remarks</label>
             <textarea
               rows={3}
               value={internalRemarks}
@@ -2550,13 +2022,13 @@ export const QuotationForm: React.FC<Props> = ({
           isLoading={isSubmitting}
           leftIcon={<Save size={16} />}
         >
-          {isEditing ? "Save Quotation Changes" : "Save as Draft Quotation"}
+          {isEditing ? 'Save Quotation Changes' : 'Save as Draft Quotation'}
         </Button>
       </div>
 
       {/* Embedded Customer Creation Drawer */}
       <CustomerModal
-        modalMode={customerModalOpen ? "create" : null}
+        modalMode={customerModalOpen ? 'create' : null}
         onClose={() => setCustomerModalOpen(false)}
         onSubmit={handleCustomerSubmit}
         formData={customerFormData}
@@ -2572,10 +2044,7 @@ export const QuotationForm: React.FC<Props> = ({
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2 text-slate-900 font-bold">
                 <Cpu size={18} className="text-indigo-600" />
-                <h3>
-                  Select Customer Equipment (Item #
-                  {activeEquipmentModalItemIndex + 1})
-                </h3>
+                <h3>Select Customer Equipment (Item #{activeEquipmentModalItemIndex + 1})</h3>
               </div>
               <button
                 type="button"
@@ -2587,22 +2056,8 @@ export const QuotationForm: React.FC<Props> = ({
             </div>
 
             <div className="flex items-center justify-between text-xs text-slate-500">
-              <span>
-                Customer:{" "}
-                <strong>
-                  {selectedCustomer?.companyName ||
-                    selectedCustomer?.name ||
-                    "Selected Customer"}
-                </strong>
-              </span>
-              <span>
-                Available Assets:{" "}
-                <strong>
-                  {loadingEquipment
-                    ? "Loading..."
-                    : customerEquipmentList.length}
-                </strong>
-              </span>
+              <span>Customer: <strong>{selectedCustomer?.companyName || selectedCustomer?.name || 'Selected Customer'}</strong></span>
+              <span>Available Assets: <strong>{loadingEquipment ? 'Loading...' : customerEquipmentList.length}</strong></span>
             </div>
 
             <input
@@ -2627,8 +2082,7 @@ export const QuotationForm: React.FC<Props> = ({
                     return (
                       eq.assetNumber.toLowerCase().includes(q) ||
                       eq.productName.toLowerCase().includes(q) ||
-                      (eq.serialNumber &&
-                        eq.serialNumber.toLowerCase().includes(q)) ||
+                      (eq.serialNumber && eq.serialNumber.toLowerCase().includes(q)) ||
                       (eq.model && eq.model.toLowerCase().includes(q))
                     );
                   })
@@ -2639,18 +2093,13 @@ export const QuotationForm: React.FC<Props> = ({
                         key={eq.id}
                         onClick={() => {
                           if (isChecked) {
-                            setModalSelectedEquipmentIds((prev) =>
-                              prev.filter((id) => id !== eq.id),
-                            );
+                            setModalSelectedEquipmentIds((prev) => prev.filter((id) => id !== eq.id));
                           } else {
-                            setModalSelectedEquipmentIds((prev) => [
-                              ...prev,
-                              eq.id,
-                            ]);
+                            setModalSelectedEquipmentIds((prev) => [...prev, eq.id]);
                           }
                         }}
                         className={`p-3 flex items-center justify-between gap-3 text-xs cursor-pointer hover:bg-slate-50 transition-colors ${
-                          isChecked ? "bg-indigo-50/60" : ""
+                          isChecked ? 'bg-indigo-50/60' : ''
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -2671,37 +2120,22 @@ export const QuotationForm: React.FC<Props> = ({
                             </div>
                             <div className="text-slate-700 font-medium mt-0.5">
                               {eq.productName}
-                              {eq.model && (
-                                <span className="text-slate-500 font-normal">
-                                  {" "}
-                                  • {eq.model}
-                                </span>
-                              )}
-                              {eq.capacityRating && (
-                                <span className="text-slate-500 font-normal">
-                                  {" "}
-                                  • {eq.capacityRating}
-                                </span>
-                              )}
+                              {eq.model && <span className="text-slate-500 font-normal"> • {eq.model}</span>}
+                              {eq.capacityRating && <span className="text-slate-500 font-normal"> • {eq.capacityRating}</span>}
                             </div>
                           </div>
                         </div>
 
                         <div className="text-right">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              eq.conditionStatus === "OPERATIONAL"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : "bg-amber-50 text-amber-700 border border-amber-200"
-                            }`}
-                          >
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            eq.conditionStatus === 'OPERATIONAL'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
                             {eq.conditionStatus}
                           </span>
                           <div className="text-[10px] text-slate-400 mt-1">
-                            Delivered:{" "}
-                            {eq.deliveryDate
-                              ? new Date(eq.deliveryDate).toLocaleDateString()
-                              : "—"}
+                            Delivered: {eq.deliveryDate ? new Date(eq.deliveryDate).toLocaleDateString() : '—'}
                           </div>
                         </div>
                       </div>
@@ -2730,44 +2164,17 @@ export const QuotationForm: React.FC<Props> = ({
                   onClick={() => {
                     const idx = activeEquipmentModalItemIndex;
                     if (idx !== null) {
-                      handleItemChange(
-                        idx,
-                        "customerEquipmentIds",
-                        modalSelectedEquipmentIds,
-                      );
+                      handleItemChange(idx, 'customerEquipmentIds', modalSelectedEquipmentIds);
                       if (modalSelectedEquipmentIds.length > 0) {
-                        handleItemChange(
-                          idx,
-                          "quantity",
-                          modalSelectedEquipmentIds.length,
-                        );
+                        handleItemChange(idx, 'quantity', modalSelectedEquipmentIds.length);
                         // Pre-populate technical details from first asset if available
-                        const firstAsset = customerEquipmentList.find(
-                          (e) => e.id === modalSelectedEquipmentIds[0],
-                        );
+                        const firstAsset = customerEquipmentList.find((e) => e.id === modalSelectedEquipmentIds[0]);
                         if (firstAsset) {
-                          if (firstAsset.productName)
-                            handleItemChange(
-                              idx,
-                              "productName",
-                              firstAsset.productName,
-                            );
-                          if (firstAsset.make)
-                            handleItemChange(idx, "make", firstAsset.make);
-                          if (firstAsset.model)
-                            handleItemChange(idx, "model", firstAsset.model);
-                          if (firstAsset.capacityRating)
-                            handleItemChange(
-                              idx,
-                              "equipmentRating",
-                              firstAsset.capacityRating,
-                            );
-                          if (firstAsset.productId)
-                            handleItemChange(
-                              idx,
-                              "productId",
-                              firstAsset.productId,
-                            );
+                          if (firstAsset.productName) handleItemChange(idx, 'productName', firstAsset.productName);
+                          if (firstAsset.make) handleItemChange(idx, 'make', firstAsset.make);
+                          if (firstAsset.model) handleItemChange(idx, 'model', firstAsset.model);
+                          if (firstAsset.capacityRating) handleItemChange(idx, 'equipmentRating', firstAsset.capacityRating);
+                          if (firstAsset.productId) handleItemChange(idx, 'productId', firstAsset.productId);
                         }
                       }
                     }
@@ -2784,3 +2191,4 @@ export const QuotationForm: React.FC<Props> = ({
     </form>
   );
 };
+

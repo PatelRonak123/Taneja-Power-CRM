@@ -13,6 +13,20 @@ export interface SendQuotationEmailOptions {
   filename: string;
   customMessage?: string;
 }
+
+export interface SendProformaInvoiceEmailOptions {
+  to: string;
+  subject?: string;
+  proformaInvoiceNumber: string;
+  customerName: string;
+  salesOrderNumber?: string;
+  totalAmount: string;
+  advanceRequested?: string;
+  pdfBuffer?: Buffer;
+  filename?: string;
+  customMessage?: string;
+  paymentInstructions?: string;
+}
 export interface SendOtpEmailResult {
   delivered: boolean;
   error?: string;
@@ -134,6 +148,141 @@ export class EmailService {
           },
         ],
       });
+
+      if (response.error) {
+        throw AppError.badRequest(`Resend email delivery error: ${response.error.message}`);
+      }
+
+      return { id: response.data?.id || 'resend-email-sent' };
+    } catch (err: any) {
+      if (err instanceof AppError) throw err;
+      throw AppError.badRequest(`Failed to send email via Resend: ${err.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Send Pro Forma Invoice PDF attachment and payment reference to customer via Resend
+   */
+  async sendProformaInvoiceEmail(options: SendProformaInvoiceEmailOptions): Promise<{ id: string }> {
+    const resend = this.getClient();
+
+    const fromAddress = env.RESEND_FROM_EMAIL || 'Taneja Power Systems <onboarding@resend.dev>';
+    const subject =
+      options.subject ||
+      `Pro Forma Invoice ${options.proformaInvoiceNumber} - Taneja Power Systems`;
+
+    const htmlBody = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; background-color: #f8fafc; margin: 0; padding: 24px; }
+            .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+            .header { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); color: #ffffff; padding: 28px 32px; text-align: left; }
+            .header h1 { margin: 0 0 6px 0; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+            .header p { margin: 0; color: #93c5fd; font-size: 13px; font-weight: 500; }
+            .content { padding: 32px; }
+            .greeting { font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 16px; }
+            .disclaimer-box { background-color: #eff6ff; border-left: 4px solid #2563eb; padding: 14px 18px; margin: 20px 0; border-radius: 0 8px 8px 0; font-size: 13px; color: #1e40af; line-height: 1.5; }
+            .message-box { background-color: #f1f5f9; border-left: 4px solid #64748b; padding: 14px 18px; margin: 20px 0; border-radius: 0 8px 8px 0; font-size: 14px; color: #334155; line-height: 1.6; }
+            .details-card { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px 20px; margin: 24px 0; }
+            .details-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px border-dashed #e5e7eb; font-size: 13px; }
+            .details-row:last-child { border-bottom: none; }
+            .label { color: #64748b; font-weight: 500; }
+            .value { color: #0f172a; font-weight: 700; text-align: right; }
+            .highlight { color: #1d4ed8; font-size: 16px; }
+            .bank-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px 20px; margin: 20px 0; font-size: 12px; color: #334155; }
+            .bank-title { font-weight: 700; color: #0f172a; margin-bottom: 6px; }
+            .footer { background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 32px; text-align: center; font-size: 12px; color: #64748b; }
+            .footer p { margin: 4px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>TANEJA POWER SYSTEMS</h1>
+              <p>Commercial & Industrial Energy Solutions</p>
+            </div>
+            <div class="content">
+              <div class="greeting">Dear ${options.customerName},</div>
+              <p style="font-size: 14px; color: #334155; line-height: 1.6;">
+                Please find attached Pro Forma Invoice <strong>${options.proformaInvoiceNumber}</strong>${options.salesOrderNumber ? ` against Sales Order <strong>${options.salesOrderNumber}</strong>` : ''} for your commercial reference and payment scheduling.
+              </p>
+
+              <div class="disclaimer-box">
+                <strong>Preliminary Commercial Notice:</strong><br>
+                This Pro Forma Invoice is issued for preliminary commercial and payment-reference purposes. It is not a substitute for the applicable Tax Invoice.
+              </div>
+
+              ${
+                options.customMessage
+                  ? `<div class="message-box"><strong>Message from Accounts:</strong><br>${options.customMessage.replace(/\n/g, '<br>')}</div>`
+                  : ''
+              }
+
+              <div class="details-card">
+                <div class="details-row">
+                  <span class="label">Pro Forma Invoice:</span>
+                  <span class="value">${options.proformaInvoiceNumber}</span>
+                </div>
+                ${options.salesOrderNumber ? `
+                <div class="details-row">
+                  <span class="label">Sales Order Ref:</span>
+                  <span class="value">${options.salesOrderNumber}</span>
+                </div>` : ''}
+                <div class="details-row">
+                  <span class="label">Total Commercial Value:</span>
+                  <span class="value highlight">₹${options.totalAmount}</span>
+                </div>
+                ${options.advanceRequested ? `
+                <div class="details-row">
+                  <span class="label">Advance Requested:</span>
+                  <span class="value" style="color: #b45309;">₹${options.advanceRequested}</span>
+                </div>` : ''}
+              </div>
+
+              <div class="bank-box">
+                <div class="bank-title">Bank Details for NEFT / RTGS / IMPS:</div>
+                <div><strong>Bank Name:</strong> HDFC Bank Ltd</div>
+                <div><strong>Branch:</strong> Alkapuri, Vadodara</div>
+                <div><strong>Account Name:</strong> Taneja Power Systems</div>
+                <div><strong>Account Number:</strong> 50200012345678</div>
+                <div><strong>IFSC Code:</strong> HDFC0000123</div>
+              </div>
+
+              <p style="font-size: 13px; color: #64748b; margin-top: 24px; line-height: 1.5;">
+                Kindly share your payment receipt / UTR number with billing@tanejapower.com upon remittance.
+              </p>
+            </div>
+            <div class="footer">
+              <p><strong>Taneja Power Systems Inc.</strong></p>
+              <p>29, 4th Floor, Earth Alfa, Vasna - Bhayli Main Rd, Vadodara, Gujarat 390020</p>
+              <p>GSTIN: 24AABCT1234F1Z5 • billing@tanejapower.com</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    try {
+      const emailPayload: any = {
+        from: fromAddress,
+        to: [options.to],
+        subject,
+        html: htmlBody,
+      };
+
+      if (options.pdfBuffer && options.filename) {
+        emailPayload.attachments = [
+          {
+            filename: options.filename,
+            content: options.pdfBuffer,
+          },
+        ];
+      }
+
+      const response = await resend.emails.send(emailPayload);
 
       if (response.error) {
         throw AppError.badRequest(`Resend email delivery error: ${response.error.message}`);

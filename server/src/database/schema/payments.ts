@@ -34,6 +34,12 @@ export const payments = pgTable(
     salesInvoiceId: uuid('sales_invoice_id')
       .references(() => salesInvoices.id, { onDelete: 'set null' }),
 
+    // Linked Pro Forma Invoice (optional – if advance payment is against a proforma invoice)
+    proformaInvoiceId: uuid('proforma_invoice_id'),
+
+    // Linked Sales Order (optional – if advance payment is against a sales order)
+    salesOrderId: uuid('sales_order_id'),
+
     // Linked AMC Contract (optional – if payment is against an AMC contract)
     amcContractId: uuid('amc_contract_id')
       .references(() => amcContracts.id, { onDelete: 'set null' }),
@@ -65,6 +71,8 @@ export const payments = pgTable(
     uniqueIndex('payments_payment_number_idx').on(table.paymentNumber),
     index('payments_customer_id_idx').on(table.customerId),
     index('payments_sales_invoice_id_idx').on(table.salesInvoiceId),
+    index('payments_proforma_invoice_id_idx').on(table.proformaInvoiceId),
+    index('payments_sales_order_id_idx').on(table.salesOrderId),
     index('payments_amc_contract_id_idx').on(table.amcContractId),
     index('payments_payment_date_idx').on(table.paymentDate),
     index('payments_recorded_by_idx').on(table.recordedBy),

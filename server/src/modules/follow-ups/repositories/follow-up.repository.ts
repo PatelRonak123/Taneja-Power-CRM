@@ -5,7 +5,6 @@ import { customers } from '../../../database/schema/customers.js';
 import { leads } from '../../../database/schema/leads.js';
 import { quotations } from '../../../database/schema/quotations.js';
 import { amcContracts } from '../../../database/schema/amc-contracts.js';
-import { customerEquipment } from '../../../database/schema/customer-equipment.js';
 import { eq, and, or, desc, sql, ilike, gte, lte, lt, gt } from 'drizzle-orm';
 import { aliasedTable } from 'drizzle-orm';
 
@@ -29,7 +28,6 @@ export interface FollowUpFilterOptions {
   dealId?: string;
   quotationId?: string;
   amcContractId?: string;
-  customerEquipmentId?: string;
   startDate?: string;
   endDate?: string;
   // Scoping options for RBAC
@@ -91,17 +89,6 @@ export interface FollowUpWithRelations extends FollowUpEntity {
     contractNumber: string;
     status: string;
     amcPlan: string;
-  } | null;
-  equipment?: {
-    id: string;
-    assetNumber: string;
-    productName: string;
-    model: string | null;
-    make: string | null;
-    capacityRating: string | null;
-    serialNumber: string | null;
-    warrantyEndDate: string | Date | null;
-    warrantyStatus: string | null;
   } | null;
 }
 
@@ -199,17 +186,6 @@ export class FollowUpRepository {
           status: amcContracts.status,
           amcPlan: amcContracts.amcPlan,
         },
-        equipment: {
-          id: customerEquipment.id,
-          assetNumber: customerEquipment.assetNumber,
-          productName: customerEquipment.productName,
-          model: customerEquipment.model,
-          make: customerEquipment.make,
-          capacityRating: customerEquipment.capacityRating,
-          serialNumber: customerEquipment.serialNumber,
-          warrantyEndDate: customerEquipment.warrantyEndDate,
-          warrantyStatus: customerEquipment.warrantyStatus,
-        },
       })
       .from(followUps)
       .leftJoin(assignedUser, eq(followUps.assignedTo, assignedUser.id))
@@ -220,7 +196,6 @@ export class FollowUpRepository {
       .leftJoin(dealRecord, eq(followUps.dealId, dealRecord.id))
       .leftJoin(quotations, eq(followUps.quotationId, quotations.id))
       .leftJoin(amcContracts, eq(followUps.amcContractId, amcContracts.id))
-      .leftJoin(customerEquipment, eq(followUps.customerEquipmentId, customerEquipment.id))
       .where(eq(followUps.id, id))
       .limit(1);
 
@@ -237,7 +212,6 @@ export class FollowUpRepository {
       deal: row.deal?.id ? row.deal : null,
       quotation: row.quotation?.id ? row.quotation : null,
       amcContract: row.amcContract?.id ? row.amcContract : null,
-      equipment: row.equipment?.id ? row.equipment : null,
     };
   }
 
@@ -268,9 +242,6 @@ export class FollowUpRepository {
     }
     if (options.amcContractId) {
       conditions.push(eq(followUps.amcContractId, options.amcContractId));
-    }
-    if (options.customerEquipmentId) {
-      conditions.push(eq(followUps.customerEquipmentId, options.customerEquipmentId));
     }
     if (options.type && options.type !== 'ALL') {
       conditions.push(eq(followUps.type, options.type));
@@ -377,7 +348,6 @@ export class FollowUpRepository {
       .leftJoin(leads, eq(followUps.leadId, leads.id))
       .leftJoin(quotations, eq(followUps.quotationId, quotations.id))
       .leftJoin(amcContracts, eq(followUps.amcContractId, amcContracts.id))
-      .leftJoin(customerEquipment, eq(followUps.customerEquipmentId, customerEquipment.id))
       .where(whereClause);
 
     const total = countResult?.count ?? 0;
@@ -438,17 +408,6 @@ export class FollowUpRepository {
           status: amcContracts.status,
           amcPlan: amcContracts.amcPlan,
         },
-        equipment: {
-          id: customerEquipment.id,
-          assetNumber: customerEquipment.assetNumber,
-          productName: customerEquipment.productName,
-          model: customerEquipment.model,
-          make: customerEquipment.make,
-          capacityRating: customerEquipment.capacityRating,
-          serialNumber: customerEquipment.serialNumber,
-          warrantyEndDate: customerEquipment.warrantyEndDate,
-          warrantyStatus: customerEquipment.warrantyStatus,
-        },
       })
       .from(followUps)
       .leftJoin(assignedUser, eq(followUps.assignedTo, assignedUser.id))
@@ -459,7 +418,6 @@ export class FollowUpRepository {
       .leftJoin(dealRecord, eq(followUps.dealId, dealRecord.id))
       .leftJoin(quotations, eq(followUps.quotationId, quotations.id))
       .leftJoin(amcContracts, eq(followUps.amcContractId, amcContracts.id))
-      .leftJoin(customerEquipment, eq(followUps.customerEquipmentId, customerEquipment.id))
       .where(whereClause)
       .orderBy(
         sql`CASE WHEN ${followUps.status} = 'PENDING' AND ${followUps.scheduledDate} < ${todayDateStr} THEN 0
@@ -483,7 +441,6 @@ export class FollowUpRepository {
       deal: row.deal?.id ? row.deal : null,
       quotation: row.quotation?.id ? row.quotation : null,
       amcContract: row.amcContract?.id ? row.amcContract : null,
-      equipment: row.equipment?.id ? row.equipment : null,
     }));
 
     return {

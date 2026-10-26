@@ -1,33 +1,20 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { quotationService } from '../services/quotationService';
 import { QuotationForm } from '../components/QuotationForm';
 import { navigate } from '../../../app/router/navigation';
 import { CreateQuotationPayload } from '../types/quotation.types';
 import { toast } from '../../../utils/toast';
-import {
-  AMC_CONVERSION_STORAGE_KEY,
-  pruneOrphanedAmcConversion,
-} from '../utils/amc-conversion-handoff.util';
 
 import { amcContractApi } from '../../amc-contracts/api/amcContractApi';
 
 export const CreateQuotationPage: React.FC = () => {
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    // If arriving without conversionId, clean up any abandoned AMC conversion session data
-    pruneOrphanedAmcConversion();
-  }, []);
-
   const createMutation = useMutation({
     mutationFn: (data: CreateQuotationPayload) => quotationService.createQuotation(data),
     onSuccess: async (response) => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
-      queryClient.invalidateQueries({ queryKey: ['follow-ups'] });
-
-      // Clean up pending AMC conversion session data
-      sessionStorage.removeItem(AMC_CONVERSION_STORAGE_KEY);
 
       // Automatically link to AMC service request if created from a defect follow-up
       try {

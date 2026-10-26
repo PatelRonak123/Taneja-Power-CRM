@@ -50,4 +50,33 @@ export class LeadService {
   async addActivity(id: string, activity: { title: string; type?: string }, user?: JwtPayload) {
     return this.repository.addActivityLog(id, activity, user);
   }
+
+  async listDestinations(leadId: string, user?: JwtPayload) {
+    await this.getLeadById(leadId, user);
+    return this.repository.findDestinationsByLeadId(leadId);
+  }
+
+  async createDestination(leadId: string, data: any, user?: JwtPayload) {
+    await this.getLeadById(leadId, user);
+    return this.repository.createDestination(leadId, data);
+  }
+
+  async updateDestination(leadId: string, destinationId: string, data: any, user?: JwtPayload) {
+    await this.getLeadById(leadId, user);
+    const updated = await this.repository.updateDestination(leadId, destinationId, data);
+    if (!updated) {
+      throw new Error('Destination not found or update failed');
+    }
+    return updated;
+  }
+
+  async deleteDestination(leadId: string, destinationId: string, user?: JwtPayload) {
+    await this.getLeadById(leadId, user);
+    return this.repository.deleteDestination(leadId, destinationId);
+  }
+
+  async convertToCustomer(id: string, user?: JwtPayload) {
+    return this.repository.convertToCustomer(id, user);
+  }
 }
+

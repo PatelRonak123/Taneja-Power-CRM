@@ -155,6 +155,8 @@ export const invoiceService = {
   recordPayment: async (payload: {
     customerId: string;
     salesInvoiceId?: string;
+    proformaInvoiceId?: string;
+    salesOrderId?: string;
     amcContractId?: string;
     amount: number;
     paymentDate?: string;
@@ -169,6 +171,8 @@ export const invoiceService = {
   listPayments: async (query: {
     customerId?: string;
     salesInvoiceId?: string;
+    proformaInvoiceId?: string;
+    salesOrderId?: string;
     amcContractId?: string;
     search?: string;
     page?: number;
@@ -177,6 +181,8 @@ export const invoiceService = {
     const params = new URLSearchParams();
     if (query.customerId) params.set('customerId', query.customerId);
     if (query.salesInvoiceId) params.set('salesInvoiceId', query.salesInvoiceId);
+    if (query.proformaInvoiceId) params.set('proformaInvoiceId', query.proformaInvoiceId);
+    if (query.salesOrderId) params.set('salesOrderId', query.salesOrderId);
     if (query.amcContractId) params.set('amcContractId', query.amcContractId);
     if (query.search) params.set('search', query.search);
     if (query.page) params.set('page', String(query.page));
@@ -190,26 +196,12 @@ export const invoiceService = {
   getReceivablesSummary: async (): Promise<any> => {
     const res: any = await apiClient.get('/payments/receivables-summary');
     const data = res.data ?? {};
-    const summary = data.summary ?? {};
-    const totalCollected = Number(summary.totalReceived ?? summary.totalPaid ?? 0);
-    const totalInvoiced = Number(summary.totalInvoiced ?? 0);
-    const totalOutstanding = Number(summary.totalOutstanding ?? Math.max(0, totalInvoiced - totalCollected));
-    const customerReceivables = (data.customerReceivables ?? []).map((c: any) => {
-      const outstanding = Number(c.outstandingBalance ?? c.totalOutstanding ?? Math.max(0, Number(c.totalInvoiced || 0) - Number(c.totalPaid || 0)));
-      return {
-        ...c,
-        totalOutstanding: outstanding,
-        outstandingBalance: outstanding,
-      };
-    });
+    const customerReceivables = (data.customerReceivables ?? []).map((c: any) => ({
+      ...c,
+      totalOutstanding: c.outstandingBalance ?? c.totalOutstanding ?? Math.max(0, Number(c.totalInvoiced) - Number(c.totalPaid)),
+    }));
     return {
-      summary: {
-        totalInvoiced,
-        totalReceived: totalCollected,
-        totalPaid: totalCollected,
-        totalOutstanding,
-        customersCount: Number(summary.customersCount ?? customerReceivables.length),
-      },
+      summary: data.summary ?? { totalInvoiced: 0, totalReceived: 0, totalOutstanding: 0, customersCount: 0 },
       customerReceivables,
       customers: customerReceivables,
     };
