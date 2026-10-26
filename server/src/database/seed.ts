@@ -60,6 +60,18 @@ export const seedDatabase = async (): Promise<void> => {
       status: 'ACTIVE',
     }).onConflictDoNothing();
 
+    // 2. Automatically Seed Product Catalogue from Master Excel if available
+    try {
+      const { excelCatalogueImporterService } = await import('../modules/products/services/excel-catalogue-importer.service.js');
+      logger.info('📦 Seeding product catalogue from master Excel workbook...');
+      const excelResult = await excelCatalogueImporterService.importFromFile(undefined, {
+        mode: 'skip_existing',
+      });
+      logger.info(`📦 Product catalogue seeded: ${excelResult.insertedCount} inserted, ${excelResult.skippedCount} skipped.`);
+    } catch (excelErr: any) {
+      logger.warn(`Master Excel workbook could not be seeded during general seed: ${excelErr.message}`);
+    }
+
     logger.info(' Database seeding completed successfully.');
   } catch (error) {
     logger.error('Database seeding failed', { error: (error as Error).message });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Cpu, Package, Activity, TrendingUp } from 'lucide-react';
+import { Zap, Cpu, Package, Activity, TrendingUp, FileSpreadsheet } from 'lucide-react';
 import { formatCurrency } from '../../utils/productFormatters';
 import { Button } from '@/components/ui/Button';
 
@@ -9,6 +9,7 @@ interface ProductHeaderProps {
   totalValuation?: number;
   activeCount?: number;
   onAddProduct: () => void;
+  onImportExcel?: () => void;
   canCreate?: boolean;
 }
 
@@ -18,6 +19,7 @@ export const ProductHeader: React.FC<ProductHeaderProps> = ({
   totalValuation = 0,
   activeCount = 0,
   onAddProduct,
+  onImportExcel,
   canCreate = true,
 }) => {
   const operationalRate = totalCount > 0 ? Math.round((activeCount / totalCount) * 100) : 100;
@@ -41,7 +43,17 @@ export const ProductHeader: React.FC<ProductHeaderProps> = ({
         </div>
 
         {canCreate && (
-          <div className="shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
+            {onImportExcel && (
+              <Button
+                variant="secondary"
+                size="md"
+                leftIcon={<FileSpreadsheet size={16} className="text-emerald-600" />}
+                onClick={onImportExcel}
+              >
+                Import Excel
+              </Button>
+            )}
             <Button
               variant="primary"
               size="md"

@@ -10,7 +10,8 @@
     "start": "node dist/server.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/database/migrate.ts",
-    "db:seed": "tsx src/database/seed.ts"
+    "db:seed": "tsx src/database/seed.ts",
+    "db:seed:excel": "tsx src/modules/products/scripts/seedFromExcel.ts"
   },
   "dependencies": {
     "@ronak_patel/whatsapp-kit": "^0.1.0",
@@ -24,6 +25,7 @@
     "pdfkit": "^0.20.2",
     "pg": "^8.13.3",
     "resend": "^6.28.1",
+    "xlsx": "^0.18.5",
     "zod": "^3.24.2"
   },
   "devDependencies": {

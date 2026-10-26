@@ -7,15 +7,34 @@ import {
   updateProductSchema,
   getProductByIdSchema,
   listProductsSchema,
+  importExcelProductSchema,
+  seedExcelProductSchema,
 } from '../validators/product.validator.js';
 import { APP_CONSTANTS } from '../../../config/constants.js';
 
 const router = Router();
 const controller = new ProductController();
 
-// Public routes
-router.get('/', validateRequest(listProductsSchema), controller.list);
-router.get('/:id', validateRequest(getProductByIdSchema), controller.getById);
+// Catalogue Excel automated seeding and import routes (Admin & Manager)
+router.post(
+  '/import-excel',
+  authenticate,
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  validateRequest(importExcelProductSchema),
+  controller.importExcel
+);
+
+router.post(
+  '/seed-excel',
+  authenticate,
+  requireRoles(APP_CONSTANTS.ROLES.ADMIN, APP_CONSTANTS.ROLES.MANAGER),
+  validateRequest(seedExcelProductSchema),
+  controller.seedExcel
+);
+
+// Public read routes with optional authenticated role elevation
+router.get('/', optionalAuthenticate, validateRequest(listProductsSchema), controller.list);
+router.get('/:id', optionalAuthenticate, validateRequest(getProductByIdSchema), controller.getById);
 
 // Protected routes (Admin, Manager & Accountant Office)
 router.post(
