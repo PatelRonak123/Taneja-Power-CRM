@@ -17,6 +17,7 @@ import { productService } from '../../products/services/productService';
 import { Customer, CustomerDestination, CustomerStatus } from '../../customers/types/customer.types';
 import { CustomerModal } from '../../customers/components/CustomerModal';
 import { Product } from '../../products/types/product.types';
+import { CatalogEquipmentSelector } from './CatalogEquipmentSelector';
 import { Button } from '../../../components/ui/Button';
 import { toast } from '../../../utils/toast';
 import {
@@ -1476,22 +1477,12 @@ export const QuotationForm: React.FC<Props> = ({
                 )}
 
                 {/* Product Autocomplete Picker & Item Name */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-bold text-slate-600">Select Catalog Equipment</label>
-                    <select
-                      value={item.productId || ''}
-                      onChange={(e) => handleItemChange(index, 'productId', e.target.value || null)}
-                      className="px-3 py-1.5 text-xs text-slate-800 bg-white border border-slate-200 rounded-xl"
-                    >
-                      <option value="">-- Custom / Manual Entry --</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.sku}) - ₹{Number(p.price).toLocaleString('en-IN')}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
+                  <CatalogEquipmentSelector
+                    products={products}
+                    selectedProductId={item.productId}
+                    onSelect={(prodId) => handleItemChange(index, 'productId', prodId)}
+                  />
 
                   <div className="md:col-span-2 flex flex-col gap-1">
                     <label className="text-[11px] font-bold text-slate-600">

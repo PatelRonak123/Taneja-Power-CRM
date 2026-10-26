@@ -8,6 +8,9 @@ import {
   createLeadSchema,
   updateLeadSchema,
   deleteLeadSchema,
+  createLeadDestinationSchema,
+  updateLeadDestinationSchema,
+  leadDestinationParamSchema,
 } from '../validators/lead.validator.js';
 
 const router = Router();
@@ -24,4 +27,11 @@ router.put('/:id', requirePermission('leads:edit_own'), validateRequest(updateLe
 router.delete('/:id', requirePermission('leads:delete'), validateRequest(deleteLeadSchema), controller.delete);
 router.post('/:id/activity', requirePermission('leads:edit_own'), controller.addActivity);
 
+// Lead destination routes
+router.get('/:leadId/destinations', validateRequest(leadDestinationParamSchema), controller.listDestinations);
+router.post('/:leadId/destinations', requirePermission('leads:create'), validateRequest(createLeadDestinationSchema), controller.createDestination);
+router.put('/:leadId/destinations/:destinationId', requirePermission('leads:edit_own'), validateRequest(updateLeadDestinationSchema), controller.updateDestination);
+router.delete('/:leadId/destinations/:destinationId', requirePermission('leads:edit_own'), validateRequest(leadDestinationParamSchema), controller.deleteDestination);
+
 export default router;
+

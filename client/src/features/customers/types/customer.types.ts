@@ -59,6 +59,8 @@ export interface CreateCustomerPayload {
   pincode?: string;
   notes?: string;
   status?: CustomerStatus;
+  createdById?: string;
+  createdBy?: string;
 }
 
 export interface UpdateCustomerPayload {

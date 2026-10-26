@@ -274,6 +274,13 @@ export const PipelinePage: React.FC = () => {
     setIsDrawerOpen(true);
   };
 
+  const handleLeadUpdated = (updated: Lead) => {
+    const updatedList = allLeads.map((l) => (l.id === updated.id ? updated : l));
+    setAllLeads(updatedList);
+    setColumns(buildPipelineColumns(updatedList));
+    setSelectedLead(updated);
+  };
+
   const handleSaveLead = (updated: Lead) => {
     const updatedList = allLeads.map((l) => (l.id === updated.id ? updated : l));
     setAllLeads(updatedList);
@@ -532,6 +539,7 @@ export const PipelinePage: React.FC = () => {
         lead={selectedLead}
         onClose={() => setIsDrawerOpen(false)}
         onSave={handleSaveLead}
+        onLeadUpdated={handleLeadUpdated}
         onSwitchToEdit={() => setDrawerMode('edit')}
       />
     </div>

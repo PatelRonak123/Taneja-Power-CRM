@@ -1,7 +1,7 @@
 import { eq, ilike, or, and, desc, sql } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
-import { leads, leadActivityLogs, NewLeadEntity } from '../../../database/schema/leads.js';
-import { customers } from '../../../database/schema/customers.js';
+import { leads, leadActivityLogs, leadDestinations, NewLeadEntity } from '../../../database/schema/leads.js';
+import { customers, customerDestinations } from '../../../database/schema/customers.js';
 import { users } from '../../../database/schema/users.js';
 import { JwtPayload } from '../../../common/auth/jwt.js';
 import { AppError } from '../../../common/errors/AppError.js';
@@ -38,12 +38,38 @@ export class LeadRepository {
             ALTER TABLE leads ADD COLUMN created_by varchar(255);
             ALTER TABLE leads ADD COLUMN created_by_id varchar(255);
           END IF;
+
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_name = 'lead_destinations'
+          ) THEN
+            CREATE TABLE lead_destinations (
+              id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+              lead_id varchar(255) NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+              name varchar(255) NOT NULL,
+              address text,
+              city varchar(100),
+              state varchar(100),
+              pincode varchar(20),
+              latitude numeric(10, 7),
+              longitude numeric(10, 7),
+              place_id varchar(255),
+              contact_person varchar(255),
+              contact_phone varchar(50),
+              notes text,
+              status varchar(50) DEFAULT 'ACTIVE' NOT NULL,
+              created_at timestamp with time zone DEFAULT now() NOT NULL,
+              updated_at timestamp with time zone DEFAULT now() NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS lead_destinations_lead_id_idx ON lead_destinations(lead_id);
+          END IF;
         END $$;
       `);
     } catch (err) {
       console.warn('Lead ensureSchema warning:', err);
     }
   }
+
 
   async resolveLeadPipelineStage(leadRecord: any, txOrDb: any = db): Promise<string> {
     try {
@@ -293,6 +319,23 @@ export class LeadRepository {
       .where(whereClause)
       .orderBy(desc(leads.createdAt));
 
+    const destCountMap = new Map<string, number>();
+    try {
+      const destCountRows = await db
+        .select({
+          leadId: leadDestinations.leadId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(leadDestinations)
+        .groupBy(leadDestinations.leadId);
+
+      for (const row of destCountRows) {
+        destCountMap.set(row.leadId, Number(row.count || 0));
+      }
+    } catch {
+      // Table might be initializing
+    }
+
     const result = await Promise.all(
       leadRecords.map(async (lead) => {
         const logs = await db
@@ -321,6 +364,7 @@ export class LeadRepository {
           status: authoritativeStatus,
           source: lead.source,
           linkedClientId: lead.linkedClientId || undefined,
+          destinationCount: destCountMap.get(lead.id) || 0,
           activityLogs: logs.map((l) => ({
             id: l.id,
             title: l.title,
@@ -370,6 +414,13 @@ export class LeadRepository {
       .where(eq(leadActivityLogs.leadId, leadRecord.id))
       .orderBy(desc(leadActivityLogs.createdAt));
 
+    const destinations = await db
+      .select()
+      .from(leadDestinations)
+      .where(eq(leadDestinations.leadId, leadRecord.id))
+      .orderBy(desc(leadDestinations.createdAt))
+      .catch(() => []);
+
     const authoritativeStatus = await this.resolveLeadPipelineStage(leadRecord);
 
     return {
@@ -390,6 +441,8 @@ export class LeadRepository {
       status: authoritativeStatus,
       source: leadRecord.source,
       linkedClientId: leadRecord.linkedClientId || undefined,
+      destinationCount: destinations.length,
+      destinations,
       activityLogs: logs.map((l) => ({
         id: l.id,
         title: l.title,
@@ -397,112 +450,6 @@ export class LeadRepository {
         type: l.type || 'System',
       })),
     };
-  }
-
-  private async ensureCustomerForLead(
-    data: {
-      customerName: string;
-      companyName?: string | null;
-      email?: string | null;
-      phone?: string | null;
-      address?: string | null;
-      linkedClientId?: string | null;
-    },
-    user?: JwtPayload,
-    creatorName?: string | null
-  ): Promise<string | undefined> {
-    try {
-      // 1. If linkedClientId is passed, verify customer exists
-      if (data.linkedClientId && data.linkedClientId.trim() !== '') {
-        const [existing] = await db
-          .select()
-          .from(customers)
-          .where(eq(customers.id, data.linkedClientId.trim()))
-          .limit(1);
-        if (existing) {
-          await db
-            .update(customers)
-            .set({
-              name: data.customerName || existing.name,
-              companyName: data.companyName || existing.companyName,
-              phone: data.phone || existing.phone,
-              email: data.email || existing.email,
-              address: data.address || existing.address,
-              updatedAt: new Date(),
-            })
-            .where(eq(customers.id, existing.id));
-          return existing.id;
-        }
-      }
-
-      // 2. Try matching by email, phone, or name & companyName
-      const matchConditions = [];
-      if (data.email && data.email.trim() !== '') {
-        matchConditions.push(eq(customers.email, data.email.trim()));
-      }
-      if (data.phone && data.phone.trim() !== '') {
-        matchConditions.push(eq(customers.phone, data.phone.trim()));
-      }
-      if (data.customerName && data.customerName.trim() !== '') {
-        if (data.companyName && data.companyName.trim() !== '') {
-          matchConditions.push(
-            and(
-              ilike(customers.name, data.customerName.trim()),
-              ilike(customers.companyName, data.companyName.trim())
-            )
-          );
-        } else {
-          matchConditions.push(ilike(customers.name, data.customerName.trim()));
-        }
-      }
-
-      if (matchConditions.length > 0) {
-        const [found] = await db
-          .select()
-          .from(customers)
-          .where(or(...matchConditions))
-          .limit(1);
-
-        if (found) {
-          await db
-            .update(customers)
-            .set({
-              name: data.customerName || found.name,
-              companyName: data.companyName || found.companyName,
-              phone: data.phone || found.phone,
-              email: data.email || found.email,
-              address: data.address || found.address,
-              updatedAt: new Date(),
-            })
-            .where(eq(customers.id, found.id));
-          return found.id;
-        }
-      }
-
-      // 3. If no matching customer found, create a new Customer entry in customers table
-      if (data.customerName && data.customerName.trim() !== '') {
-        const [newCustomer] = await db
-          .insert(customers)
-          .values({
-            name: data.customerName.trim(),
-            companyName: data.companyName ? data.companyName.trim() : data.customerName.trim(),
-            email: data.email ? data.email.trim() : null,
-            phone: data.phone ? data.phone.trim() : null,
-            address: data.address ? data.address.trim() : null,
-            status: 'ACTIVE',
-            createdById: user?.userId || null,
-            createdBy: creatorName || (user as any)?.fullName || null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .returning();
-
-        return newCustomer.id;
-      }
-    } catch (err) {
-      console.warn('ensureCustomerForLead warning:', err);
-    }
-    return data.linkedClientId || undefined;
   }
 
   async create(data: NewLeadEntity, user?: JwtPayload) {
@@ -535,18 +482,7 @@ export class LeadRepository {
       }
     }
 
-    const linkedClientId = await this.ensureCustomerForLead(
-      {
-        customerName: data.customerName,
-        companyName: data.companyName,
-        email: data.email,
-        phone: data.phone,
-        address: data.address,
-        linkedClientId: data.linkedClientId,
-      },
-      user,
-      creatorName
-    );
+    const linkedClientId = data.linkedClientId || null;
 
     const [created] = await db
       .insert(leads)
@@ -555,7 +491,7 @@ export class LeadRepository {
         id: newId,
         leadCode: newCode,
         assignedEmployeeId,
-        linkedClientId: linkedClientId || data.linkedClientId,
+        linkedClientId,
         createdBy: creatorName || 'System Admin',
         createdById: user?.userId || data.createdById,
         createdAt: new Date(),
@@ -630,14 +566,10 @@ export class LeadRepository {
       }
     }
 
-    const linkedClientId = await this.ensureCustomerForLead({
-      customerName: payload.customerName || existingLead?.customerName || '',
-      companyName: payload.companyName || existingLead?.companyName,
-      email: payload.email || existingLead?.email,
-      phone: payload.phone || existingLead?.phone,
-      address: payload.address || existingLead?.address,
-      linkedClientId: payload.linkedClientId || existingLead?.linkedClientId,
-    });
+    const linkedClientId =
+      payload.linkedClientId !== undefined
+        ? payload.linkedClientId
+        : existingLead?.linkedClientId || null;
 
     const existing = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
 
@@ -658,30 +590,228 @@ export class LeadRepository {
         priority: payload.priority || 'Medium',
         status: payload.status || 'New',
         source: payload.source || 'Web',
-        linkedClientId: linkedClientId || payload.linkedClientId,
+        linkedClientId,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
     } else {
+      const updateData: Record<string, any> = {
+        updatedAt: new Date(),
+      };
+      if (payload.leadCode !== undefined) updateData.leadCode = payload.leadCode;
+      if (payload.customerName !== undefined) updateData.customerName = payload.customerName;
+      if (payload.companyName !== undefined) updateData.companyName = payload.companyName;
+      if (payload.email !== undefined) updateData.email = payload.email;
+      if (payload.phone !== undefined) updateData.phone = payload.phone;
+      if (payload.address !== undefined) updateData.address = payload.address;
+      if (payload.productInterested !== undefined) updateData.productInterested = payload.productInterested;
+      if (payload.expectedValue !== undefined) updateData.expectedValue = String(payload.expectedValue);
+      if (payload.assignedExecutive !== undefined) updateData.assignedExecutive = payload.assignedExecutive;
+      if (payload.assignedEmployeeId !== undefined) updateData.assignedEmployeeId = payload.assignedEmployeeId;
+      if (payload.createdBy !== undefined) updateData.createdBy = payload.createdBy;
+      if (payload.createdById !== undefined) updateData.createdById = payload.createdById;
+      if (payload.priority !== undefined) updateData.priority = payload.priority;
+      if (payload.status !== undefined) updateData.status = payload.status;
+      if (payload.source !== undefined) updateData.source = payload.source;
+      if (linkedClientId !== undefined) updateData.linkedClientId = linkedClientId;
+
       await db
         .update(leads)
-        .set({
-          ...payload,
-          linkedClientId: linkedClientId || payload.linkedClientId,
-          updatedAt: new Date(),
-        })
+        .set(updateData)
         .where(eq(leads.id, id));
     }
+
+    if (linkedClientId) {
+      await this.syncLeadDestinationsToCustomer(id, linkedClientId);
+    }
+
+    const logTitle = payload.status
+      ? `Lead status updated to ${payload.status}`
+      : payload.linkedClientId
+        ? `Lead converted to customer`
+        : 'Lead details updated';
 
     await db.insert(leadActivityLogs).values({
       id: `act-${id}-${Date.now()}`,
       leadId: id,
-      title: `Lead status updated to ${payload.status || 'modified'}`,
+      title: logTitle,
       date: new Date().toISOString().split('T')[0],
       type: 'System',
     });
 
     return this.findById(id, user);
+  }
+
+  async syncLeadDestinationsToCustomer(leadId: string, customerId: string) {
+    try {
+      await this.ensureSchema();
+      const existingLeadDests = await db
+        .select()
+        .from(leadDestinations)
+        .where(eq(leadDestinations.leadId, leadId));
+
+      const [leadRecord] = await db
+        .select()
+        .from(leads)
+        .where(eq(leads.id, leadId))
+        .limit(1);
+
+      if (existingLeadDests.length > 0) {
+        for (const ld of existingLeadDests) {
+          const [alreadyExists] = await db
+            .select({ id: customerDestinations.id })
+            .from(customerDestinations)
+            .where(
+              and(
+                eq(customerDestinations.customerId, customerId),
+                eq(customerDestinations.name, ld.name)
+              )
+            )
+            .limit(1);
+
+          if (!alreadyExists) {
+            await db.insert(customerDestinations).values({
+              customerId,
+              name: ld.name,
+              address: ld.address,
+              city: ld.city,
+              state: ld.state,
+              pincode: ld.pincode,
+              latitude: ld.latitude,
+              longitude: ld.longitude,
+              placeId: ld.placeId,
+              contactPerson: ld.contactPerson,
+              contactPhone: ld.contactPhone,
+              notes: ld.notes,
+              status: ld.status || 'ACTIVE',
+            });
+          }
+        }
+      } else if (leadRecord && leadRecord.address && leadRecord.address.trim() !== '') {
+        const destName = `${leadRecord.companyName || leadRecord.customerName} - Main Site`;
+        const [alreadyExists] = await db
+          .select({ id: customerDestinations.id })
+          .from(customerDestinations)
+          .where(
+            and(
+              eq(customerDestinations.customerId, customerId),
+              eq(customerDestinations.name, destName)
+            )
+          )
+          .limit(1);
+
+        if (!alreadyExists) {
+          await db.insert(customerDestinations).values({
+            customerId,
+            name: destName,
+            address: leadRecord.address,
+            status: 'ACTIVE',
+          });
+
+          await db.insert(leadDestinations).values({
+            leadId,
+            name: destName,
+            address: leadRecord.address,
+            status: 'ACTIVE',
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to sync lead destinations to customer:', err);
+    }
+  }
+
+  async findDestinationsByLeadId(leadId: string) {
+    await this.ensureSchema();
+    return db
+      .select()
+      .from(leadDestinations)
+      .where(eq(leadDestinations.leadId, leadId))
+      .orderBy(desc(leadDestinations.createdAt));
+  }
+
+  async createDestination(leadId: string, data: any) {
+    await this.ensureSchema();
+    const [created] = await db
+      .insert(leadDestinations)
+      .values({
+        leadId,
+        name: data.name,
+        address: data.address || null,
+        city: data.city || null,
+        state: data.state || null,
+        pincode: data.pincode || null,
+        latitude: data.latitude !== undefined && data.latitude !== null && data.latitude !== '' ? String(data.latitude) : null,
+        longitude: data.longitude !== undefined && data.longitude !== null && data.longitude !== '' ? String(data.longitude) : null,
+        placeId: data.placeId || null,
+        contactPerson: data.contactPerson || null,
+        contactPhone: data.contactPhone || null,
+        notes: data.notes || null,
+        status: data.status || 'ACTIVE',
+      })
+      .returning();
+
+    // If lead is already linked to a customer, also create under customerDestinations
+    const [lead] = await db.select({ linkedClientId: leads.linkedClientId }).from(leads).where(eq(leads.id, leadId)).limit(1);
+    if (lead?.linkedClientId) {
+      try {
+        await db.insert(customerDestinations).values({
+          customerId: lead.linkedClientId,
+          name: created.name,
+          address: created.address,
+          city: created.city,
+          state: created.state,
+          pincode: created.pincode,
+          latitude: created.latitude,
+          longitude: created.longitude,
+          placeId: created.placeId,
+          contactPerson: created.contactPerson,
+          contactPhone: created.contactPhone,
+          notes: created.notes,
+          status: created.status,
+        });
+      } catch (e) {
+        console.warn('Failed to mirror lead destination to customer destination:', e);
+      }
+    }
+
+    return created;
+  }
+
+  async updateDestination(leadId: string, destinationId: string, data: any) {
+    await this.ensureSchema();
+    const updateData: any = {
+      updatedAt: new Date(),
+    };
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.address !== undefined) updateData.address = data.address || null;
+    if (data.city !== undefined) updateData.city = data.city || null;
+    if (data.state !== undefined) updateData.state = data.state || null;
+    if (data.pincode !== undefined) updateData.pincode = data.pincode || null;
+    if (data.latitude !== undefined) updateData.latitude = data.latitude !== null && data.latitude !== '' ? String(data.latitude) : null;
+    if (data.longitude !== undefined) updateData.longitude = data.longitude !== null && data.longitude !== '' ? String(data.longitude) : null;
+    if (data.placeId !== undefined) updateData.placeId = data.placeId || null;
+    if (data.contactPerson !== undefined) updateData.contactPerson = data.contactPerson || null;
+    if (data.contactPhone !== undefined) updateData.contactPhone = data.contactPhone || null;
+    if (data.notes !== undefined) updateData.notes = data.notes || null;
+    if (data.status !== undefined) updateData.status = data.status;
+
+    const [updated] = await db
+      .update(leadDestinations)
+      .set(updateData)
+      .where(and(eq(leadDestinations.id, destinationId), eq(leadDestinations.leadId, leadId)))
+      .returning();
+
+    return updated;
+  }
+
+  async deleteDestination(leadId: string, destinationId: string) {
+    await this.ensureSchema();
+    const result = await db
+      .delete(leadDestinations)
+      .where(and(eq(leadDestinations.id, destinationId), eq(leadDestinations.leadId, leadId)))
+      .returning();
+    return result.length > 0;
   }
 
   async getPipelineData(user?: JwtPayload) {
@@ -743,3 +873,4 @@ export class LeadRepository {
     return this.findById(id, user);
   }
 }
+
