@@ -12,6 +12,7 @@ export class ProductMapper {
       price: parseFloat(entity.price),
       stockQuantity: entity.stockQuantity,
       status: entity.status,
+      gstRate: entity.gstRate ? parseFloat(entity.gstRate) : null,
       createdAt: entity.createdAt.toISOString(),
       updatedAt: entity.updatedAt.toISOString(),
     };

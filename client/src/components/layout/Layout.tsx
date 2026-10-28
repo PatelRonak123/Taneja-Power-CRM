@@ -348,6 +348,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return children;
     }
 
+    if (isAccountantOffice) {
+      return <AccountantDashboardPage />;
+    }
+
     return isAdmin ? <AdminDashboardPage /> : <EmployeeDashboardPage />;
   };
 

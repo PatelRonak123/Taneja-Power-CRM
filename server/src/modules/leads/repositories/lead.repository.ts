@@ -63,6 +63,15 @@ export class LeadRepository {
             );
             CREATE INDEX IF NOT EXISTS lead_destinations_lead_id_idx ON lead_destinations(lead_id);
           END IF;
+
+          UPDATE leads
+          SET status = 'Contacted'
+          WHERE linked_client_id IS NOT NULL
+            AND UPPER(status) IN ('NEW', 'NEW LEADS', 'NEW_LEAD', 'NEW_LEADS');
+
+          UPDATE leads
+          SET status = 'Quotation Sent'
+          WHERE UPPER(status) IN ('QUOTATION ACCEPTED', 'QUOTATION_ACCEPTED');
         END $$;
       `);
     } catch (err) {
@@ -175,21 +184,20 @@ export class LeadRepository {
           return 'Negotiation';
         }
 
-        // 5. Check Quotation Sent created after this lead was created
+        // 5. Check Quotation Sent or Accepted created for this customer
         const quoteRes = await txOrDb.execute(sql`
           SELECT q.id, q.quotation_number, q.status,
                  (SELECT COUNT(*) FROM quotation_activity_logs qal WHERE qal.quotation_id = q.id AND qal.action = 'EMAIL_SENT') as email_sent_count
           FROM quotations q
           WHERE q.customer_id = ${clientId}::uuid
-            AND q.created_at >= ${createdThreshold}
+            ${createdThreshold ? sql`AND q.created_at >= ${createdThreshold}` : sql``}
+            AND (q.status IN ('SENT', 'ACCEPTED') OR EXISTS (SELECT 1 FROM quotation_activity_logs qal WHERE qal.quotation_id = q.id AND qal.action = 'EMAIL_SENT'))
           ORDER BY q.created_at DESC
           LIMIT 1
         `).catch(() => null);
         const quote = (quoteRes as any)?.rows?.[0] || (quoteRes as any)?.[0];
         if (quote) {
-          if (quote.status === 'SENT' || Number(quote.email_sent_count || 0) > 0) {
-            return 'Quotation Sent';
-          }
+          return 'Quotation Sent';
         }
       }
 
@@ -204,8 +212,8 @@ export class LeadRepository {
         fuConditions.push(sql`fu.lead_id = ${leadRecord.id}`);
         fuConditions.push(sql`fu.deal_id = ${leadRecord.id}`);
       }
-      if (clientId && createdThreshold) {
-        fuConditions.push(sql`(fu.customer_id = ${clientId}::uuid AND fu.created_at >= ${createdThreshold})`);
+      if (clientId) {
+        fuConditions.push(sql`(fu.customer_id = ${clientId}::uuid ${createdThreshold ? sql`AND fu.created_at >= ${createdThreshold}` : sql``})`);
       }
       if (fuConditions.length > 0) {
         const fuRes = await txOrDb.execute(sql`
@@ -233,6 +241,11 @@ export class LeadRepository {
         return 'Meeting Scheduled';
       }
 
+      // If lead is converted/linked to a customer and has no subsequent stage, it belongs in Contacted
+      if (clientId || leadRecord.linkedClientId) {
+        return 'Contacted';
+      }
+
       // 10. If new lead and no newer transactions
       if (isNew) {
         return 'New';
@@ -240,7 +253,14 @@ export class LeadRepository {
 
       // 11. Stored canonical status mappings
       if (rawUpper === 'APPROVED/PO' || rawUpper === 'APPROVED' || rawUpper === 'ORDER CONFIRMED') return 'Order Confirmed';
-      if (rawUpper === 'PROPOSAL SENT' || rawUpper === 'QUOTATION SENT') return 'Quotation Sent';
+      if (
+        rawUpper === 'PROPOSAL SENT' ||
+        rawUpper === 'QUOTATION SENT' ||
+        rawUpper === 'QUOTATION_SENT' ||
+        rawUpper === 'QUOTATION ACCEPTED' ||
+        rawUpper === 'QUOTATION_ACCEPTED' ||
+        rawUpper === 'ACCEPTED'
+      ) return 'Quotation Sent';
       if (rawUpper === 'READY FOR DISPATCH') return 'Ready for Dispatch';
       if (rawUpper === 'DISPATCHED') return 'Dispatched';
       if (rawUpper === 'INSTALLATION') return 'Installation';
@@ -611,7 +631,11 @@ export class LeadRepository {
       if (payload.createdBy !== undefined) updateData.createdBy = payload.createdBy;
       if (payload.createdById !== undefined) updateData.createdById = payload.createdById;
       if (payload.priority !== undefined) updateData.priority = payload.priority;
-      if (payload.status !== undefined) updateData.status = payload.status;
+      if (payload.status !== undefined) {
+        updateData.status = payload.status;
+      } else if (payload.linkedClientId && ['NEW', 'NEW LEADS', 'NEW_LEAD', 'NEW_LEADS'].includes((existingLead?.status || '').toUpperCase())) {
+        updateData.status = 'Contacted';
+      }
       if (payload.source !== undefined) updateData.source = payload.source;
       if (linkedClientId !== undefined) updateData.linkedClientId = linkedClientId;
 
@@ -821,7 +845,7 @@ export class LeadRepository {
       { id: 'NEW LEADS', title: 'NEW LEADS', statusKeys: ['NEW', 'NEW LEADS', 'NEW_LEAD', 'NEW_LEADS'] },
       { id: 'CONTACTED', title: 'CONTACTED', statusKeys: ['CONTACTED'] },
       { id: 'MEETING SCHEDULED', title: 'MEETING SCHEDULED', statusKeys: ['MEETING SCHEDULED', 'MEETING_SCHEDULED'] },
-      { id: 'QUOTATION SENT', title: 'QUOTATION SENT', statusKeys: ['QUOTATION SENT', 'QUOTATION_SENT', 'PROPOSAL SENT', 'PROPOSAL_SENT'] },
+      { id: 'QUOTATION SENT', title: 'QUOTATION SENT', statusKeys: ['QUOTATION SENT', 'QUOTATION_SENT', 'PROPOSAL SENT', 'PROPOSAL_SENT', 'QUOTATION ACCEPTED', 'QUOTATION_ACCEPTED', 'ACCEPTED'] },
       { id: 'NEGOTIATION', title: 'NEGOTIATION', statusKeys: ['NEGOTIATION'] },
       { id: 'ORDER CONFIRMED', title: 'ORDER CONFIRMED', statusKeys: ['ORDER CONFIRMED', 'ORDER_CONFIRMED', 'APPROVED/PO', 'APPROVED'] },
       { id: 'READY FOR DISPATCH', title: 'READY FOR DISPATCH', statusKeys: ['READY FOR DISPATCH', 'READY_FOR_DISPATCH'] },
@@ -983,11 +1007,16 @@ export class LeadRepository {
       }
     }
 
-    // Link lead to this customer
+    // Link lead to this customer and transition status to Contacted if it was New
+    const currentStatus = (lead.status || '').toUpperCase();
+    const isNewLead = ['NEW', 'NEW LEADS', 'NEW_LEAD', 'NEW_LEADS'].includes(currentStatus) || !lead.status;
+    const newLeadStatus = isNewLead ? 'Contacted' : lead.status;
+
     await db
       .update(leads)
       .set({
         linkedClientId: targetCustomerId,
+        status: newLeadStatus,
         updatedAt: new Date(),
       })
       .where(eq(leads.id, id));
@@ -997,7 +1026,9 @@ export class LeadRepository {
     await db.insert(leadActivityLogs).values({
       id: `act-${id}-${Date.now()}`,
       leadId: id,
-      title: `Lead converted to customer: ${lead.customerName} (by ${authorName})`,
+      title: isNewLead
+        ? `Lead converted to customer: ${lead.customerName} (by ${authorName}) — status moved from New to Contacted`
+        : `Lead converted to customer: ${lead.customerName} (by ${authorName})`,
       date: new Date().toISOString().split('T')[0],
       type: 'System',
     });

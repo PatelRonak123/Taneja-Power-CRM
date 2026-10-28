@@ -47,10 +47,11 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
           type="button"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
-          className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center hover:bg-slate-100 hover:border-slate-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600 shrink-0"
+          className="px-2.5 h-8 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center gap-1 hover:bg-slate-100 hover:border-slate-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600 shrink-0 font-medium text-xs"
           aria-label="Previous page"
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={15} />
+          <span className="font-semibold">Prev</span>
         </button>
 
         <span className="px-2 font-semibold text-slate-900 tabular-nums whitespace-nowrap">
@@ -61,10 +62,11 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
           type="button"
           disabled={page >= totalPages}
           onClick={() => onPageChange(page + 1)}
-          className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center hover:bg-slate-100 hover:border-slate-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600 shrink-0"
+          className="px-3 h-8 rounded-lg bg-indigo-600 text-white flex items-center gap-1 hover:bg-indigo-700 transition-all disabled:opacity-40 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-indigo-600 shrink-0 font-semibold text-xs"
           aria-label="Next page"
         >
-          <ChevronRight size={16} />
+          <span>Next</span>
+          <ChevronRight size={15} />
         </button>
       </div>
     </div>

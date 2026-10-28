@@ -458,6 +458,14 @@ export const hasPermission = (
     if (deny?.includes(permission)) return false;
     if (allow?.includes(permission)) return true;
   }
+  if (
+    (designation && designation.toLowerCase().includes('accountant')) ||
+    (role as string) === 'ACCOUNTANT'
+  ) {
+    const { deny, allow } = DESIGNATION_RESTRICTIONS['Accountant Office'];
+    if (deny?.includes(permission)) return false;
+    if (allow?.includes(permission)) return true;
+  }
   if (designation && designation.toLowerCase().includes('sales')) {
     if (permission.startsWith('sales_order:')) return false;
   }

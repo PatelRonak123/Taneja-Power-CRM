@@ -8,6 +8,9 @@ const controller = new PaymentController();
 // 1. Receivables Summary (grouped by customer) - Read access
 router.get('/receivables-summary', authenticate, controller.getReceivablesSummary);
 
+// 1b. Customer Due Details - Read access
+router.get('/customer-due/:customerId', authenticate, controller.getCustomerDue);
+
 // 2. List all payments with filtering - Read access
 router.get('/', authenticate, controller.listPayments);
 

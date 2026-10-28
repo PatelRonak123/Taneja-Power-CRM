@@ -7,6 +7,7 @@ export interface Product {
   price: number;
   stockQuantity: number;
   status: 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK';
+  gstRate?: number | null;
   createdAt: string;
   updatedAt: string;
 }

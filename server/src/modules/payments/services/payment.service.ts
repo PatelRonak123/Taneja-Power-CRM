@@ -8,6 +8,7 @@ import { amcContracts } from '../../../database/schema/amc-contracts.js';
 import { customers } from '../../../database/schema/customers.js';
 import { users } from '../../../database/schema/users.js';
 import { SALES_INVOICE_STATUSES } from '../../../config/constants.js';
+import { AppError } from '../../../common/errors/AppError.js';
 
 export interface RecordPaymentInput {
   customerId: string;
@@ -209,6 +210,63 @@ export class PaymentService {
           .update(amcContracts)
           .set({ paymentStatus: newPaymentStatus, updatedAt: new Date() })
           .where(eq(amcContracts.id, input.amcContractId));
+      }
+
+      // 3.5 If payment is direct customer balance payment (unallocated), apply to customer's open unpaid invoices FIFO
+      if (!input.salesInvoiceId && !input.proformaInvoiceId && !input.amcContractId && input.customerId) {
+        const unpaidInvoices = await tx
+          .select()
+          .from(salesInvoices)
+          .where(
+            and(
+              eq(salesInvoices.customerId, input.customerId),
+              sql`${salesInvoices.status} NOT IN ('PAID', 'CANCELLED')`
+            )
+          )
+          .orderBy(salesInvoices.invoiceDate);
+
+        let remainingToApply = amountNum;
+        let firstInvoiceId: string | null = null;
+
+        for (const inv of unpaidInvoices) {
+          if (remainingToApply <= 0) break;
+          if (!firstInvoiceId) firstInvoiceId = inv.id;
+
+          const invTotal = Number(inv.totalAmount || 0);
+          const invPaid = Number(inv.paidAmount || 0);
+          const invDue = Math.max(0, invTotal - invPaid);
+          if (invDue <= 0) continue;
+
+          const toApply = Number(Math.min(remainingToApply, invDue).toFixed(2));
+          const newPaid = Number((invPaid + toApply).toFixed(2));
+          const newStatus =
+            newPaid >= invTotal
+              ? SALES_INVOICE_STATUSES.PAID
+              : SALES_INVOICE_STATUSES.PARTIALLY_PAID;
+
+          await tx
+            .update(salesInvoices)
+            .set({
+              paidAmount: String(newPaid),
+              status: newStatus,
+              updatedAt: new Date(),
+            })
+            .where(eq(salesInvoices.id, inv.id));
+
+          await tx.insert(invoiceActivityLogs).values({
+            invoiceType: 'SALES_INVOICE',
+            invoiceId: inv.id,
+            action: 'PAYMENT_RECEIVED',
+            userId,
+            details: `Customer payment of ₹${toApply.toLocaleString('en-IN')} allocated from receipt ${paymentNumber} (Mode: ${input.paymentMode}${input.referenceNumber ? `, Ref: ${input.referenceNumber}` : ''}). Total paid: ₹${newPaid.toLocaleString('en-IN')}`,
+          });
+
+          remainingToApply = Number((remainingToApply - toApply).toFixed(2));
+        }
+
+        if (firstInvoiceId) {
+          input.salesInvoiceId = firstInvoiceId;
+        }
       }
 
       // 4. Insert Payment Master Record
@@ -449,6 +507,142 @@ export class PaymentService {
         customersCount: customerReceivables.length,
       },
       customerReceivables,
+    };
+  }
+
+  /**
+   * Fetch customer outstanding balance and due payment details
+   */
+  public async getCustomerDue(customerId: string): Promise<any> {
+    const [customer] = await db
+      .select({
+        id: customers.id,
+        name: customers.name,
+        companyName: customers.companyName,
+        phone: customers.phone,
+        email: customers.email,
+      })
+      .from(customers)
+      .where(eq(customers.id, customerId));
+
+    if (!customer) {
+      throw AppError.notFound('Customer not found');
+    }
+
+    // 1. Invoices for this customer (excluding CANCELLED)
+    const invoices = await db
+      .select({
+        id: salesInvoices.id,
+        invoiceNumber: salesInvoices.invoiceNumber,
+        totalAmount: salesInvoices.totalAmount,
+        paidAmount: salesInvoices.paidAmount,
+        status: salesInvoices.status,
+        invoiceDate: salesInvoices.invoiceDate,
+        dueDate: salesInvoices.dueDate,
+      })
+      .from(salesInvoices)
+      .where(
+        and(
+          eq(salesInvoices.customerId, customerId),
+          sql`${salesInvoices.status} != 'CANCELLED'`
+        )
+      )
+      .orderBy(desc(salesInvoices.invoiceDate));
+
+    let totalInvoiced = 0;
+    let totalInvoicePaid = 0;
+    const unpaidInvoices: any[] = [];
+
+    for (const inv of invoices) {
+      const tot = Number(inv.totalAmount || 0);
+      const pd = Number(inv.paidAmount || 0);
+      const due = Math.max(0, tot - pd);
+
+      totalInvoiced += tot;
+      totalInvoicePaid += pd;
+
+      if (inv.status !== 'PAID' && due > 0) {
+        unpaidInvoices.push({
+          id: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          totalAmount: tot,
+          paidAmount: pd,
+          dueAmount: Number(due.toFixed(2)),
+          status: inv.status,
+          invoiceDate: inv.invoiceDate ? new Date(inv.invoiceDate).toISOString() : '',
+          dueDate: inv.dueDate ? new Date(inv.dueDate).toISOString() : null,
+        });
+      }
+    }
+
+    // 2. AMC Contracts for this customer (excluding TERMINATED)
+    const amcs = await db
+      .select({
+        id: amcContracts.id,
+        contractNumber: amcContracts.contractNumber,
+        totalAmount: amcContracts.totalAmount,
+        paymentStatus: amcContracts.paymentStatus,
+        status: amcContracts.status,
+        contractStartDate: amcContracts.contractStartDate,
+        contractEndDate: amcContracts.contractEndDate,
+      })
+      .from(amcContracts)
+      .where(
+        and(
+          eq(amcContracts.customerId, customerId),
+          sql`${amcContracts.status} != 'TERMINATED'`
+        )
+      )
+      .orderBy(desc(amcContracts.contractStartDate));
+
+    let totalAmcAmount = 0;
+    let amcDueAmount = 0;
+    const unpaidAmcs: any[] = [];
+
+    for (const amc of amcs) {
+      const tot = Number(amc.totalAmount || 0);
+      totalAmcAmount += tot;
+
+      if (amc.paymentStatus !== 'PAID') {
+        const pmts = await db
+          .select({ sum: sql<string>`coalesce(sum(amount), 0)` })
+          .from(payments)
+          .where(eq(payments.amcContractId, amc.id));
+        const pd = Number(pmts[0]?.sum || 0);
+        const due = Math.max(0, tot - pd);
+
+        if (due > 0) {
+          amcDueAmount += due;
+          unpaidAmcs.push({
+            id: amc.id,
+            contractNumber: amc.contractNumber,
+            totalAmount: tot,
+            paidAmount: pd,
+            dueAmount: Number(due.toFixed(2)),
+            paymentStatus: amc.paymentStatus || 'PENDING',
+          });
+        }
+      }
+    }
+
+    const totalDue = Number(
+      Math.max(
+        0,
+        unpaidInvoices.reduce((sum, i) => sum + i.dueAmount, 0) + amcDueAmount
+      ).toFixed(2)
+    );
+
+    return {
+      customerId: customer.id,
+      customerName: customer.name,
+      companyName: customer.companyName,
+      dueAmount: totalDue,
+      totalInvoiced: Number(totalInvoiced.toFixed(2)),
+      totalPaid: Number(totalInvoicePaid.toFixed(2)),
+      unpaidInvoicesCount: unpaidInvoices.length,
+      unpaidInvoices,
+      unpaidAmcsCount: unpaidAmcs.length,
+      unpaidAmcs,
     };
   }
 }

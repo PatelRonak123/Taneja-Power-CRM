@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, IndianRupee } from 'lucide-react';
+import { X, Check, IndianRupee, Building2 } from 'lucide-react';
 import { invoiceService } from '../services/invoiceService';
 import { customerService } from '../../customers/services/customerService';
 import { toast } from '../../../utils/toast';
@@ -60,18 +60,60 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(defaultCustomerId);
   const [customersList, setCustomersList] = useState<any[]>([]);
+  const [customerDue, setCustomerDue] = useState<any>(null);
+  const [loadingDue, setLoadingDue] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!defaultCustomerId) {
-      customerService.getCustomers({ limit: 100 }).then((res: any) => {
-        setCustomersList(res?.data || []);
-      }).catch(console.error);
+    if (defaultCustomerId && !selectedCustomerId) {
+      setSelectedCustomerId(defaultCustomerId);
     }
   }, [defaultCustomerId]);
 
+  useEffect(() => {
+    if (!invoice && !proformaInvoice && !amcContract) {
+      customerService.getCustomers({ limit: 500 }).then((res: any) => {
+        const list = res?.data || [];
+        if (defaultCustomerId && customer && !list.some((c: any) => c.id === defaultCustomerId)) {
+          list.unshift({ id: customer.id, name: customer.name, companyName: (customer as any).companyName });
+        }
+        setCustomersList(list);
+      }).catch(console.error);
+    }
+  }, [invoice, proformaInvoice, amcContract, defaultCustomerId, customer]);
+
   const customerId = selectedCustomerId || defaultCustomerId;
   const chosenCustomerObj = customersList.find((c) => c.id === customerId);
-  const customerName = defaultCustomerName || chosenCustomerObj?.name || 'Customer';
+  const customerName = defaultCustomerName || chosenCustomerObj?.name || customerDue?.customerName || 'Customer';
+
+  // Fetch actual due amount whenever a customer is selected
+  useEffect(() => {
+    const cid = selectedCustomerId || defaultCustomerId;
+    if (cid && !invoice && !proformaInvoice && !amcContract) {
+      setLoadingDue(true);
+      invoiceService
+        .getCustomerDue(cid)
+        .then((data: any) => {
+          setCustomerDue(data);
+          if (data && typeof data.dueAmount === 'number') {
+            setAmount((prev) => {
+              if (!prev || prev === '0' || prev === '0.00') {
+                return data.dueAmount > 0 ? String(data.dueAmount) : '';
+              }
+              return prev;
+            });
+          }
+        })
+        .catch((err: any) => {
+          console.error('Failed to fetch customer due details:', err);
+          setCustomerDue(null);
+        })
+        .finally(() => {
+          setLoadingDue(false);
+        });
+    } else {
+      setCustomerDue(null);
+    }
+  }, [selectedCustomerId, defaultCustomerId, invoice, proformaInvoice, amcContract]);
 
   // Calculate remaining balance if available
   const defaultAmount = proformaInvoice
@@ -171,30 +213,77 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Customer Picker when opened without context */}
-            {!invoice && !proformaInvoice && !amcContract && !initialCustomerId && (
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Customer Account <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={selectedCustomerId}
-                  onChange={(e) => setSelectedCustomerId(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                >
-                  <option value="">-- Select Customer --</option>
-                  {customersList.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.companyName ? `(${c.companyName})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Customer Picker when opened without a specific invoice/contract context */}
+            {!invoice && !proformaInvoice && !amcContract && (
+              <>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Select Customer <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={selectedCustomerId}
+                    onChange={(e) => {
+                      setSelectedCustomerId(e.target.value);
+                      setAmount('');
+                    }}
+                    required
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+                  >
+                    <option value="">-- Select Customer --</option>
+                    {customersList.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.companyName ? `(${c.companyName})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Customer Due Amount Card */}
+                {selectedCustomerId && (
+                  <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-200/80 shadow-2xs">
+                    <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                      <Building2 size={16} className="text-emerald-600 shrink-0" />
+                      <span>
+                        {chosenCustomerObj?.companyName ||
+                          chosenCustomerObj?.name ||
+                          customerDue?.companyName ||
+                          customerDue?.customerName ||
+                          customerName ||
+                          'Customer'}
+                      </span>
+                    </div>
+
+                    <div className="border-b border-emerald-100/80 my-3" />
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs sm:text-sm font-semibold text-slate-800">
+                          Due Amount to be Paid:
+                        </div>
+                        <div className="text-[11px] sm:text-xs text-slate-500">
+                          Outstanding Customer Balance
+                        </div>
+                      </div>
+                      <div className="text-xl sm:text-2xl font-bold text-rose-600 tracking-tight tabular-nums">
+                        {loadingDue ? (
+                          <span className="text-xs text-slate-400 font-medium animate-pulse">
+                            Fetching due...
+                          </span>
+                        ) : (
+                          `₹${Number(customerDue?.dueAmount ?? 0).toLocaleString('en-IN', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}`
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
-            {/* Context Summary Banner */}
-            {(invoice || proformaInvoice || amcContract || initialCustomerId) && (
+            {/* Context Summary Banner for Specific Invoice, PI or AMC */}
+            {(invoice || proformaInvoice || amcContract) && (
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-medium">Customer:</span>
@@ -325,7 +414,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional payment notes (e.g. received via HDFC Current A/c)..."
+                placeholder="Optional notes (e.g. received in HDFC Bank A/c, verified with statement)..."
                 className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none"
               />
             </div>

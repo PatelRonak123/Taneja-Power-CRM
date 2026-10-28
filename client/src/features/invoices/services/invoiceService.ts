@@ -207,6 +207,11 @@ export const invoiceService = {
     };
   },
 
+  getCustomerDue: async (customerId: string): Promise<any> => {
+    const res: any = await apiClient.get(`/payments/customer-due/${customerId}`);
+    return res.data;
+  },
+
   updateAmcPaymentStatus: async (
     contractId: string,
     paymentStatus: string,

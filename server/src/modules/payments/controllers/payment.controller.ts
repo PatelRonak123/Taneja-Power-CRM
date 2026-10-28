@@ -75,4 +75,14 @@ export class PaymentController {
       next(error);
     }
   };
+
+  getCustomerDue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { customerId } = req.params;
+      const result = await this.service.getCustomerDue(customerId);
+      sendResponse(res, APP_CONSTANTS.HTTP_STATUS.OK, result, 'Customer due details retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
 }

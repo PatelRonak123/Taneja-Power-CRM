@@ -1,4 +1,4 @@
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, or, inArray, ilike, isNull } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import {
   quotations,
@@ -470,6 +470,31 @@ export class QuotationService {
 
       return newQuotation.id;
     });
+
+    // Ensure any matching lead for this customer is linked
+    try {
+      const [existingLead] = await db
+        .select({ id: leads.id })
+        .from(leads)
+        .where(eq(leads.linkedClientId, customer.id))
+        .limit(1);
+
+      if (!existingLead) {
+        const conditions = [];
+        if (customer.name && customer.name.trim()) conditions.push(ilike(leads.customerName, customer.name.trim()));
+        if (customer.companyName && customer.companyName.trim()) conditions.push(ilike(leads.companyName, customer.companyName.trim()));
+        if (customer.email && customer.email.trim()) conditions.push(eq(leads.email, customer.email.trim()));
+
+        if (conditions.length > 0) {
+          await db
+            .update(leads)
+            .set({ linkedClientId: customer.id, updatedAt: new Date() })
+            .where(and(isNull(leads.linkedClientId), or(...conditions)));
+        }
+      }
+    } catch {
+      // Non-blocking
+    }
 
     return this.quotationRepo.findById(quotationId);
   }
@@ -2003,10 +2028,32 @@ export class QuotationService {
     // Synchronize Deals Pipeline stage to 'Quotation Sent' if linked lead/deal exists
     if (quotation.customerId) {
       try {
-        const matchedLeads = await db
-          .select({ id: leads.id, status: leads.status })
+        let matchedLeads = await db
+          .select({ id: leads.id, status: leads.status, linkedClientId: leads.linkedClientId })
           .from(leads)
           .where(eq(leads.linkedClientId, quotation.customerId));
+
+        if (matchedLeads.length === 0) {
+          const [cust] = await db
+            .select()
+            .from(customers)
+            .where(eq(customers.id, quotation.customerId))
+            .limit(1);
+
+          if (cust) {
+            const orConditions = [];
+            if (cust.name && cust.name.trim()) orConditions.push(ilike(leads.customerName, cust.name.trim()));
+            if (cust.companyName && cust.companyName.trim()) orConditions.push(ilike(leads.companyName, cust.companyName.trim()));
+            if (cust.email && cust.email.trim()) orConditions.push(eq(leads.email, cust.email.trim()));
+
+            if (orConditions.length > 0) {
+              matchedLeads = await db
+                .select({ id: leads.id, status: leads.status, linkedClientId: leads.linkedClientId })
+                .from(leads)
+                .where(or(...orConditions));
+            }
+          }
+        }
 
         for (const ld of matchedLeads) {
           const currentStage = (ld.status || '').toUpperCase();
@@ -2014,7 +2061,11 @@ export class QuotationService {
           if (!advancedStages.some((s) => currentStage.includes(s))) {
             await db
               .update(leads)
-              .set({ status: 'Quotation Sent', updatedAt: new Date() })
+              .set({
+                status: 'Quotation Sent',
+                linkedClientId: ld.linkedClientId || quotation.customerId,
+                updatedAt: new Date(),
+              })
               .where(eq(leads.id, ld.id));
 
             await db.insert(leadActivityLogs).values({
@@ -2131,13 +2182,35 @@ export class QuotationService {
       });
     });
 
-    // Synchronize Deals Pipeline stage to 'Won' or 'Quotation Accepted' if linked lead/deal exists
+    // Synchronize Deals Pipeline stage to 'Quotation Sent' if linked lead/deal exists
     if (quotation.customerId) {
       try {
-        const matchedLeads = await db
-          .select({ id: leads.id, status: leads.status })
+        let matchedLeads = await db
+          .select({ id: leads.id, status: leads.status, linkedClientId: leads.linkedClientId })
           .from(leads)
           .where(eq(leads.linkedClientId, quotation.customerId));
+
+        if (matchedLeads.length === 0) {
+          const [cust] = await db
+            .select()
+            .from(customers)
+            .where(eq(customers.id, quotation.customerId))
+            .limit(1);
+
+          if (cust) {
+            const orConditions = [];
+            if (cust.name && cust.name.trim()) orConditions.push(ilike(leads.customerName, cust.name.trim()));
+            if (cust.companyName && cust.companyName.trim()) orConditions.push(ilike(leads.companyName, cust.companyName.trim()));
+            if (cust.email && cust.email.trim()) orConditions.push(eq(leads.email, cust.email.trim()));
+
+            if (orConditions.length > 0) {
+              matchedLeads = await db
+                .select({ id: leads.id, status: leads.status, linkedClientId: leads.linkedClientId })
+                .from(leads)
+                .where(or(...orConditions));
+            }
+          }
+        }
 
         for (const ld of matchedLeads) {
           const currentStage = (ld.status || '').toUpperCase();
@@ -2145,13 +2218,17 @@ export class QuotationService {
           if (!advancedStages.some((s) => currentStage.includes(s))) {
             await db
               .update(leads)
-              .set({ status: 'Quotation Accepted', updatedAt: new Date() })
+              .set({
+                status: 'Quotation Sent',
+                linkedClientId: ld.linkedClientId || quotation.customerId,
+                updatedAt: new Date(),
+              })
               .where(eq(leads.id, ld.id));
 
             await db.insert(leadActivityLogs).values({
               id: `act-${ld.id}-${Date.now()}`,
               leadId: ld.id,
-              title: `Quotation ${quotation.quotationNumber} accepted by customer — pipeline moved to Quotation Accepted`,
+              title: `Quotation ${quotation.quotationNumber} accepted by customer — pipeline moved to Quotation Sent`,
               date: new Date().toISOString().split('T')[0],
               type: 'System',
             });

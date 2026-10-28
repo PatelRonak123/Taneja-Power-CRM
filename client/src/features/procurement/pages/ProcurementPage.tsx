@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Truck,
   FileText,
@@ -147,39 +147,7 @@ export const ProcurementPage: React.FC = () => {
   const [showPoModal, setShowPoModal] = useState(false);
   const [selectedPo, setSelectedPo] = useState<PurchaseOrder | null>(null);
   const [poForm, setPoForm] = useState(defaultPoForm());
-
-  // Listen for navigation from Sales Order shortage workflow
-  useEffect(() => {
-    const shouldCreatePo = searchParams.get('createPo') === 'true';
-    const soNumber = searchParams.get('soNumber') || navState?.soNumber;
-
-    if (shouldCreatePo) {
-      setActiveTab('orders');
-      setShowPoModal(true);
-
-      const items =
-        navState?.shortages && navState.shortages.length > 0
-          ? navState.shortages.map((s) => ({
-              productId: s.productId,
-              quantity: s.shortageQty > 0 ? s.shortageQty : 1,
-              unitCost: 0,
-              taxRate: 18,
-            }))
-          : defaultPoForm().items;
-
-      setPoForm({
-        ...defaultPoForm(),
-        notes: soNumber ? `Procurement to fulfill stock shortage for Sales Order ${soNumber}` : '',
-        items,
-      });
-
-      // Clear the query parameter so closing and reopening doesn't re-trigger unintentionally
-      const nextParams = new URLSearchParams(searchParams);
-      nextParams.delete('createPo');
-      nextParams.delete('soNumber');
-      setSearchParams(nextParams, { replace: true });
-    }
-  }, [searchParams, navState]);
+  const [itemSearches, setItemSearches] = useState<Record<number, string>>({});
 
   const [showGrnModal, setShowGrnModal] = useState(false);
   const [selectedGrn, setSelectedGrn] = useState<GoodsReceipt | null>(null);
@@ -192,6 +160,8 @@ export const ProcurementPage: React.FC = () => {
     isLoading: loadingSuppliers,
   } = useSuppliers({ search: supplierSearch, status: supplierStatusFilter });
 
+  const { data: allActiveSuppliers = [] } = useSuppliers({ status: 'ACTIVE' });
+
   const {
     data: purchaseOrders = [],
     isLoading: loadingPos,
@@ -203,6 +173,105 @@ export const ProcurementPage: React.FC = () => {
   } = useGoodsReceipts({ search: grnSearch });
 
   const { data: availableProducts = [] } = useProcurementProducts();
+
+  // ── Derived state: Supplier & products available for PO ───────────────────────
+  const selectedSupplier = useMemo(() => {
+    if (!poForm.supplierId) return null;
+    return (
+      allActiveSuppliers.find((s) => s.id === poForm.supplierId) ||
+      suppliers.find((s) => s.id === poForm.supplierId) ||
+      null
+    );
+  }, [poForm.supplierId, allActiveSuppliers, suppliers]);
+
+  const supplierAvailableProducts = useMemo(() => {
+    if (!poForm.supplierId || !selectedSupplier) return [];
+
+    const supplierProdIds = new Set<string>([
+      ...(selectedSupplier.productIds || []),
+      ...(selectedSupplier.products?.map((p) => p.id) || []),
+    ]);
+
+    const matched = availableProducts.filter((p) => supplierProdIds.has(p.id));
+    const matchedIds = new Set(matched.map((p) => p.id));
+
+    const extras = (selectedSupplier.products || [])
+      .filter((sp) => !matchedIds.has(sp.id))
+      .map((sp) => ({
+        id: sp.id,
+        name: sp.name,
+        sku: sp.sku,
+        description: null,
+        category: sp.category || 'General',
+        price: parseFloat(sp.price || '0') || 0,
+        stockQuantity: 0,
+        status: 'ACTIVE' as const,
+        gstRate: sp.gstRate ? parseFloat(String(sp.gstRate)) : 18,
+        createdAt: '',
+        updatedAt: '',
+      }));
+
+    return [...matched, ...extras];
+  }, [poForm.supplierId, selectedSupplier, availableProducts]);
+
+  // Listen for navigation from Sales Order shortage workflow
+  useEffect(() => {
+    const shouldCreatePo = searchParams.get('createPo') === 'true';
+    const soNumber = searchParams.get('soNumber') || navState?.soNumber;
+
+    if (shouldCreatePo) {
+      setActiveTab('orders');
+      setShowPoModal(true);
+
+      const items =
+        navState?.shortages && navState.shortages.length > 0
+          ? navState.shortages.map((s) => {
+              const matchedProd = availableProducts.find((p) => p.id === s.productId);
+              const rawPrice = (matchedProd as any)?.price;
+              const parsedPrice =
+                typeof rawPrice === 'number'
+                  ? rawPrice
+                  : parseFloat(String(rawPrice || 0));
+              const rawGst = (matchedProd as any)?.gstRate;
+              const parsedGst =
+                typeof rawGst === 'number'
+                  ? rawGst
+                  : parseFloat(String(rawGst || ''));
+              return {
+                productId: s.productId,
+                quantity: s.shortageQty > 0 ? s.shortageQty : 1,
+                unitCost: !isNaN(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0,
+                taxRate: !isNaN(parsedGst) && parsedGst >= 0 ? parsedGst : 18,
+              };
+            })
+          : defaultPoForm().items;
+
+      // Find an active supplier that supplies the first shortage product (if available)
+      const firstShortageProdId = navState?.shortages?.[0]?.productId;
+      const initialSupplier = firstShortageProdId
+        ? (allActiveSuppliers.length ? allActiveSuppliers : suppliers).find(
+            (s) =>
+              s.status === 'ACTIVE' &&
+              (s.productIds?.includes(firstShortageProdId) ||
+                s.products?.some((p) => p.id === firstShortageProdId))
+          )
+        : null;
+
+      setItemSearches({});
+      setPoForm({
+        ...defaultPoForm(),
+        supplierId: initialSupplier?.id || '',
+        notes: soNumber ? `Procurement to fulfill stock shortage for Sales Order ${soNumber}` : '',
+        items,
+      });
+
+      // Clear the query parameter so closing and reopening doesn't re-trigger unintentionally
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('createPo');
+      nextParams.delete('soNumber');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, navState, allActiveSuppliers, suppliers]);
 
   // ── Mutations ────────────────────────────────────────────────────────────────
   const createSupplier = useCreateSupplier();
@@ -267,7 +336,25 @@ export const ProcurementPage: React.FC = () => {
   // ── Handlers: Purchase Orders ────────────────────────────────────────────────
   const handleSavePo = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createPo.mutateAsync(poForm);
+    if (!poForm.supplierId) {
+      alert('Please select a supplier');
+      return;
+    }
+    const hasInvalidItem = poForm.items.some((it) => !it.productId || it.quantity <= 0);
+    if (hasInvalidItem) {
+      alert('Please select a valid product and quantity for each line item');
+      return;
+    }
+    await createPo.mutateAsync({
+      ...poForm,
+      items: poForm.items.map((i) => ({
+        productId: i.productId,
+        quantity: i.quantity,
+        unitCost: i.unitCost,
+        taxRate: i.taxRate,
+      })),
+    });
+    setItemSearches({});
     setShowPoModal(false);
   };
 
@@ -407,9 +494,10 @@ export const ProcurementPage: React.FC = () => {
               onClick={() => {
                 setPoForm({
                   ...defaultPoForm(),
-                  supplierId: suppliers[0]?.id || '',
-                  items: [{ productId: availableProducts[0]?.id || '', quantity: 1, unitCost: 0, taxRate: 18 }],
+                  supplierId: '',
+                  items: [{ productId: '', quantity: 1, unitCost: 0, taxRate: 18 }],
                 });
+                setItemSearches({});
                 setShowPoModal(true);
               }}
               className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-colors shadow-sm"
@@ -1157,8 +1245,18 @@ export const ProcurementPage: React.FC = () => {
 
       {/* ── MODAL: CREATE PURCHASE ORDER ─────────────────────────────────────── */}
       {showPoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowPoModal(false);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8"
+          >
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div>
                 <h3 className="font-bold text-slate-900 text-lg">Create Purchase Order</h3>
@@ -1186,14 +1284,31 @@ export const ProcurementPage: React.FC = () => {
                   <select
                     required
                     value={poForm.supplierId}
-                    onChange={(e) => setPoForm({ ...poForm, supplierId: e.target.value })}
+                    onChange={(e) => {
+                      const newSupplierId = e.target.value;
+                      const newSupplier = (allActiveSuppliers.length ? allActiveSuppliers : suppliers).find(
+                        (s) => s.id === newSupplierId
+                      );
+                      const allowedIds = new Set<string>([
+                        ...(newSupplier?.productIds || []),
+                        ...(newSupplier?.products?.map((p) => p.id) || []),
+                      ]);
+                      const updatedItems = poForm.items.map((it) => {
+                        if (it.productId && !allowedIds.has(it.productId)) {
+                          return { ...it, productId: '', unitCost: 0 };
+                        }
+                        return it;
+                      });
+                      setItemSearches({});
+                      setPoForm({ ...poForm, supplierId: newSupplierId, items: updatedItems });
+                    }}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="">Select Supplier</option>
-                    {suppliers.filter((s) => s.status === 'ACTIVE').map((s) => (
+                    {(allActiveSuppliers.length ? allActiveSuppliers : suppliers.filter((s) => s.status === 'ACTIVE')).map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name} ({s.supplierCode})
-                        {s.products && s.products.length > 0 ? ` — ${s.products.length} Products` : ''}
+                        {s.products && s.products.length > 0 ? ` — ${s.products.length} Products` : ' — No products linked'}
                       </option>
                     ))}
                   </select>
@@ -1231,7 +1346,7 @@ export const ProcurementPage: React.FC = () => {
                         ...poForm,
                         items: [
                           ...poForm.items,
-                          { productId: availableProducts[0]?.id || '', quantity: 1, unitCost: 0, taxRate: 18 },
+                          { productId: '', quantity: 1, unitCost: 0, taxRate: 18 },
                         ],
                       })
                     }
@@ -1242,7 +1357,7 @@ export const ProcurementPage: React.FC = () => {
                 </div>
 
                 {/* Empty products notice */}
-                {availableProducts.length === 0 && (
+                {availableProducts.length === 0 ? (
                   <div className="flex items-start gap-3 p-3 mb-3 bg-amber-50 border border-amber-200 rounded-xl">
                     <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -1262,12 +1377,35 @@ export const ProcurementPage: React.FC = () => {
                       </button>
                     )}
                   </div>
-                )}
+                ) : !poForm.supplierId ? (
+                  <div className="flex items-start gap-3 p-3 mb-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <Info className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-700">Please select a supplier</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Choose a supplier above to display and select the products available from that vendor.
+                      </p>
+                    </div>
+                  </div>
+                ) : supplierAvailableProducts.length === 0 ? (
+                  <div className="flex items-start gap-3 p-3 mb-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-amber-800">
+                        No products linked to {selectedSupplier?.name || 'this supplier'}
+                      </p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        This supplier does not have any products linked in their catalog. You can link products in the Suppliers tab by editing this supplier.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-slate-700 font-semibold text-xs border-b border-slate-200">
                       <tr>
-                        <th className="py-2.5 px-3 min-w-[280px]">Product &amp; Available Suppliers</th>
+                        <th className="py-2.5 px-3 min-w-[320px]">Product &amp; Search ({selectedSupplier ? `${selectedSupplier.name}'s Catalog` : 'Supplier Catalog'})</th>
                         <th className="py-2.5 px-3 w-20">Qty</th>
                         <th className="py-2.5 px-3 w-28">Unit Cost (₹)</th>
                         <th className="py-2.5 px-3 w-20">Tax (%)</th>
@@ -1281,121 +1419,163 @@ export const ProcurementPage: React.FC = () => {
                         const tax = sub * ((item.taxRate || 0) / 100);
                         const total = sub + tax;
 
-                        const matchingSuppliers = suppliers.filter(
-                          (s) =>
-                            s.status === 'ACTIVE' &&
-                            (s.productIds?.includes(item.productId) ||
-                              s.products?.some((p) => p.id === item.productId))
-                        );
-                        const currentSupplier = suppliers.find((s) => s.id === poForm.supplierId);
-                        const isSuppliedByCurrent =
-                          poForm.supplierId &&
-                          matchingSuppliers.some((s) => s.id === poForm.supplierId);
+                        const itemSearchTerm = (itemSearches[idx] || '').trim().toLowerCase();
+                        const filteredProducts = itemSearchTerm
+                          ? supplierAvailableProducts.filter(
+                              (p) =>
+                                p.name.toLowerCase().includes(itemSearchTerm) ||
+                                p.sku.toLowerCase().includes(itemSearchTerm) ||
+                                (p.category && p.category.toLowerCase().includes(itemSearchTerm))
+                            )
+                          : supplierAvailableProducts;
 
                         return (
                           <tr key={idx} className="hover:bg-slate-50/50">
-                            <td className="py-2.5 px-3">
-                              <select
-                                required
-                                value={item.productId}
-                                onChange={(e) => {
-                                  const items = [...poForm.items];
-                                  items[idx].productId = e.target.value;
-                                  setPoForm({ ...poForm, items });
-                                }}
-                                className="w-full py-1.5 px-2 text-xs font-medium border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500"
-                              >
-                                <option value="">Select Product…</option>
-                                {item.productId && !availableProducts.some((p) => p.id === item.productId) && (
-                                  <option value={item.productId}>
-                                    {navState?.shortages?.find((s) => s.productId === item.productId)?.productName || 'Selected Product'}{' '}
-                                    {navState?.shortages?.find((s) => s.productId === item.productId)?.sku
-                                      ? `(${navState.shortages.find((s) => s.productId === item.productId)?.sku})`
-                                      : ''}
-                                  </option>
-                                )}
-                                {availableProducts.map((p) => {
-                                  const isSuppliedBySel =
-                                    poForm.supplierId &&
-                                    suppliers
-                                      .find((s) => s.id === poForm.supplierId)
-                                      ?.products?.some((sp) => sp.id === p.id);
-                                  return (
-                                    <option key={p.id} value={p.id}>
-                                      {p.name} ({p.sku})
-                                      {isSuppliedBySel ? ' ✓ (In Vendor Catalog)' : ''}
-                                    </option>
-                                  );
-                                })}
-                              </select>
+                            <td className="py-2.5 px-3 min-w-[320px] align-top">
+                              <div className="flex flex-col gap-1.5">
+                                {/* Search input alongside dropdown */}
+                                <div className="relative">
+                                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                  <input
+                                    type="text"
+                                    disabled={!poForm.supplierId || supplierAvailableProducts.length === 0}
+                                    placeholder={
+                                      !poForm.supplierId
+                                        ? 'Select supplier first...'
+                                        : supplierAvailableProducts.length === 0
+                                        ? 'No products available...'
+                                        : 'Type to search product or SKU...'
+                                    }
+                                    value={itemSearches[idx] || ''}
+                                    onChange={(e) =>
+                                      setItemSearches((prev) => ({ ...prev, [idx]: e.target.value }))
+                                    }
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        if (filteredProducts.length === 1) {
+                                          const matchedProd = filteredProducts[0];
+                                          const items = [...poForm.items];
+                                          items[idx].productId = matchedProd.id;
 
-                              {/* Available Suppliers Companion Selector / Badge */}
-                              {item.productId && (
-                                <div className="mt-1">
-                                  {matchingSuppliers.length === 0 ? (
-                                    <div className="flex items-center gap-1 text-[10px] text-slate-400 italic">
-                                      <Info className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                                      <span>No specific suppliers linked (Any active vendor can fulfill)</span>
-                                    </div>
-                                  ) : !poForm.supplierId ? (
-                                    <select
-                                      value=""
-                                      onChange={(e) => {
-                                        if (e.target.value) {
-                                          setPoForm({ ...poForm, supplierId: e.target.value });
-                                        }
-                                      }}
-                                      className="text-[11px] font-semibold py-1 px-2 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900 focus:ring-1 focus:ring-indigo-500 cursor-pointer w-full"
-                                    >
-                                      <option value="">
-                                        Available Suppliers ({matchingSuppliers.length}) — Click to Set PO Vendor...
-                                      </option>
-                                      {matchingSuppliers.map((s) => (
-                                        <option key={s.id} value={s.id}>
-                                          {s.name} ({s.supplierCode})
-                                        </option>
-                                      ))}
-                                    </select>
-                                  ) : isSuppliedByCurrent ? (
-                                    <div className="flex items-center justify-between gap-1 text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                                      <div className="flex items-center gap-1 truncate">
-                                        <CheckCircle className="w-3 h-3 text-emerald-600 flex-shrink-0" />
-                                        <span className="truncate">Supplied by {currentSupplier?.name}</span>
-                                      </div>
-                                      {matchingSuppliers.length > 1 && (
-                                        <span className="text-[10px] text-emerald-600 font-normal whitespace-nowrap ml-1">
-                                          ({matchingSuppliers.length} vendors)
-                                        </span>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div className="flex flex-col gap-1 p-1.5 bg-amber-50 border border-amber-200/80 rounded-lg text-[11px]">
-                                      <div className="flex items-center gap-1 text-amber-800 font-medium">
-                                        <AlertTriangle className="w-3 h-3 text-amber-600 flex-shrink-0" />
-                                        <span>Not in {currentSupplier?.name}'s catalog</span>
-                                      </div>
-                                      <select
-                                        value=""
-                                        onChange={(e) => {
-                                          if (e.target.value) {
-                                            setPoForm({ ...poForm, supplierId: e.target.value });
+                                          const rawPrice = (matchedProd as any)?.price;
+                                          const parsedPrice =
+                                            typeof rawPrice === 'number'
+                                              ? rawPrice
+                                              : parseFloat(String(rawPrice || 0));
+                                          items[idx].unitCost = !isNaN(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0;
+
+                                          const rawGst = (matchedProd as any)?.gstRate;
+                                          const parsedGst =
+                                            typeof rawGst === 'number'
+                                              ? rawGst
+                                              : parseFloat(String(rawGst || ''));
+                                          if (!isNaN(parsedGst) && parsedGst >= 0) {
+                                            items[idx].taxRate = parsedGst;
                                           }
-                                        }}
-                                        className="text-[10px] font-semibold py-1 px-1.5 bg-white border border-amber-300 rounded text-amber-900 focus:ring-1 focus:ring-amber-500 cursor-pointer w-full"
-                                      >
-                                        <option value="">
-                                          Available Suppliers ({matchingSuppliers.length}) — Switch PO Supplier...
-                                        </option>
-                                        {matchingSuppliers.map((s) => (
-                                          <option key={s.id} value={s.id}>
-                                            Switch to: {s.name} ({s.supplierCode})
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
+
+                                          setPoForm({ ...poForm, items });
+                                        }
+                                      }
+                                    }}
+                                    className="w-full pl-8 pr-7 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400 bg-white"
+                                  />
+                                  {itemSearches[idx] && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setItemSearches((prev) => {
+                                          const next = { ...prev };
+                                          delete next[idx];
+                                          return next;
+                                        })
+                                      }
+                                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                                      title="Clear search filter"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
                                   )}
                                 </div>
-                              )}
+
+                                {/* Product Dropdown Select */}
+                                <select
+                                  required
+                                  disabled={!poForm.supplierId || supplierAvailableProducts.length === 0}
+                                  value={item.productId}
+                                  onChange={(e) => {
+                                    const prodId = e.target.value;
+                                    const items = [...poForm.items];
+                                    items[idx].productId = prodId;
+
+                                    const matchedProd =
+                                      supplierAvailableProducts.find((p) => p.id === prodId) ||
+                                      availableProducts.find((p) => p.id === prodId) ||
+                                      selectedSupplier?.products?.find((p) => p.id === prodId);
+
+                                    if (matchedProd) {
+                                      const rawPrice = (matchedProd as any)?.price;
+                                      const parsedPrice =
+                                        typeof rawPrice === 'number'
+                                          ? rawPrice
+                                          : parseFloat(String(rawPrice || 0));
+                                      items[idx].unitCost = !isNaN(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0;
+
+                                      const rawGst = (matchedProd as any)?.gstRate;
+                                      const parsedGst =
+                                        typeof rawGst === 'number'
+                                          ? rawGst
+                                          : parseFloat(String(rawGst || ''));
+                                      if (!isNaN(parsedGst) && parsedGst >= 0) {
+                                        items[idx].taxRate = parsedGst;
+                                      }
+                                    } else if (!prodId) {
+                                      items[idx].unitCost = 0;
+                                    }
+                                    setPoForm({ ...poForm, items });
+                                  }}
+                                  className={`w-full py-1.5 px-2 text-xs font-medium border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 ${
+                                    !poForm.supplierId || supplierAvailableProducts.length === 0
+                                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                      : 'bg-white text-slate-800'
+                                  }`}
+                                >
+                                  {!poForm.supplierId ? (
+                                    <option value="">Select Supplier first…</option>
+                                  ) : supplierAvailableProducts.length === 0 ? (
+                                    <option value="">No products available for this supplier</option>
+                                  ) : itemSearchTerm && filteredProducts.length === 0 ? (
+                                    <option value="">No products matching "{itemSearches[idx]}"</option>
+                                  ) : (
+                                    <option value="">
+                                      Select Product…{' '}
+                                      {itemSearchTerm
+                                        ? `(${filteredProducts.length} matches)`
+                                        : `(${supplierAvailableProducts.length} available)`}
+                                    </option>
+                                  )}
+                                  {item.productId && !filteredProducts.some((p) => p.id === item.productId) && (
+                                    <option value={item.productId}>
+                                      {supplierAvailableProducts.find((p) => p.id === item.productId)?.name ||
+                                        navState?.shortages?.find((s) => s.productId === item.productId)?.productName ||
+                                        'Selected Product'}{' '}
+                                      (Selected)
+                                    </option>
+                                  )}
+                                  {filteredProducts.map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.name} ({p.sku})
+                                    </option>
+                                  ))}
+                                </select>
+
+                                {item.productId && selectedSupplier && (
+                                  <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 w-fit">
+                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                    <span>Available from {selectedSupplier.name}</span>
+                                  </div>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2.5 px-3 align-top">
                               <input
@@ -1447,9 +1627,18 @@ export const ProcurementPage: React.FC = () => {
                               {poForm.items.length > 1 && (
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    setPoForm({ ...poForm, items: poForm.items.filter((_, i) => i !== idx) })
-                                  }
+                                  onClick={() => {
+                                    setPoForm({ ...poForm, items: poForm.items.filter((_, i) => i !== idx) });
+                                    setItemSearches((prev) => {
+                                      const next: Record<number, string> = {};
+                                      Object.keys(prev).forEach((k) => {
+                                        const keyNum = parseInt(k, 10);
+                                        if (keyNum < idx) next[keyNum] = prev[keyNum];
+                                        else if (keyNum > idx) next[keyNum - 1] = prev[keyNum];
+                                      });
+                                      return next;
+                                    });
+                                  }}
                                   className="text-slate-400 hover:text-rose-500 cursor-pointer"
                                 >
                                   <X className="w-4 h-4" />
@@ -1490,8 +1679,18 @@ export const ProcurementPage: React.FC = () => {
 
       {/* ── MODAL: VIEW PO DETAILS ───────────────────────────────────────────── */}
       {selectedPo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedPo(null);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8"
+          >
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div>
                 <div className="flex items-center gap-2">
@@ -1590,8 +1789,19 @@ export const ProcurementPage: React.FC = () => {
 
       {/* ── MODAL: CREATE GOODS RECEIPT ──────────────────────────────────────── */}
       {showGrnModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowGrnModal(false);
+              setGrnSelectedPo(null);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8"
+          >
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div>
                 <h3 className="font-bold text-slate-900 text-lg">Goods Receipt / GRN</h3>
@@ -1677,8 +1887,18 @@ export const ProcurementPage: React.FC = () => {
 
       {/* ── MODAL: VIEW GRN DETAILS ──────────────────────────────────────────── */}
       {selectedGrn && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedGrn(null);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8"
+          >
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div>
                 <div className="flex items-center gap-2">

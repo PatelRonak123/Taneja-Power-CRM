@@ -189,7 +189,7 @@ export const QuotationPrintDocument: React.FC<Props> = ({ quotation, revisionOve
                     </div>
                   )}
                   {item.description && item.description !== item.productName && (
-                    <div className="text-[9.5px] text-slate-600 mt-0.5">{item.description}</div>
+                    <div className="text-[9.5px] text-slate-600 mt-0.5 whitespace-pre-wrap break-words">{item.description}</div>
                   )}
                 </td>
                 <td className="py-2 px-2 text-center text-slate-600 font-mono text-[9px]">{item.hsnSac || '—'}</td>

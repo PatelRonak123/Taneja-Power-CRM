@@ -29,9 +29,9 @@ const DEFAULT_STAGES: Array<{
   isManual?: boolean;
 }> = [
   { id: 'NEW LEADS', title: 'NEW LEADS', targetStatus: 'New', statusKeys: ['NEW', 'NEW LEADS', 'NEW_LEAD', 'NEW_LEADS'], isManual: true },
-  { id: 'CONTACTED', title: 'CONTACTED', targetStatus: 'Contacted', statusKeys: ['CONTACTED'], isManual: true },
+  { id: 'CONTACTED', title: 'CONTACTED', targetStatus: 'Contacted', statusKeys: ['CONTACTED', 'CONTACTED LEADS'], isManual: true },
   { id: 'MEETING SCHEDULED', title: 'MEETING SCHEDULED', targetStatus: 'Meeting Scheduled', statusKeys: ['MEETING SCHEDULED', 'MEETING_SCHEDULED'] },
-  { id: 'QUOTATION SENT', title: 'QUOTATION SENT', targetStatus: 'Quotation Sent', statusKeys: ['QUOTATION SENT', 'QUOTATION_SENT', 'PROPOSAL SENT', 'PROPOSAL_SENT'] },
+  { id: 'QUOTATION SENT', title: 'QUOTATION SENT', targetStatus: 'Quotation Sent', statusKeys: ['QUOTATION SENT', 'QUOTATION_SENT', 'PROPOSAL SENT', 'PROPOSAL_SENT', 'QUOTATION ACCEPTED', 'QUOTATION_ACCEPTED', 'ACCEPTED'] },
   { id: 'NEGOTIATION', title: 'NEGOTIATION', targetStatus: 'Negotiation', statusKeys: ['NEGOTIATION'], isManual: true },
   { id: 'ORDER CONFIRMED', title: 'ORDER CONFIRMED', targetStatus: 'Order Confirmed', statusKeys: ['ORDER CONFIRMED', 'ORDER_CONFIRMED', 'APPROVED/PO', 'APPROVED'] },
   { id: 'READY FOR DISPATCH', title: 'READY FOR DISPATCH', targetStatus: 'Ready for Dispatch', statusKeys: ['READY FOR DISPATCH', 'READY_FOR_DISPATCH'] },
