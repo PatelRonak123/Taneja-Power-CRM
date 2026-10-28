@@ -347,8 +347,9 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
           }
         }
 
-        // Link lead in DB
-        await leadsApi.updateLead(lead.id, { linkedClientId: newCustomer.id });
+        // Link lead in DB and move to Contacted if it was New
+        const fallbackStatus = ['NEW', 'NEW LEADS', 'NEW_LEAD', 'NEW_LEADS'].includes((lead.status || '').toUpperCase()) ? 'Contacted' : lead.status;
+        await leadsApi.updateLead(lead.id, { linkedClientId: newCustomer.id, status: fallbackStatus });
       }
 
       if (!newCustomer || !newCustomer.id) {
@@ -357,25 +358,32 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({
 
       const targetCustomerId = newCustomer.id;
 
+      const isCurrentNew = ['NEW', 'NEW LEADS', 'NEW_LEAD', 'NEW_LEADS'].includes((lead.status || '').toUpperCase());
+      const finalStatus: LeadStatus = isCurrentNew ? 'Contacted' : (updatedLead?.status || lead.status);
+
       // Update local customer list
       setCustomersList((prev) => [newCustomer!, ...prev.filter((c) => c.id !== targetCustomerId)]);
       setSelectedCustomerId(targetCustomerId);
       setFormData((prev) => ({
         ...prev,
         linkedClientId: targetCustomerId,
+        status: finalStatus,
       }));
 
       const authorName = user?.fullName || 'User';
       const logItem = {
         id: `act-${Date.now()}`,
-        title: `Lead converted to customer: ${lead.customerName} (by ${authorName})`,
+        title: isCurrentNew
+          ? `Lead converted to customer: ${lead.customerName} (by ${authorName}) — status moved from New to Contacted`
+          : `Lead converted to customer: ${lead.customerName} (by ${authorName})`,
         date: new Date().toISOString().split('T')[0],
         type: 'System',
       };
 
-      const finalLead: Lead = updatedLead || {
-        ...lead,
+      const finalLead: Lead = {
+        ...(updatedLead || lead),
         linkedClientId: targetCustomerId,
+        status: finalStatus,
         activityLogs: [logItem, ...(lead.activityLogs || [])],
       };
 

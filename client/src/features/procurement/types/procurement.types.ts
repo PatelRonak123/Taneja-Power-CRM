@@ -4,6 +4,7 @@ export interface SupplierProduct {
   sku: string;
   category?: string;
   price?: string;
+  gstRate?: string | null;
 }
 
 export interface Supplier {

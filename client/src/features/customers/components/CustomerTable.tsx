@@ -42,6 +42,7 @@ interface CustomerTableProps {
   onPageChange: (newPage: number) => void;
   onOpenCreate: () => void;
   isAdmin?: boolean;
+  isAccountant?: boolean;
 }
 
 export const CustomerTable: React.FC<CustomerTableProps> = ({
@@ -62,6 +63,7 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   onPageChange,
   onOpenCreate,
   isAdmin = false,
+  isAccountant = false,
 }) => {
   return (
     <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden flex flex-col">
@@ -92,7 +94,7 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                     : 'No customers registered yet. Click "Add New Customer" above to create one.'
                 }
                 action={
-                  !searchQuery && statusFilter === 'ALL' ? (
+                  !searchQuery && statusFilter === 'ALL' && !isAccountant ? (
                     <Button
                       variant="primary"
                       size="sm"
@@ -232,15 +234,17 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                           </button>
                         )}
 
-                        <button
-                          type="button"
-                          className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600"
-                          onClick={() => onEditCustomer(cust)}
-                          title="Edit Customer"
-                          aria-label={`Edit ${cust.name}`}
-                        >
-                          <Edit2 size={13} />
-                        </button>
+                        {!isAccountant && (
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600"
+                            onClick={() => onEditCustomer(cust)}
+                            title="Edit Customer"
+                            aria-label={`Edit ${cust.name}`}
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                        )}
 
                         {isAdmin && (
                           <button

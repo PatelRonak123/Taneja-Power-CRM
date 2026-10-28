@@ -149,43 +149,6 @@ export class QuotationAmcPdfService {
       }
     }
 
-    if (logoPath) {
-      try {
-        doc.image(logoPath, 36, startY, { fit: [130, 32] });
-        doc
-          .font('Helvetica')
-          .fontSize(7)
-          .fillColor('#64748b')
-          .text(company.division, 36, startY + 36)
-          .text(`${company.addressLine1}, ${company.addressLine2}`, 36, startY + 46)
-          .text(`GSTIN: ${company.gstin} • Email: ${company.email} • Phone: ${company.phone}`, 36, startY + 56);
-      } catch {
-        doc
-          .font('Helvetica-Bold')
-          .fontSize(14)
-          .fillColor('#0f172a')
-          .text(company.name, 36, startY)
-          .font('Helvetica')
-          .fontSize(7)
-          .fillColor('#64748b')
-          .text(company.division, 36, startY + 16)
-          .text(`${company.addressLine1}, ${company.addressLine2}`, 36, startY + 26)
-          .text(`GSTIN: ${company.gstin} • Email: ${company.email} • Phone: ${company.phone}`, 36, startY + 36);
-      }
-    } else {
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(14)
-        .fillColor('#0f172a')
-        .text(company.name, 36, startY)
-        .font('Helvetica')
-        .fontSize(7)
-        .fillColor('#64748b')
-        .text(company.division, 36, startY + 16)
-        .text(`${company.addressLine1}, ${company.addressLine2}`, 36, startY + 26)
-        .text(`GSTIN: ${company.gstin} • Email: ${company.email} • Phone: ${company.phone}`, 36, startY + 36);
-    }
-
     const rightColX = pageWidth - 230;
 
     doc
@@ -228,7 +191,62 @@ export class QuotationAmcPdfService {
       .fillColor('#0f172a')
       .text(formatDate(data.revision.quotationDate || data.createdAt), rightColX + 50, metaBoxY + 31, { align: 'right', width: 136 });
 
-    const sepY = startY + 80;
+    // Left Column: Logo & Company Address Details
+    const leftMargin = 36;
+    const rightBoxLeft = rightColX - 10;
+    const leftColWidth = rightBoxLeft - leftMargin - 14;
+
+    let leftY = startY;
+
+    if (logoPath) {
+      try {
+        doc.image(logoPath, leftMargin, startY, { fit: [130, 32] });
+        leftY = startY + 36;
+      } catch {
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(14)
+          .fillColor('#0f172a')
+          .text(company.name, leftMargin, startY, { width: leftColWidth });
+        leftY = startY + 18;
+      }
+    } else {
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(14)
+        .fillColor('#0f172a')
+        .text(company.name, leftMargin, startY, { width: leftColWidth });
+      leftY = startY + 18;
+    }
+
+    // Company division & cleanly wrapped address with lineGap
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#64748b')
+      .text(company.division, leftMargin, leftY, { width: leftColWidth, lineGap: 1.5 });
+
+    leftY = doc.y + 2;
+
+    const addressParts = [company.addressLine1, company.addressLine2].filter(Boolean).join(', ');
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#64748b')
+      .text(addressParts, leftMargin, leftY, { width: leftColWidth, lineGap: 1.5 });
+
+    leftY = doc.y + 2;
+
+    const contactParts = `GSTIN: ${company.gstin} • Email: ${company.email} • Phone: ${company.phone}`;
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#64748b')
+      .text(contactParts, leftMargin, leftY, { width: leftColWidth, lineGap: 1.5 });
+
+    leftY = doc.y;
+
+    const sepY = Math.max(leftY + 8, metaBoxY + 52 + 8, startY + 82);
     doc
       .strokeColor('#1e40af')
       .lineWidth(1)

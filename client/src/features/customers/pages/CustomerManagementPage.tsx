@@ -28,6 +28,10 @@ import { Button } from '../../../components/ui/Button';
 export const CustomerManagementPage: React.FC = () => {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN';
+  const designationLower = (user?.designation || '').toLowerCase();
+  const isAccountant =
+    (user?.role as string) === 'ACCOUNTANT' ||
+    designationLower.includes('accountant');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -188,6 +192,7 @@ export const CustomerManagementPage: React.FC = () => {
 
   // Open Create Customer Modal
   const handleOpenCreateCustomer = () => {
+    if (isAccountant) return;
     setCustomerModalMode('create');
     setEditingCustomerId(null);
     setCustomerFormError(null);
@@ -207,6 +212,7 @@ export const CustomerManagementPage: React.FC = () => {
 
   // Open Edit Customer Modal
   const handleOpenEditCustomer = (customer: Customer) => {
+    if (isAccountant) return;
     setCustomerModalMode('edit');
     setEditingCustomerId(customer.id);
     setCustomerFormError(null);
@@ -336,6 +342,7 @@ export const CustomerManagementPage: React.FC = () => {
 
   // Open Create Destination Modal
   const handleOpenCreateDestination = () => {
+    if (isAccountant) return;
     setDestinationModalMode('create');
     setEditingDestinationId(null);
     setDestinationFormError(null);
@@ -357,6 +364,7 @@ export const CustomerManagementPage: React.FC = () => {
 
   // Open Edit Destination Modal
   const handleOpenEditDestination = (destination: CustomerDestination) => {
+    if (isAccountant) return;
     setDestinationModalMode('edit');
     setEditingDestinationId(destination.id);
     setDestinationFormError(null);
@@ -530,21 +538,25 @@ export const CustomerManagementPage: React.FC = () => {
             Customer & Destination Management
           </h1>
           <p className="text-[13px] text-slate-500 leading-normal">
-            {!isAdmin
+            {isAccountant
+              ? 'View registered client accounts, contact details, installed equipment, and service destination sites.'
+              : !isAdmin
               ? 'View and manage your registered client accounts, contact details, and service destination sites.'
               : 'Manage enterprise client accounts, configure multi-facility service destination sites, and coordinate GPS location markers.'}
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          size="md"
-          leftIcon={<Plus size={16} />}
-          onClick={handleOpenCreateCustomer}
-          className="shrink-0"
-        >
-          Add Customer
-        </Button>
+        {!isAccountant && (
+          <Button
+            variant="primary"
+            size="md"
+            leftIcon={<Plus size={16} />}
+            onClick={handleOpenCreateCustomer}
+            className="shrink-0"
+          >
+            Add Customer
+          </Button>
+        )}
       </div>
 
       {/* Metrics Header Cards */}
@@ -588,18 +600,21 @@ export const CustomerManagementPage: React.FC = () => {
         onDeleteCustomer={handleDeleteCustomer}
         deletingCustomerId={deletingCustomerId}
         isAdmin={isAdmin}
+        isAccountant={isAccountant}
       />
 
       {/* Customer Create / Edit Modal */}
-      <CustomerModal
-        modalMode={customerModalMode}
-        onClose={() => setCustomerModalMode(null)}
-        onSubmit={handleCustomerSubmit}
-        formData={customerFormData}
-        onInputChange={handleCustomerInputChange}
-        formSubmitting={customerFormSubmitting}
-        formError={customerFormError}
-      />
+      {!isAccountant && (
+        <CustomerModal
+          modalMode={customerModalMode}
+          onClose={() => setCustomerModalMode(null)}
+          onSubmit={handleCustomerSubmit}
+          formData={customerFormData}
+          onInputChange={handleCustomerInputChange}
+          formSubmitting={customerFormSubmitting}
+          formError={customerFormError}
+        />
+      )}
 
       {/* Installed Equipment & Assets Drawer */}
       <CustomerEquipmentDrawer
@@ -620,7 +635,7 @@ export const CustomerManagementPage: React.FC = () => {
         onEditDestination={handleOpenEditDestination}
         onDeleteDestination={handleDeleteDestination}
         deletingDestinationId={deletingDestinationId}
-        canManage={true}
+        canManage={!isAccountant}
       />
 
       {/* Destination Create / Edit Modal */}

@@ -34,6 +34,10 @@ import { FollowUpDashboardWidget } from '../../follow-ups/components/FollowUpDas
 
 export const AdminDashboardPage: React.FC = () => {
   const { user } = useAuthStore();
+  const designationLower = (user?.designation || '').toLowerCase();
+  const isAccountant =
+    (user?.role as string) === 'ACCOUNTANT' ||
+    designationLower.includes('accountant');
   const { status: waStatus, phoneNumber: waPhone } = useWhatsApp();
 
   // Live Summary Metrics
@@ -304,14 +308,16 @@ export const AdminDashboardPage: React.FC = () => {
               <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
             </Button>
 
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => navigate('/customers')}
-            >
-              <Building2 size={14} className="mr-1.5" />
-              <span>Add Customer</span>
-            </Button>
+            {!isAccountant && (
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => navigate('/customers')}
+              >
+                <Building2 size={14} className="mr-1.5" />
+                <span>Add Customer</span>
+              </Button>
+            )}
 
             <Button
               variant="primary"

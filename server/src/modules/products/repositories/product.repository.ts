@@ -1,4 +1,4 @@
-import { eq, ilike, and, sql, desc, count } from 'drizzle-orm';
+import { eq, ilike, and, or, sql, desc, count } from 'drizzle-orm';
 import { db } from '../../../database/db.js';
 import { products, ProductEntity, NewProductEntity } from '../../../database/schema/products.js';
 import { ListProductsQuery } from '../validators/product.validator.js';
@@ -11,7 +11,7 @@ export class ProductRepository {
     const conditions = [];
 
     if (search) {
-      conditions.push(ilike(products.name, `%${search}%`));
+      conditions.push(or(ilike(products.name, `%${search}%`), ilike(products.sku, `%${search}%`)));
     }
     if (category) {
       conditions.push(eq(products.category, category));

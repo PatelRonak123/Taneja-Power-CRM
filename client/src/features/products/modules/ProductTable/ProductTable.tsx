@@ -14,11 +14,17 @@ import {
   TableHead,
   TableCell,
   TableEmptyState,
+  TablePagination,
 } from '../../../../components/ui/table';
 import { Button } from '@/components/ui/Button';
 
 interface ProductTableProps {
   products: Product[];
+  page?: number;
+  totalPages?: number;
+  totalCount?: number;
+  limit?: number;
+  onPageChange?: (newPage: number) => void;
   onEdit: (product: Product) => void;
   onDelete: (id: string) => void;
   onDeployFirst?: () => void;
@@ -30,6 +36,11 @@ interface ProductTableProps {
 
 export const ProductTable: React.FC<ProductTableProps> = ({
   products,
+  page,
+  totalPages,
+  totalCount,
+  limit,
+  onPageChange,
   onEdit,
   onDelete,
   onDeployFirst,
@@ -197,6 +208,18 @@ export const ProductTable: React.FC<ProductTableProps> = ({
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination Footer */}
+      {totalCount !== undefined && totalCount > 0 && onPageChange && (
+        <TablePagination
+          page={page || 1}
+          totalPages={totalPages || 1}
+          totalCount={totalCount}
+          limit={limit || 10}
+          onPageChange={onPageChange}
+          entityName="equipment assets"
+        />
+      )}
     </div>
   );
 };

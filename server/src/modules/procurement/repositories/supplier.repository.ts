@@ -15,6 +15,7 @@ export interface SupplierProductInfo {
   sku: string;
   category?: string;
   price?: string;
+  gstRate?: string | null;
 }
 
 export type SupplierWithProducts = SupplierEntity & {
@@ -46,6 +47,7 @@ export class SupplierRepository {
         sku: products.sku,
         category: products.category,
         price: products.price,
+        gstRate: products.gstRate,
       })
       .from(supplierProducts)
       .innerJoin(products, eq(supplierProducts.productId, products.id))
@@ -62,6 +64,7 @@ export class SupplierRepository {
         sku: link.sku,
         category: link.category,
         price: link.price,
+        gstRate: link.gstRate,
       });
     }
 

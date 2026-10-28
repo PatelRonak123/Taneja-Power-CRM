@@ -7,6 +7,7 @@ export interface ProductDto {
   price: number;
   stockQuantity: number;
   status: string;
+  gstRate?: number | null;
   createdAt: string;
   updatedAt: string;
 }

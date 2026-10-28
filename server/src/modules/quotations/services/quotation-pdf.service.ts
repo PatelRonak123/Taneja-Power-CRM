@@ -275,59 +275,6 @@ export class QuotationPdfService {
     const pageWidth = doc.page.width;
     const contentWidth = pageWidth - 72;
 
-    // Check for logo file
-    const logoCandidates = [
-      path.resolve(process.cwd(), '../client/public/logo.png'),
-      path.resolve(process.cwd(), 'client/public/logo.png'),
-      path.resolve(process.cwd(), 'public/logo.png'),
-    ];
-
-    let logoPath: string | null = null;
-    for (const p of logoCandidates) {
-      if (fs.existsSync(p)) {
-        logoPath = p;
-        break;
-      }
-    }
-
-    if (logoPath) {
-      try {
-        // Fit logo cleanly without stretching or colliding
-        doc.image(logoPath, 36, startY, { fit: [130, 32] });
-        doc
-          .font('Helvetica')
-          .fontSize(7)
-          .fillColor('#64748b')
-          .text(company.division, 36, startY + 36)
-          .text(`${company.addressLine1}, ${company.addressLine2}`, 36, startY + 46)
-          .text(`GSTIN: ${company.gstin} • Email: ${company.email} • Phone: ${company.phone}`, 36, startY + 56);
-      } catch {
-        doc
-          .font('Helvetica-Bold')
-          .fontSize(14)
-          .fillColor('#0f172a')
-          .text(company.name, 36, startY)
-          .font('Helvetica')
-          .fontSize(7)
-          .fillColor('#64748b')
-          .text(company.division, 36, startY + 16)
-          .text(`${company.addressLine1}, ${company.addressLine2}`, 36, startY + 26)
-          .text(`GSTIN: ${company.gstin} • Email: ${company.email} • Phone: ${company.phone}`, 36, startY + 36);
-      }
-    } else {
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(14)
-        .fillColor('#0f172a')
-        .text(company.name, 36, startY)
-        .font('Helvetica')
-        .fontSize(7)
-        .fillColor('#64748b')
-        .text(company.division, 36, startY + 16)
-        .text(`${company.addressLine1}, ${company.addressLine2}`, 36, startY + 26)
-        .text(`GSTIN: ${company.gstin} • Email: ${company.email} • Phone: ${company.phone}`, 36, startY + 36);
-    }
-
     // Right Column: Quotation Document Banner
     const rightColX = pageWidth - 220;
     const typeHeading = getQuotationTypeHeading(data.quotationType);
@@ -382,8 +329,79 @@ export class QuotationPdfService {
       .fillColor('#0f172a')
       .text(formatDate(data.revision.validUntil), rightColX + 45, metaBoxY + 45, { align: 'right', width: 130 });
 
-    // Header dividing line
-    const sepY = startY + 90;
+    // Left Column: Logo & Company Address Details
+    const leftMargin = 36;
+    const rightBoxLeft = rightColX - 30; // 345pt
+    const leftColWidth = rightBoxLeft - leftMargin - 14; // ~295pt bounded width
+
+    // Check for logo file
+    const logoCandidates = [
+      path.resolve(process.cwd(), '../client/public/logo.png'),
+      path.resolve(process.cwd(), 'client/public/logo.png'),
+      path.resolve(process.cwd(), 'public/logo.png'),
+    ];
+
+    let logoPath: string | null = null;
+    for (const p of logoCandidates) {
+      if (fs.existsSync(p)) {
+        logoPath = p;
+        break;
+      }
+    }
+
+    let leftY = startY;
+
+    if (logoPath) {
+      try {
+        // Fit logo cleanly without stretching or colliding
+        doc.image(logoPath, leftMargin, startY, { fit: [130, 32] });
+        leftY = startY + 36;
+      } catch {
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(14)
+          .fillColor('#0f172a')
+          .text(company.name, leftMargin, startY, { width: leftColWidth });
+        leftY = startY + 18;
+      }
+    } else {
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(14)
+        .fillColor('#0f172a')
+        .text(company.name, leftMargin, startY, { width: leftColWidth });
+      leftY = startY + 18;
+    }
+
+    // Company division & cleanly wrapped address with lineGap
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#64748b')
+      .text(company.division, leftMargin, leftY, { width: leftColWidth, lineGap: 1.5 });
+
+    leftY = doc.y + 2;
+
+    const addressParts = [company.addressLine1, company.addressLine2].filter(Boolean).join(', ');
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#64748b')
+      .text(addressParts, leftMargin, leftY, { width: leftColWidth, lineGap: 1.5 });
+
+    leftY = doc.y + 2;
+
+    const contactParts = `GSTIN: ${company.gstin} • Email: ${company.email} • Phone: ${company.phone}`;
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#64748b')
+      .text(contactParts, leftMargin, leftY, { width: leftColWidth, lineGap: 1.5 });
+
+    leftY = doc.y;
+
+    // Header dividing line placed safely below both columns
+    const sepY = Math.max(leftY + 8, metaBoxY + 62 + 8, startY + 92);
     doc
       .strokeColor('#cbd5e1')
       .lineWidth(0.75)
@@ -511,14 +529,14 @@ export class QuotationPdfService {
     // Column Definitions (Total = 523pt, 36 to 559)
     const cols = {
       sr: { x: 36, w: 18, align: 'center' as const },
-      desc: { x: 56, w: 164, align: 'left' as const },
-      hsn: { x: 222, w: 46, align: 'center' as const },
-      qty: { x: 270, w: 42, align: 'right' as const },
-      rate: { x: 314, w: 56, align: 'right' as const },
-      disc: { x: 372, w: 32, align: 'right' as const },
-      taxable: { x: 406, w: 56, align: 'right' as const },
-      gst: { x: 464, w: 28, align: 'right' as const },
-      total: { x: 494, w: 65, align: 'right' as const },
+      desc: { x: 56, w: 168, align: 'left' as const },
+      hsn: { x: 226, w: 44, align: 'center' as const },
+      qty: { x: 272, w: 42, align: 'right' as const },
+      rate: { x: 316, w: 54, align: 'right' as const },
+      disc: { x: 372, w: 30, align: 'right' as const },
+      taxable: { x: 404, w: 56, align: 'right' as const },
+      gst: { x: 462, w: 28, align: 'right' as const },
+      total: { x: 492, w: 67, align: 'right' as const },
     };
 
     // Table Header
@@ -540,8 +558,46 @@ export class QuotationPdfService {
     let currentY = tableTop + 20;
 
     items.forEach((item, index) => {
-      const hasSubDetails = !!(item.productSku || item.make || (item.description && item.description !== item.productName));
-      const rowHeight = hasSubDetails ? 26 : 20;
+      const productName = (item.productName || 'Unnamed Item').trim();
+      const metaParts = [
+        item.productSku ? `SKU: ${item.productSku}` : null,
+        item.make ? `Make: ${item.make}` : null,
+        item.model ? `Model: ${item.model}` : null,
+      ]
+        .filter(Boolean)
+        .join(' • ');
+
+      const rawDesc = (item.description || '').trim();
+      // Show description if present and distinct from productName
+      const hasDesc = !!rawDesc && rawDesc !== productName;
+
+      // Accurately compute heights with line gaps so lines never overlap
+      const nameH = doc.font('Helvetica-Bold').fontSize(7.5).heightOfString(productName, {
+        width: cols.desc.w,
+        lineGap: 1,
+      });
+
+      const metaH = metaParts
+        ? doc.font('Helvetica').fontSize(6.5).heightOfString(metaParts, {
+            width: cols.desc.w,
+            lineGap: 1,
+          })
+        : 0;
+
+      const descH = hasDesc
+        ? doc.font('Helvetica').fontSize(6.5).heightOfString(rawDesc, {
+            width: cols.desc.w,
+            lineGap: 1.5,
+          })
+        : 0;
+
+      const topPad = 4;
+      const bottomPad = 5;
+      let textBlockHeight = nameH;
+      if (metaParts) textBlockHeight += 2 + metaH;
+      if (hasDesc) textBlockHeight += 2 + descH;
+
+      const rowHeight = Math.max(22, textBlockHeight + topPad + bottomPad);
 
       // Check page break
       if (currentY + rowHeight > doc.page.height - 110) {
@@ -582,49 +638,63 @@ export class QuotationPdfService {
         .lineTo(36 + contentWidth, currentY + rowHeight)
         .stroke();
 
-      doc.font('Helvetica').fontSize(7.5).fillColor('#0f172a');
-      doc.text(String(index + 1), cols.sr.x, currentY + 4, { width: cols.sr.w, align: cols.sr.align });
+      const colY = currentY + topPad;
 
-      // Product Name & Subtext
+      doc.font('Helvetica').fontSize(7.5).fillColor('#0f172a');
+      doc.text(String(index + 1), cols.sr.x, colY, { width: cols.sr.w, align: cols.sr.align });
+
+      // Product Name & multi-line Description sequentially rendered
+      let descY = colY;
       doc
         .font('Helvetica-Bold')
         .fontSize(7.5)
         .fillColor('#0f172a')
-        .text(item.productName, cols.desc.x, currentY + 3, { width: cols.desc.w, lineBreak: false, ellipsis: true });
+        .text(productName, cols.desc.x, descY, {
+          width: cols.desc.w,
+          lineGap: 1,
+        });
+      descY += nameH + 2;
 
-      if (hasSubDetails) {
-        const subDetails = [
-          item.productSku ? `SKU: ${item.productSku}` : null,
-          item.make ? `Make: ${item.make}` : null,
-          item.description && item.description !== item.productName ? item.description : null,
-        ]
-          .filter(Boolean)
-          .join(' • ');
-
+      if (metaParts) {
         doc
           .font('Helvetica')
           .fontSize(6.5)
           .fillColor('#64748b')
-          .text(subDetails, cols.desc.x, currentY + 13, { width: cols.desc.w, lineBreak: false, ellipsis: true });
+          .text(metaParts, cols.desc.x, descY, {
+            width: cols.desc.w,
+            lineGap: 1,
+          });
+        descY += metaH + 2;
+      }
+
+      if (hasDesc) {
+        doc
+          .font('Helvetica')
+          .fontSize(6.5)
+          .fillColor('#475569')
+          .text(rawDesc, cols.desc.x, descY, {
+            width: cols.desc.w,
+            lineGap: 1.5,
+          });
       }
 
       // HSN/SAC: If blank or empty, render '—'
       const hsnText = item.hsnSac && String(item.hsnSac).trim().length > 0 ? String(item.hsnSac).trim() : '—';
       doc.font('Helvetica').fontSize(7.5).fillColor('#334155');
-      doc.text(hsnText, cols.hsn.x, currentY + 4, { width: cols.hsn.w, align: cols.hsn.align });
+      doc.text(hsnText, cols.hsn.x, colY, { width: cols.hsn.w, align: cols.hsn.align });
 
       const gstNum = Number(item.gstRate);
       const gstFormatted = !isNaN(gstNum) ? `${gstNum}%` : `${item.gstRate}%`;
 
-      doc.text(`${item.quantity} ${item.unit || ''}`, cols.qty.x, currentY + 4, { width: cols.qty.w, align: cols.qty.align });
-      doc.text(formatCurrency(item.unitPrice), cols.rate.x, currentY + 4, { width: cols.rate.w, align: cols.rate.align });
-      doc.text(Number(item.discountPercent) > 0 ? `${Number(item.discountPercent)}%` : '—', cols.disc.x, currentY + 4, { width: cols.disc.w, align: cols.disc.align });
-      doc.text(formatCurrency(item.taxableAmount), cols.taxable.x, currentY + 4, { width: cols.taxable.w, align: cols.taxable.align });
-      doc.text(gstFormatted, cols.gst.x, currentY + 4, { width: cols.gst.w, align: cols.gst.align });
+      doc.text(`${item.quantity} ${item.unit || ''}`, cols.qty.x, colY, { width: cols.qty.w, align: cols.qty.align });
+      doc.text(formatCurrency(item.unitPrice), cols.rate.x, colY, { width: cols.rate.w, align: cols.rate.align });
+      doc.text(Number(item.discountPercent) > 0 ? `${Number(item.discountPercent)}%` : '—', cols.disc.x, colY, { width: cols.disc.w, align: cols.disc.align });
+      doc.text(formatCurrency(item.taxableAmount), cols.taxable.x, colY, { width: cols.taxable.w, align: cols.taxable.align });
+      doc.text(gstFormatted, cols.gst.x, colY, { width: cols.gst.w, align: cols.gst.align });
 
       doc
         .font('Helvetica-Bold')
-        .text(formatCurrency(item.lineTotal), cols.total.x, currentY + 4, { width: cols.total.w, align: cols.total.align });
+        .text(formatCurrency(item.lineTotal), cols.total.x, colY, { width: cols.total.w, align: cols.total.align });
 
       currentY += rowHeight;
     });

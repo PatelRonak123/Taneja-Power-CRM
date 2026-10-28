@@ -8,6 +8,7 @@ import { ProductGrid } from '../modules/ProductGrid/ProductGrid';
 import { ProductForm } from '../modules/ProductForm/ProductForm';
 import { ExcelImportModal } from '../components/ExcelImportModal';
 import { Modal } from '@/components/ui/Modal';
+import { TablePagination } from '@/components/ui/table';
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
 import { ErrorAlert } from '@/components/feedback/ErrorAlert';
 import { Product } from '../types/product.types';
@@ -29,10 +30,13 @@ export const ProductsPage: React.FC = () => {
     searchQuery,
     selectedCategory,
     selectedStatus,
+    currentPage,
+    pageSize,
     queryParams,
     setSearchQuery,
     setSelectedCategory,
     setSelectedStatus,
+    setCurrentPage,
     resetFilters,
   } = useProductFilters();
 
@@ -108,6 +112,11 @@ export const ProductsPage: React.FC = () => {
       ) : viewMode === 'table' ? (
         <ProductTable
           products={products}
+          page={currentPage}
+          totalPages={meta?.totalPages || Math.ceil((meta?.total || products.length) / pageSize)}
+          totalCount={meta?.total ?? products.length}
+          limit={pageSize}
+          onPageChange={setCurrentPage}
           onEdit={handleOpenEditModal}
           onDelete={deleteProduct}
           onDeployFirst={canManageProducts ? handleOpenAddModal : undefined}
@@ -117,14 +126,28 @@ export const ProductsPage: React.FC = () => {
           canDelete={isAdmin}
         />
       ) : (
-        <ProductGrid
-          products={products}
-          onEdit={handleOpenEditModal}
-          onDelete={deleteProduct}
-          onDeployFirst={canManageProducts ? handleOpenAddModal : undefined}
-          canEdit={canManageProducts}
-          canDelete={isAdmin}
-        />
+        <div className="flex flex-col gap-6">
+          <ProductGrid
+            products={products}
+            onEdit={handleOpenEditModal}
+            onDelete={deleteProduct}
+            onDeployFirst={canManageProducts ? handleOpenAddModal : undefined}
+            canEdit={canManageProducts}
+            canDelete={isAdmin}
+          />
+          {(meta?.total ?? products.length) > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+              <TablePagination
+                page={currentPage}
+                totalPages={meta?.totalPages || Math.ceil((meta?.total || products.length) / pageSize)}
+                totalCount={meta?.total ?? products.length}
+                limit={pageSize}
+                onPageChange={setCurrentPage}
+                entityName="equipment assets"
+              />
+            </div>
+          )}
+        </div>
       )}
 
       {/* Deploy / Edit Asset Modal */}
